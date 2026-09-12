@@ -91,8 +91,55 @@ a fuller screenshot:
   capture inner-scrolled content) — confirmed Sessions and Streak cards
   render correctly, matching the reference.
 
+## Done (continued)
+- Built Library screen (`app/(tabs)/library.tsx`, dummy data): search bar,
+  5 category tabs (For You/Calm/Sleep/Energy/Recovery), Quick Start button,
+  6-session grid — reuses `GlassCard` and `GradientText` from Home unchanged
+  plus one new component, `SessionThumbnail` (per-pattern gradient
+  placeholder, same rationale as `BreathOrb`). Home, `_layout.tsx`, theme
+  tokens, and all existing components were left untouched per instruction —
+  this was additive-only work.
+  - Category tab counts are REAL, computed from `src/data/sessions.ts`
+    (For You 6, Calm 2, Sleep 2, Energy 1, Recovery 1) — not
+    library-code.html's placeholder mockup numbers (292/45/38/24)
+  - Search + category filtering both verified interactively (typed "Box" →
+    only Box Breathing shown; tapped Sleep tab → only Morning Reset + Wind
+    Down shown)
+  - Quick Start navigates to `/session-player?sessionId=deep-exhale` (same
+    route Home's Begin uses) — verified it correctly shows Expo Router's
+    "Unmatched Route" screen (no crash), matching the expected state since
+    Session Player doesn't exist yet
+  - Session cards use the real 6-session catalog with the locked
+    badge→icon mapping (Leaf→eco, Moon→bedtime, Zap→bolt, Heart→favorite),
+    not hardcoded per-screen content
+  - Verified visually: ran a *second*, separate dev server on port 8082
+    (left the port-8081 server the user was phone-testing with completely
+    untouched) and screenshotted with `playwright-cli` against
+    `assets/design-reference/library-screenshot.png`
+
+## Known deviations (Library, flagged not silent)
+- PRD.md is internally inconsistent: its Core Screens list names Library's
+  tabs "For You/Calm/Recovery/Sleep" (4, no Energy), but its own
+  category-count example includes "Energy 1" — only meaningful with an
+  Energy tab, since Stress Relief's real category is Energy. Built 5 tabs
+  (For You + all 4 real categories from `types/models.ts`) since that's
+  what the example counts (and this session's task instructions) implied
+- Search bar built as dark glass (`rgba(0,0,0,0.2)`) per DESIGN.md's
+  explicit "Inputs" spec and library-code.html's own `.glass-input` CSS
+  class — NOT matching library-screenshot.png, which renders it solid
+  white. That white render reads as a Tailwind-forms-plugin artifact in the
+  Stitch export, not an intentional style, since it contradicts both the
+  written spec and the mockup's own CSS
+- Quick Start button built with the vivid `primary-container`→
+  `inverse-primary` gradient library-code.html's CSS specifies — the
+  reference screenshot renders it very low-contrast/muted, which looks like
+  a similar screenshot-capture artifact rather than intended design
+- Session thumbnails are per-pattern gradient placeholders (not real
+  Stitch illustrations — same hotlinked-third-party-image issue as Home's
+  BreathOrb)
+
 ## Next
-- Build Library screen, using the locked session mapping (dummy/placeholder data)
+- Awaiting review before starting Insights (build order step 5)
 
 ## Blockers
 - None
