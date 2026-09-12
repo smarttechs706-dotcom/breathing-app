@@ -1,5 +1,17 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+// Deep import, not a documented public path: expo-router vendors its own
+// react-navigation/bottom-tabs copy (there's no separate
+// @react-navigation/bottom-tabs dependency), and this hook isn't
+// re-exported from the top-level 'expo-router' package. It's still the
+// library's own recommended fix for this problem (its own type comments
+// say so), and is now CONFIRMED correct on-device via instrumented
+// debugging (reported tabBarHeight=84.0, matching reality exactly) — the
+// overlap some users see at scrollY=0 is inherent to a floating tab bar
+// over content taller than one screen (nothing to scroll yet), not a
+// calculation bug. Flagging the fragility: could break on an expo-router
+// upgrade that reorganizes this internal path.
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,6 +36,8 @@ function formatDuration(durationSec: number) {
 }
 
 export default function HomeScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+
   return (
     <View style={styles.root}>
       {/* DESIGN.md: background is never flat black — a soft radial glow
@@ -50,7 +64,10 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: tabBarHeight + spacing.base * 2 },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Featured Session */}
@@ -174,7 +191,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
-    height: 64,
+    // Trimmed slightly (was 64) so first-load content (before any
+    // scrolling) clears the floating tab bar better — see PROGRESS.md's
+    // "first impression" spacing pass.
+    height: 56,
   },
   topBarLeft: {
     flexDirection: 'row',
@@ -207,12 +227,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.sectionGap,
-    paddingBottom: 140,
-    gap: spacing.sectionGap,
+    // paddingTop/gap trimmed from spacing.sectionGap (40) — see
+    // PROGRESS.md's "first impression" spacing pass.
+    paddingTop: spacing.base * 2.5,
+    // paddingBottom is set dynamically at render time from
+    // useBottomTabBarHeight() — see the ScrollView usage above.
+    gap: spacing.base * 2.5,
   },
   section: {
-    gap: spacing.base * 2,
+    gap: spacing.base * 1.25,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -241,11 +264,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   heroCard: {
-    padding: spacing.base * 3,
+    padding: spacing.base * 2,
   },
   heroContent: {
     alignItems: 'center',
-    gap: spacing.base * 2,
+    gap: spacing.base * 1.25,
   },
   heroTitle: {
     fontFamily: typography.displayLg.fontFamily,
@@ -265,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.base * 1.5,
-    marginTop: spacing.base,
+    marginTop: spacing.base * 0.5,
   },
   durationPill: {
     flexDirection: 'row',

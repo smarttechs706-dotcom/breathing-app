@@ -1,6 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+// See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
+// correct on-device via instrumented debugging (see PROGRESS.md).
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
 import { useMemo, useState } from 'react';
 import {
   Pressable,
@@ -49,6 +52,7 @@ function countFor(category: CategoryFilter): number {
 }
 
 export default function LibraryScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('For You');
   const [query, setQuery] = useState('');
 
@@ -88,7 +92,10 @@ export default function LibraryScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: tabBarHeight + spacing.base * 2 },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -242,7 +249,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.marginMobile,
     paddingTop: spacing.base,
-    paddingBottom: 140,
+    // paddingBottom is set dynamically at render time from
+    // useBottomTabBarHeight() — see the ScrollView usage above.
     gap: spacing.base * 2,
   },
   searchWrapper: {

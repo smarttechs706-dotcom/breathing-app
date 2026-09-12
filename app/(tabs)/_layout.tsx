@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { Tabs, router } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radii, typography } from '../../src/theme/tokens';
@@ -68,12 +68,35 @@ function TabButton({
   testID?: string;
 }) {
   const tintColor = focused ? colors.primary : `${colors.onSurfaceVariant}B3`;
+
+  // Bug fix, round 2: overriding just `backgroundColor` (previous attempt)
+  // stopped the box from showing on every tab, but the active tab still
+  // rendered a hard-edged rectangle instead of a pill — the library's own
+  // per-tab `style` also carries `borderRadius: 16` (BottomTabItem.js,
+  // Android's "material" variant), which we were still inheriting and
+  // never overrode. Rather than keep cancelling out individual properties
+  // one at a time (background, then radius, then whatever's next), stop
+  // inheriting the library's decorative styling altogether: pull out only
+  // `flex` (needed so all 4 tabs share the row equally) and discard
+  // everything else. Only our own `tabContent`/`tabContentActive` (with
+  // `radii.full`) can paint a background now, on any platform.
+  const libraryFlex = StyleSheet.flatten(
+    typeof style === 'function' ? undefined : style
+  )?.flex;
+
   return (
     <Pressable
       onPress={onPress}
-      style={style}
+      // Bug fix, round 3: padding values (16/4, matching home-code.html's
+      // `px-4 py-1` exactly) were already correct — the pill still looked
+      // oversized because this Pressable had no explicit `alignItems`, so
+      // RN's default `alignItems: 'stretch'` stretched `tabContent` to
+      // fill this Pressable's full flex-width (a quarter of the tab bar),
+      // instead of hugging just the icon+label like the reference image.
+      // `alignItems: 'center'` lets it size to its own intrinsic content
+      // width instead.
+      style={{ flex: libraryFlex, alignItems: 'center' }}
       testID={testID}
-      android_ripple={{ borderless: true }}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
     >
@@ -140,6 +163,12 @@ export default function TabsLayout() {
         name="player"
         options={{
           title: 'Player',
+          // No more special-cased onPress here — tapping Player now always
+          // navigates to its own route like every other tab. That screen
+          // (app/(tabs)/player.tsx) decides what to show: its own
+          // dedicated empty state, or a redirect to the real Session
+          // Player when one is genuinely in progress (tracked via
+          // ActiveSessionContext). See that file for the full rationale.
           tabBarButton: (props) => (
             <TabButton
               name="waves"
@@ -150,16 +179,6 @@ export default function TabsLayout() {
               testID={props.testID}
             />
           ),
-        }}
-        listeners={{
-          tabPress: (e) => {
-            // architecture.md: tapping Player with no session in progress
-            // redirects to Library rather than showing a dead/empty tab.
-            // TODO: once Session Player exists, only redirect when there is
-            // no active session; navigate to it directly otherwise.
-            e.preventDefault();
-            router.replace('/library');
-          },
         }}
       />
       <Tabs.Screen
@@ -196,6 +215,19 @@ const styles = StyleSheet.create({
   // home-code.html: `bg-primary-container/20 rounded-xl px-4 py-1` on the
   // active tab only.
   tabContent: {
+    // Bug fix, round 4: `alignItems: 'center'` on the parent Pressable
+    // (round 3) fixed this on web but NOT on-device — confirmed via a
+    // full force-stop/clear-cache/reconnect that this was a genuine
+    // Android layout difference, not staleness. Forcing the constraint
+    // directly on this element instead of relying on the parent:
+    // `alignSelf: 'center'` overrides whatever the parent's alignItems
+    // does for this specific child, and flexGrow/flexShrink: 0 stop it
+    // from being stretched/resized by the parent's flex layout at all —
+    // it can only ever be as wide as its own icon+label content plus
+    // padding, regardless of platform-specific parent-stretch behavior.
+    alignSelf: 'center',
+    flexGrow: 0,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
