@@ -90,9 +90,16 @@ Browse → Play → Check in → See result → Come back
 ## Session catalog (v1, 6 sessions)
 | Session | Category | Duration |
 |---|---|---|
-| Deep Exhale | Calm | 18 min |
+| Deep Exhale | Calm | 10 min |
 | Morning Reset | Sleep | 18 min |
 | Calm Focus | Calm | 15 min |
 | Stress Relief | Energy | 10 min |
 | Wind Down | Sleep | 12 min |
 | Box Breathing | Recovery | 12 min |
+
+Deep Exhale's duration (originally 18 min in this table) and description
+were updated to match session-player-code.html's version — 10 min,
+"Designed to activate your parasympathetic nervous system, lowering your
+heart rate and melting away residual tension." — made canonical everywhere
+by explicit product decision (2026-09-12), overriding this table's
+original value and home-code.html's differing description text.
