@@ -138,8 +138,60 @@ a fuller screenshot:
   Stitch illustrations — same hotlinked-third-party-image issue as Home's
   BreathOrb)
 
+## Bug: bottom tab bar invisible on physical Android (found + fixed)
+User tested on a physical Android device via Expo Go after Library shipped
+and found the bottom tab bar completely invisible — worked fine in every
+web-based verification. Root-caused via `git bisect`-style diagnostics
+(user directed each step) rather than guessing:
+- Diagnostic #1: swapped `BlurView` for a plain solid-color View — still
+  invisible. Ruled out `expo-blur`.
+- Diagnostic #2: reverted the custom `TabButtonContent` (combined
+  icon+label pill via `tabBarIcon` + `tabBarShowLabel:false`) to Expo
+  Router's plain default separate `tabBarIcon`/`tabBarLabel` — tab bar
+  appeared. Isolated the cause to that custom component.
+- Root cause, confirmed by reading Expo Router's own vendored source
+  (`node_modules/expo-router/build/react-navigation/bottom-tabs/views/
+  {BottomTabItem,TabBarIcon}.js` — this project doesn't depend on
+  `@react-navigation/bottom-tabs` directly; Expo Router vendors its own
+  copy): whatever `tabBarIcon` returns is forced into a hard-coded 24x24
+  box, and the tab item's outer View sets
+  `overflow: variant === 'material' ? 'hidden' : 'visible'`. Android's
+  bottom-tab variant is `'material'`, so our pill (much bigger than
+  24x24) was silently clipped to nothing there specifically, while
+  iOS/web use `overflow: 'visible'` and never clip it — exactly why the
+  web screenshot always looked right.
+- Fix: render the pill via `tabBarButton` instead of `tabBarIcon`/
+  `tabBarLabel`. It replaces the whole tab button before any of that
+  fixed-size icon-slot logic runs, so the pill renders at the tab's real
+  size on every platform (`focused` arrives as the button's
+  `aria-selected` prop). Restored `BlurView` since it was never the
+  actual bug.
+
+## Fix: wrong tab icons on-device (found + fixed)
+After the tab bar itself was fixed, on-device testing showed Library and
+Player rendering the *wrong glyph entirely* (a briefcase-like icon, a
+play-circle) despite the code using architecture.md's documented names
+(`grid_view`, `air`). Confirmed the code was correct (verified codepoints
+against the installed `@expo/vector-icons@15.1.1` glyphmap — `grid-view`
+0xe9b0, `air` 0xefd8, `insights` 0xf092, all present and self-consistent).
+Root cause: `home` (codepoint 0xe88a, one of Material Icons' original 2014
+glyphs) rendered correctly while the three comparatively recent additions
+(`grid_view`, `air`, `insights`) didn't — pointing at Expo Go's bundled
+MaterialIcons font predating those codepoints' current assignment (Expo Go
+ships its own font copy tied to the SDK version, separate from this
+project's npm-installed font). Rather than depend on the user's Expo Go
+build being current, swapped to icons from Material Icons' original/early
+batch (low 0xe1xx-0xe6xx codepoints), picking the closest visual/semantic
+match — reasoning documented inline in `app/(tabs)/_layout.tsx`:
+- Library: `grid-view` → `apps` (same "grid of items" meaning)
+- Player: `air` → `waves` (undulating line reads as breathing rhythm)
+- Insights: `insights` → `show-chart` (trend line, arguably an even more
+  literal fit for an analytics screen)
+
 ## Next
-- Awaiting review before starting Insights (build order step 5)
+- Awaiting on-device confirmation that the tab bar + corrected icons both
+  render correctly, then review before starting Insights (build order
+  step 5)
 
 ## Blockers
 - None
