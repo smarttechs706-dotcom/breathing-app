@@ -1,0 +1,345 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Breathe - Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed-variant": "#1f3ba6",
+                      "surface-dim": "#111415",
+                      "background": "#111415",
+                      "on-error": "#690005",
+                      "tertiary-fixed-dim": "#a6ccde",
+                      "surface": "#111415",
+                      "secondary-fixed": "#d5e3ff",
+                      "surface-container-highest": "#323536",
+                      "primary-fixed": "#dde1ff",
+                      "on-background": "#e1e3e4",
+                      "inverse-on-surface": "#2e3132",
+                      "on-tertiary-fixed-variant": "#254c5a",
+                      "primary-container": "#7189f6",
+                      "surface-container": "#1d2021",
+                      "on-secondary": "#003060",
+                      "on-secondary-container": "#94b7ef",
+                      "on-tertiary-fixed": "#001f29",
+                      "surface-bright": "#373a3b",
+                      "secondary-container": "#214779",
+                      "error": "#ffb4ab",
+                      "primary-fixed-dim": "#b9c3ff",
+                      "on-primary": "#002388",
+                      "tertiary-fixed": "#c1e8fa",
+                      "on-primary-container": "#001e78",
+                      "on-surface-variant": "#c5c5d5",
+                      "error-container": "#93000a",
+                      "surface-variant": "#323536",
+                      "on-secondary-fixed": "#001c3b",
+                      "on-error-container": "#ffdad6",
+                      "primary": "#b9c3ff",
+                      "on-secondary-fixed-variant": "#214779",
+                      "inverse-surface": "#e1e3e4",
+                      "on-surface": "#e1e3e4",
+                      "outline": "#8f909e",
+                      "on-tertiary": "#093543",
+                      "on-primary-fixed": "#001356",
+                      "secondary": "#a7c8ff",
+                      "tertiary-container": "#7196a7",
+                      "inverse-primary": "#3c55bf",
+                      "secondary-fixed-dim": "#a7c8ff",
+                      "surface-container-lowest": "#0c0f10",
+                      "on-tertiary-container": "#002e3c",
+                      "tertiary": "#a6ccde",
+                      "outline-variant": "#444653",
+                      "surface-container-high": "#282a2b",
+                      "surface-container-low": "#191c1d",
+                      "surface-tint": "#b9c3ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "1rem",
+                      "lg": "2rem",
+                      "xl": "3rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "16px",
+                      "margin-mobile": "24px",
+                      "margin-desktop": "64px",
+                      "section-gap": "40px",
+                      "base": "8px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "label-sm": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "body-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "display-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-lg-mobile": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-lg": [
+                              "Plus Jakarta Sans"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .glass-input {
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, theme('colors.primary'), theme('colors.tertiary'));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .gradient-btn {
+            background: linear-gradient(135deg, theme('colors.primary-container'), theme('colors.inverse-primary'));
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.2);
+        }
+
+        .glow-layer {
+            background: radial-gradient(circle at center, rgba(113, 137, 246, 0.15) 0%, rgba(0,0,0,0) 70%);
+        }
+        
+        /* Hide scrollbar for horizontal tabs */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen pb-24 md:pb-0 relative overflow-x-hidden">
+<!-- Background Gradient Base -->
+<div class="fixed inset-0 bg-gradient-to-br from-[#0a0c10] via-surface to-[#0d1222] -z-20 pointer-events-none"></div>
+<!-- Ethereal Glows -->
+<div class="fixed top-[-20%] left-[-10%] w-[60vw] h-[60vw] glow-layer rounded-full -z-10 pointer-events-none blur-3xl"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] glow-layer rounded-full -z-10 pointer-events-none blur-3xl opacity-60"></div>
+<!-- TopAppBar (Mobile & Desktop) -->
+<header class="fixed top-0 w-full z-50 bg-surface/40 backdrop-blur-[40px] shadow-[0_0_20px_rgba(0,0,0,0.1)]">
+<div class="flex justify-between items-center px-margin-mobile md:px-margin-desktop h-16 w-full max-w-7xl mx-auto">
+<!-- Leading Avatar -->
+<button class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant hover:opacity-80 transition-opacity">
+<img alt="User Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_c4J0FV3aJIob81u6cmmST_Vk4Aq0PwgH_80p44PLIGzAK5YfyrFPacNUfW6z7jECkBoFVRI44k0oF_Cv_1-qN96CCFeavkUAsprcIEUXmVyxHbS6bo-rhS4H64IcWluQ_VsQ0JmxqEDMguu17SxPALavFEY7-9vIOu6BeDebaz7J0-ZqRhdL9aUPojfYmpc6wdETdSvfy--ndcjY8S9hUG5VQEAOYPRuK6iBD7Es-y-Eliq35F_J">
+</button>
+<!-- Headline -->
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent font-bold">
+                Breathe
+            </h1>
+<!-- Trailing Icon -->
+<button class="text-primary hover:opacity-80 transition-opacity flex items-center justify-center w-8 h-8">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 px-margin-mobile md:px-margin-desktop max-w-7xl mx-auto flex flex-col gap-section-gap">
+<!-- Search Section -->
+<section class="w-full flex flex-col gap-base">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full h-14 pl-12 pr-4 rounded-xl glass-input text-body-md font-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-colors" placeholder="Search sessions..." type="text">
+</div>
+</section>
+<!-- Categories & Quick Start -->
+<section class="flex flex-col md:flex-row gap-gutter justify-between items-start md:items-center">
+<!-- Horizontal Tabs -->
+<div class="w-full overflow-x-auto no-scrollbar pb-2 md:pb-0">
+<div class="flex gap-3 w-max">
+<button class="px-5 py-2.5 rounded-full glass-panel border border-primary/50 text-primary font-label-sm text-label-sm flex items-center gap-2 hover:bg-primary/10 transition-colors">
+                        For You <span class="bg-primary/20 px-1.5 py-0.5 rounded-md text-xs">292</span>
+</button>
+<button class="px-5 py-2.5 rounded-full glass-panel text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 hover:text-on-surface transition-colors">
+                        Calm <span class="bg-surface-variant px-1.5 py-0.5 rounded-md text-xs">45</span>
+</button>
+<button class="px-5 py-2.5 rounded-full glass-panel text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 hover:text-on-surface transition-colors">
+                        Recovery <span class="bg-surface-variant px-1.5 py-0.5 rounded-md text-xs">38</span>
+</button>
+<button class="px-5 py-2.5 rounded-full glass-panel text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 hover:text-on-surface transition-colors">
+                        Sleep <span class="bg-surface-variant px-1.5 py-0.5 rounded-md text-xs">24</span>
+</button>
+</div>
+</div>
+<!-- Quick Start Button -->
+<button class="shrink-0 gradient-btn text-on-primary-container px-6 py-3 rounded-xl font-label-sm text-label-sm flex items-center gap-2 hover:opacity-90 transition-opacity active:scale-95 w-full md:w-auto justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                Quick Start
+            </button>
+</section>
+<!-- Grid Content -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-gutter pb-10">
+<!-- Card 1 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<!-- Thumbnail -->
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring concentric rings pattern in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCUb2bL6y7A2H_hFtdJhcrQe_wN1rswRiPI2NPvN9X8aZFu78aTpp22OL_5NuItmcqMpXkhRo7g7EHXMap9ue5A2p1Tzwi87lnMe0Qn4VvB-hetEorXJUA3W4ujL-Wv8eS9W4TpAT5ZlCt2Xc6S1jaK519ILVTQ69hD8Oy81rOfWsnxmYRNEHGUnwsh8SaZSkXU3s0m-BLaByM_7yCegD4SVr0WUqbeG2KsGvBEg4spS4aFoDpz7UdF')"></div>
+</div>
+<!-- Content -->
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Deep Exhale</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">eco</span>
+<span class="">18 min</span>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring fluid wave patterns in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDYLBUK6mnzR_d7EFyB9VJwdQ27Ob23KrUFA0flaH0sq2GMuQ2aL9riT9FSCDPb-cv3PEjbMS3vQVdB74gk3dus8JLlWyxpY-YM3Fo9vXwTqI5OlCnq6htobd-V_ov2XTprVmBG9l8_D1r8014SlAq2DC_HOlnmZ6mW4ovHzMR_g-FQb9ItxiY0xI1mDWsYLZQqt44xd_-76phvu_bOkHPrbWcHHTcqay_IG4RWbl1Vy12fl_bHdK0r')"></div>
+</div>
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Morning Reset</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">bedtime</span>
+<span class="">18 min</span>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring subtle starburst light patterns in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuDrYwy6EjeQHcHiY_9cXTMRBtmcndgiCOG0Wl9UTjOdmjEj6DKqPzA14GLNizmuPWbPOZ6BqlAauaiHlCWdeDuiYByAn-lJ00htle_DH9XHud8apdSmMkr6V35VEnj6IUpnPDpEv8MRkloluFDqs_MWGt6aLozNFtgnsojBbjd1YmHjxaRA_jGAV35sWr2tcdfMv83_Z6M2WsgW19hPE9Si3fdT-XfmEmZWzzzTA4vuKvg0BBlJYUGh&quot;);"></div>
+</div>
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Calm Focus</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">eco</span>
+<span class="">15 min</span>
+</div>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring an abstract glowing dot-grid pattern in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD7Nw0XzG454xHDh07Z_XIO7j0q6dzKFimLwWZqHFopfPcy-qpBXLPHbgeF4OwIg-FtL8Dud-mrLeyY46DweC9Qafj9Uzati-m8Fzeoxr3CaflnuHsnFujnpoL3Vd1zGllMUnUZ9KYpSgPSF6RKgCUVOuAPrqEBl9kV64-ClWVsg81iUXS2yWK7lFwDISfVT56VFYhxCL6nmPzA3F9xoxvCapgkZO0yep0lvYZt6pDPlvwkCAVu5bFi')"></div>
+</div>
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Stress Relief</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">bolt</span>
+<span class="">10 min</span>
+</div>
+</div>
+</div>
+<!-- Card 5 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring a gentle spiral vortex pattern in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC8q5fSR47bVm_BHtxZ9rFVxEBamn-T5FY1zcT6iAfFkLVH97DkFrcEx-s2XHiMvZ4uGZP_E5S8UwQqkXf6wOEP4cBMrvkAVt5uZrdGupQCpkpyFGD79VMBSAPb4gAKpBlfFnh1MW0JMvlOXESHvR50zi94B1Vmw5imzmgdnLiXvyZxelvO-zRRRS8kOqX4uE-s5BWQtBTWI5r2hXoy2KFLZgES_26yOWYXqzOkB023okpZ9m7_misM')"></div>
+</div>
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Wind Down</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">bedtime</span>
+<span class="">12 min</span>
+</div>
+</div>
+</div>
+<!-- Card 6 -->
+<div class="glass-panel rounded-lg p-3 flex gap-4 items-center group cursor-pointer hover:bg-white/[0.05] transition-colors relative overflow-hidden">
+<div class="w-20 h-20 rounded-xl bg-surface-container-highest overflow-hidden relative shrink-0">
+<div class="w-full h-full bg-cover bg-center opacity-80 group-hover:opacity-100 transition-opacity group-hover:scale-105 duration-500" data-alt="A glowing ethereal thumbnail image featuring an abstract floral bloom pattern in deep indigo and cyan hues, meditative glassmorphic style, subtle blur and depth." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDwYRg8GURMIMD-YIJ576ogeyFR3L8H980lYR8u_Kww04KBdRE1M7PYBfjjtspCuuf8kMLN1nEXVQ2TJe-oKc5biX4q-ps89iVrDD3J3g2mrZIwJKd9L9p3LjnCwItbH3Vy_Jt5n3kwIEJAuJaDU2FeW3ioChc1vCkKSrLVhF6Gbv44pFW8rupcKYBTdVFrZsFfhEy45XHonAtd9VTklSC4_dSN3BlLMY6dG8Qedl92kiurMN_T2TlK')"></div>
+</div>
+<div class="flex flex-col gap-1 z-10">
+<h3 class="font-body-lg text-body-lg text-on-surface font-semibold group-hover:text-primary transition-colors">Box Breathing</h3>
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[16px]">favorite</span>
+<span class="">12 min</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-gutter py-4 bg-surface/40 backdrop-blur-[40px] shadow-[0_-4px_24px_rgba(0,0,0,0.2)] rounded-t-lg md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 p-2 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container/30 text-primary rounded-xl p-2 shadow-[0_0_15px_rgba(185,195,255,0.2)] transition-all duration-300 ease-out active:scale-90" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">subscriptions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 p-2 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">play_circle</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 p-2 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">insights</span>
+</a>
+</nav>
+
+
+</body></html>

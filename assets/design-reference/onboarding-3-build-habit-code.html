@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Build the Habit - Digital Zen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container": "#1d2021",
+                      "on-secondary-fixed": "#001c3b",
+                      "surface": "#111415",
+                      "error-container": "#93000a",
+                      "on-primary": "#002388",
+                      "on-tertiary-fixed": "#001f29",
+                      "secondary-container": "#214779",
+                      "on-primary-fixed-variant": "#1f3ba6",
+                      "surface-container-high": "#282a2b",
+                      "secondary-fixed-dim": "#a7c8ff",
+                      "on-primary-container": "#001e78",
+                      "tertiary-fixed": "#c1e8fa",
+                      "on-tertiary-container": "#002e3c",
+                      "secondary-fixed": "#d5e3ff",
+                      "tertiary-container": "#7196a7",
+                      "inverse-primary": "#3c55bf",
+                      "primary-fixed-dim": "#b9c3ff",
+                      "inverse-surface": "#e1e3e4",
+                      "on-error-container": "#ffdad6",
+                      "outline": "#8f909e",
+                      "on-surface-variant": "#c5c5d5",
+                      "surface-container-highest": "#323536",
+                      "tertiary": "#a6ccde",
+                      "primary-fixed": "#dde1ff",
+                      "primary": "#b9c3ff",
+                      "on-secondary-fixed-variant": "#214779",
+                      "inverse-on-surface": "#2e3132",
+                      "surface-variant": "#323536",
+                      "surface-tint": "#b9c3ff",
+                      "on-error": "#690005",
+                      "surface-dim": "#111415",
+                      "on-secondary-container": "#94b7ef",
+                      "on-surface": "#e1e3e4",
+                      "on-primary-fixed": "#001356",
+                      "primary-container": "#7189f6",
+                      "on-tertiary": "#093543",
+                      "surface-container-lowest": "#0c0f10",
+                      "outline-variant": "#444653",
+                      "error": "#ffb4ab",
+                      "surface-bright": "#373a3b",
+                      "on-tertiary-fixed-variant": "#254c5a",
+                      "on-background": "#e1e3e4",
+                      "tertiary-fixed-dim": "#a6ccde",
+                      "secondary": "#a7c8ff",
+                      "background": "#111415",
+                      "on-secondary": "#003060",
+                      "surface-container-low": "#191c1d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "1rem",
+                      "lg": "2rem",
+                      "xl": "3rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-desktop": "64px",
+                      "base": "8px",
+                      "gutter": "16px",
+                      "section-gap": "40px",
+                      "margin-mobile": "24px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "label-sm": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "body-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "display-lg": [
+                              "Plus Jakarta Sans"
+                      ],
+                      "headline-lg-mobile": [
+                              "Plus Jakarta Sans"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "36px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        /* Digital Zen Glassmorphism & Animations */
+        body {
+            background: radial-gradient(circle at top right, #1a1a3a, #111415 70%);
+            min-height: 100vh;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .glow-effect {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(113, 137, 246, 0.2) 0%, rgba(113, 137, 246, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            animation: pulseGlow 4s infinite alternate ease-in-out;
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.1); opacity: 0.9; }
+        }
+
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        .btn-gradient {
+            background: linear-gradient(135deg, #7189f6, #a6ccde);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 4px 12px rgba(113, 137, 246, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-gradient:hover {
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.6), 0 6px 16px rgba(113, 137, 246, 0.5);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="text-on-background font-body-md antialiased overflow-hidden flex flex-col justify-between h-screen">
+<!-- Top Navigation (Small / Skip) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-mobile h-16 bg-transparent">
+<div class="flex items-center text-primary hover:opacity-80 transition-opacity cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined mr-2" style="font-variation-settings: 'FILL' 1;">spa</span>
+</div>
+<button class="text-on-surface-variant font-label-sm text-label-sm hover:opacity-80 transition-opacity active:scale-95 transition-transform">
+            Skip
+        </button>
+</header>
+<!-- Main Content Area (Centered) -->
+<main class="flex-grow flex flex-col items-center justify-center px-margin-mobile md:px-margin-desktop relative z-10 w-full max-w-md mx-auto pt-16 pb-[120px]">
+<!-- Background Ambient Glow -->
+<div class="glow-effect top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64"></div>
+<!-- Illustration Area -->
+<div class="w-full flex justify-center mb-section-gap relative z-20 float-animation">
+<div class="relative w-48 h-48 md:w-56 md:h-56 glass-panel rounded-full flex items-center justify-center p-4">
+<!-- Inner soft glow ring -->
+<div class="absolute inset-0 rounded-full border border-primary/20 scale-90"></div>
+<!-- Requested Image -->
+<img alt="Streak flame illustration" class="w-3/4 h-3/4 object-contain filter drop-shadow-[0_0_15px_rgba(113,137,246,0.6)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUJi5kJ4_RIHmhbSxA2HzONqGOHf5vlaksNOs5kyFjheVh6uOq6QNXlp2CXYLOhEKJl2MsHwbiLrAW6vgPn4QH-q8EhZ0PnnnN3uSHEkq2npOoU1fDLhLTKCnxpa_6s_-Hx6ExR8df61HvZCJRMeb8k-DetpSRdJ7xlQNWBlnbXTN9XIAiVEH8a8Z5qpDWFqU5DLDimVGvdlje3VwN0Q40KFyJk_1z_zIznFsEeDZ7xSAeyGqso-lDRT1mEoHR3uyI-w"/>
+</div>
+</div>
+<!-- Typography Section -->
+<div class="text-center z-20 w-full mb-section-gap">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-gutter font-bold tracking-tight">
+                One reset a day changes the rest of it.
+            </h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto">
+                We'll remind you at the moments you actually need it — not a bedtime ritual you'll forget.
+            </p>
+</div>
+</main>
+<!-- Bottom Actions Area (Docked) -->
+<div class="fixed bottom-0 left-0 w-full px-margin-mobile md:px-margin-desktop pb-section-gap pt-gutter bg-gradient-to-t from-background via-background/90 to-transparent z-40 flex flex-col items-center">
+<div class="w-full max-w-md mx-auto flex flex-col gap-4">
+<!-- Primary Button -->
+<button class="w-full py-4 rounded-full btn-gradient text-on-primary-fixed font-label-sm text-label-sm uppercase tracking-wider text-center flex justify-center items-center">
+                Get Started
+            </button>
+<!-- Secondary Link -->
+<button class="w-full text-center py-2 text-primary hover:text-primary-container transition-colors font-label-sm text-label-sm uppercase tracking-wider">
+                Enable reminders
+            </button>
+</div>
+</div>
+</body></html>

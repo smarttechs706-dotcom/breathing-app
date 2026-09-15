@@ -1,26 +1,346 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+// See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
+// correct on-device via instrumented debugging (see PROGRESS.md).
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, typography } from '../../src/theme/tokens';
+import { GlassCard } from '../../src/components/GlassCard';
+import { GradientText } from '../../src/components/GradientText';
+import { MoodTrendChart } from '../../src/components/MoodTrendChart';
+import {
+  consistencyCalendar,
+  mindfulMinutes,
+  monthOverMonthDelta,
+  moodTrend,
+  streak,
+  totalSessions,
+} from '../../src/data/insights';
+import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 
-// Placeholder stub — real Insights screen is build order step 5.
+// architecture.md's /api/insights: mindfulMinutes is a raw minute count —
+// insights-screenshot.png displays it as "12h", so the hour formatting
+// happens here at render time rather than being baked into the dummy data.
+function formatMindfulMinutes(minutes: number): string {
+  const hours = Math.round(minutes / 60);
+  return `${hours}h`;
+}
+
+interface StatCardConfig {
+  key: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  iconColor: string;
+  value: string;
+  label: string;
+}
+
+const CALENDAR_COLUMNS = 7;
+const STAT_COLUMNS = 2;
+
+// `flexWrap: 'wrap'` + percentage/aspectRatio-sized children has been an
+// unreliable combination on Android throughout this screen (the
+// consistency grid's cells collapsed to 0 height; the stat grid's wrapped
+// second row rendered its icon/value/label overlapping instead of
+// stacked — both confirmed on-device, both fine on web). Chunking into
+// plain (non-wrapping) rows of `flex: 1` cells sidesteps `flexWrap`
+// entirely rather than patching each symptom individually.
+function chunk<T>(items: T[], size: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
+}
+
 export default function InsightsScreen() {
+  const tabBarHeight = useBottomTabBarHeight();
+
+  const statCards: StatCardConfig[] = [
+    {
+      // 'local-fire-department' is a newer Material Symbols addition —
+      // same family as grid_view/air/insights, which rendered as the
+      // wrong glyph on Android's Expo Go bundled font (see PROGRESS.md).
+      // 'whatshot' is the classic fire icon, confirmed present in that
+      // font's original glyph set.
+      key: 'streak',
+      icon: 'whatshot',
+      iconColor: colors.primary,
+      value: `${streak.currentStreak}`,
+      label: 'Current Streak',
+    },
+    {
+      key: 'sessions',
+      icon: 'check-circle',
+      iconColor: colors.secondary,
+      value: `${totalSessions}`,
+      label: 'Total Sessions',
+    },
+    {
+      // 'schedule' confirmed WRONG glyph on-device (see PROGRESS.md) —
+      // codepoint proximity to other working icons (e.g. 'home'/'settings')
+      // turned out not to predict this reliably. 'access-time' sits in the
+      // 0xe1xx-0xe6xx band that has a clean track record all session
+      // ('apps', 'waves', 'show-chart', 'check' all live there and work).
+      key: 'minutes',
+      icon: 'access-time',
+      iconColor: colors.tertiary,
+      value: formatMindfulMinutes(mindfulMinutes),
+      label: 'Mindful Minutes',
+    },
+    {
+      // 'trending-up' confirmed WRONG glyph on-device — 'arrow-upward'
+      // fixed the font-mismatch but is a plain arrow, not the zigzag
+      // trend-line look the design calls for. Rendered every candidate
+      // from the exact bundled MaterialIcons.ttf as an image (via a local
+      // @font-face test page) to compare shapes directly rather than
+      // guess by name: 'moving' (0xe501) is a pixel-for-pixel match for
+      // trending-up's zigzag-line-with-arrowhead shape, and its codepoint
+      // sits in the proven-safe 0xe1xx-0xe6xx band.
+      key: 'trend',
+      icon: 'moving',
+      iconColor: colors.primary,
+      value: `+${monthOverMonthDelta}%`,
+      label: 'Vs Last Month',
+    },
+  ];
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Insights — coming soon</Text>
+    <View style={styles.root}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.topBar}>
+          <View style={styles.avatar}>
+            <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
+          </View>
+          <GradientText
+            colors={[colors.primary, colors.tertiary]}
+            style={styles.headline}
+          >
+            Breathe
+          </GradientText>
+          <MaterialIcons name="settings" size={24} color={colors.primary} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: tabBarHeight + spacing.base * 2 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Your Breathing Health</Text>
+            <Text style={styles.subtitle}>Tracking your journey to digital zen.</Text>
+          </View>
+
+          {/* Mood Trend */}
+          <View style={styles.cardClip}>
+            <GlassCard radius={radii.xl} style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>Mood Trend</Text>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>Last 30 Days</Text>
+                </View>
+              </View>
+              <View style={styles.chartWrapper}>
+                <MoodTrendChart data={moodTrend} height={120} />
+              </View>
+            </GlassCard>
+          </View>
+
+          {/* Consistency */}
+          <View style={styles.cardClip}>
+            <GlassCard radius={radii.xl} style={styles.card}>
+              <Text style={styles.cardTitle}>Consistency</Text>
+              <View style={styles.calendarGrid}>
+                {chunk(consistencyCalendar, CALENDAR_COLUMNS).map((week, rowIndex) => (
+                  <View key={rowIndex} style={styles.calendarRow}>
+                    {week.map((filled, cellIndex) => (
+                      <View
+                        key={cellIndex}
+                        style={[styles.calendarCell, filled && styles.calendarCellFilled]}
+                      />
+                    ))}
+                  </View>
+                ))}
+              </View>
+              <View style={styles.calendarFooter}>
+                <Text style={styles.calendarFooterStrong}>
+                  {streak.currentStreak} Week Streak
+                </Text>
+                <Text style={styles.calendarFooterMuted}>Keep going</Text>
+              </View>
+            </GlassCard>
+          </View>
+
+          {/* Stat cards */}
+          <View style={styles.statGrid}>
+            {chunk(statCards, STAT_COLUMNS).map((row, rowIndex) => (
+              <View key={rowIndex} style={styles.statRow}>
+                {row.map((stat) => (
+                  <View key={stat.key} style={[styles.cardClip, styles.statCardClip]}>
+                    <GlassCard radius={radii.xl} style={styles.statCard}>
+                      <MaterialIcons name={stat.icon} size={22} color={stat.iconColor} />
+                      <Text style={styles.statValue}>{stat.value}</Text>
+                      <Text style={styles.statLabel}>{stat.label}</Text>
+                    </GlassCard>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.marginMobile,
+    height: 56,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
   },
-  text: {
+  headline: {
+    fontFamily: typography.headlineLgMobile.fontFamily,
+    fontSize: typography.headlineLgMobile.fontSize,
+    fontWeight: typography.headlineLgMobile.fontWeight,
+    lineHeight: typography.headlineLgMobile.lineHeight,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.marginMobile,
+    paddingTop: spacing.base * 0.5,
+    gap: spacing.base * 1.5,
+  },
+  header: {
+    gap: 4,
+  },
+  title: {
+    fontFamily: typography.headlineLgMobile.fontFamily,
+    fontSize: typography.headlineLgMobile.fontSize,
+    fontWeight: typography.headlineLgMobile.fontWeight,
+    lineHeight: typography.headlineLgMobile.lineHeight,
+    color: colors.onSurface,
+  },
+  subtitle: {
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+  },
+  // expo-blur's native BlurView on Android doesn't reliably clip to a
+  // rounded rect via the parent's own overflow:hidden — confirmed
+  // on-device as 2-of-4 corners staying sharp, only surfacing once the
+  // radius grew from 16px to 48px. Wrapping each GlassCard in its own
+  // overflow:hidden + matching borderRadius View forces a second clip
+  // boundary outside the BlurView, which works around it.
+  cardClip: {
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+  },
+  statCardClip: {
+    flex: 1,
+  },
+  card: {
+    padding: spacing.base * 2,
+    gap: spacing.base * 1.5,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    fontFamily: typography.bodyLg.fontFamily,
+    fontSize: typography.bodyLg.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  pill: {
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.base * 1.5,
+    paddingVertical: spacing.base * 0.5,
+  },
+  pillText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onSurfaceVariant,
+  },
+  chartWrapper: {
+    width: '100%',
+  },
+  calendarGrid: {
+    gap: spacing.base * 0.75,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+    gap: spacing.base * 0.75,
+  },
+  calendarCell: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 6,
+    backgroundColor: `${colors.primaryContainer}33`,
+  },
+  calendarCellFilled: {
+    backgroundColor: colors.primaryContainer,
+  },
+  calendarFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calendarFooterStrong: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  calendarFooterMuted: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.primary,
+  },
+  statGrid: {
+    gap: spacing.base,
+  },
+  statRow: {
+    flexDirection: 'row',
+    gap: spacing.base * 1.5,
+  },
+  statCard: {
+    padding: spacing.base * 1.75,
+    gap: spacing.base * 0.75,
+  },
+  statValue: {
+    fontFamily: typography.displayLg.fontFamily,
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.onSurface,
+  },
+  statLabel: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
     color: colors.onSurfaceVariant,
   },
 });

@@ -1,66 +1,74 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radii, typography } from '../../src/theme/tokens';
+import { colors, typography } from '../../src/theme/tokens';
 
-// architecture.md: bottom nav is ONE shared component (this file), not
-// rebuilt per screen — Home/Insights' icon set (home, grid_view, air,
-// monitoring, each with a text label) is the standard; ignore Library's
-// Stitch export, which showed a different, label-less icon set.
+// Pill-shape bug (multi-session investigation, see PROGRESS.md for the full
+// history): the active tab's background pill rendered as a rectangle instead
+// of a pill after any tab switch on Android, never self-correcting. Two
+// hypotheses (detachInactiveScreens, tabBarBackground's BlurView) were
+// disproven via on-device ADB testing; the leading theory pinned it on
+// Android hardware-layer promotion inside expo-router's vendored
+// Animated.View tab-bar internals — not fixable without patching
+// third-party code. Resolved by removing the pill entirely (LinkedIn-style:
+// no background shape on any tab) rather than continuing to chase it — there
+// is no longer a shape for that bug to render incorrectly.
 //
-// Icon substitutions (grid_view/air/monitoring, in order of vintage risk):
-// on-device testing showed Library and Player rendering the wrong glyph
-// entirely (a briefcase-like icon, a play-circle) despite the code using
-// the documented names — `home` (one of Material Icons' original 2014
-// glyphs, codepoint 0xe88a) rendered correctly while `grid-view` (0xe9b0),
-// `air` (0xefd8), and `insights` (0xf092) didn't, and all three are
-// comparatively recent additions to the icon set. That pattern points to
-// Expo Go's bundled MaterialIcons font predating those codepoints' current
-// assignment (Expo Go ships its own font copy tied to the SDK version,
-// separate from this project's @expo/vector-icons install) rather than a
-// bug in our code. Rather than depend on the user's Expo Go build being
-// current, swapped to icons from Material Icons' original/early batch
-// (low 0xe1xx-0xe6xx codepoints — safe across effectively every font
-// revision ever shipped), picking the closest visual/semantic match to
-// what architecture.md/the Stitch design intended for each:
-// - Library: `grid-view` (0xe9b0) → `apps` (0xe5c3) — same "grid of
-//   items" launcher-icon meaning as grid_view, just an older codepoint
-// - Player: `air` (0xefd8) → `waves` (0xe176) — air/wind has no equally
-//   old direct equivalent, but a wave/undulating-line glyph reads as
-//   breathing rhythm just as well and is from the original 2014 batch
-// - Insights: `insights` (0xf092) → `show-chart` (0xe6e1) — a trend-line
-//   icon is arguably an even more literal fit for an analytics screen
-//   than the abstract magnifying-glass-on-bars `insights` glyph, and is
-//   from the same original batch as `waves`
-type TabIconName = keyof typeof MaterialIcons.glyphMap;
+// All 3 Stitch HTML references (home-code.html, library-code.html,
+// insights-code.html) already encode an icon-fill convention independent of
+// the pill: active tabs use Material Symbols' `FILL 1` (solid) variant,
+// inactive tabs use the default `FILL 0` (outlined) variant. That's the
+// convention this file now expresses directly via icon swap + color, with
+// the pill dropped.
+//
+// `@expo/vector-icons`'s bundled `MaterialIcons` is a static, filled-only
+// font — it has no outline counterpart and can't do the FILL axis toggle.
+// Swapped to `Ionicons`, which ships true outline/filled name pairs
+// (`home`/`home-outline`, etc.) and is already bundled in this project's
+// `@expo/vector-icons` install, no new dependency. Icon choices per tab:
+// - Home: `home` / `home-outline` — direct match, no change in meaning
+// - Library: `library` / `library-outline` — stacked-books glyph, the most
+//   literal "library of sessions" match (swapped from `grid`/`grid-outline`
+//   per explicit user request, after reviewing MaterialIcons options and
+//   choosing to keep the Ionicons fill/outline pair for consistency with
+//   the rest of the tab bar rather than a filled-only MaterialIcons glyph)
+// - Player: `play-circle` / `play-circle-outline` — Ionicons has no
+//   wind/air/waves icon; a media-style play button reads clearly as
+//   "start/resume a session" and, unlike a pulse/heartbeat-style icon,
+//   doesn't visually suggest real biometric data (CLAUDE.md: no real
+//   biometrics in this app). Also avoids reusing `leaf`/`moon`/`zap`/`heart`,
+//   which are the locked per-session badge icons elsewhere in the app.
+// - Insights: `trending-up` / `trending-up-outline` — a line-chart-with-
+//   arrowhead glyph, the standard "analytics/trend" convention (swapped
+//   from `stats-chart`'s bar-chart glyph per explicit user request for a
+//   more standard analytics icon)
+//
+// Same residual risk as the earlier MaterialIcons codepoint bug: Expo Go
+// bundles its own copy of these icon fonts tied to its SDK version, separate
+// from this project's npm-installed copy, so a name that exists in the
+// installed glyphmap can still fail to render on-device. Needs on-device
+// confirmation, not just a web check.
+type TabIconName = keyof typeof Ionicons.glyphMap;
 
-// Root-caused why the earlier version (icon+label combined in tabBarIcon,
-// tabBarShowLabel:false) was invisible on physical Android only: whatever
-// tabBarIcon returns gets forced into a hard-coded 24x24 box
-// (TabBarIcon.js's `wrapperMaterial`), and the tab item's outer View sets
-// `overflow: variant === 'material' ? 'hidden' : 'visible'` — Android's
-// bottom-tab variant is "material", so anything bigger than 24x24 (our
-// pill+label) was silently clipped to nothing there specifically, while
-// iOS/web use `overflow: 'visible'` and never clip it
-// (node_modules/expo-router/build/react-navigation/bottom-tabs/views/
-// BottomTabItem.js + TabBarIcon.js — this isn't @react-navigation/bottom-tabs,
-// Expo Router vendors its own copy).
-//
-// Fix: use tabBarButton instead of tabBarIcon/tabBarLabel. It replaces the
-// whole tab button before any of that fixed-size icon-slot logic runs, so
-// the pill renders at the tab's real size on every platform. `focused`
-// arrives as the button's `aria-selected` prop, not a dedicated field.
+// tabBarButton (not tabBarIcon/tabBarLabel) replaces the whole tab button
+// before expo-router's fixed-size 24x24 icon-slot + overflow:hidden logic
+// runs (see node_modules/expo-router/.../BottomTabItem.js /
+// TabBarIcon.js) — required for anything that doesn't fit that fixed box,
+// still true even with the pill removed since the label lives here too.
+// `focused` arrives as the button's `aria-selected` prop.
 function TabButton({
-  name,
+  activeIcon,
+  inactiveIcon,
   label,
   focused,
   onPress,
   style,
   testID,
 }: {
-  name: TabIconName;
+  activeIcon: TabIconName;
+  inactiveIcon: TabIconName;
   label: string;
   focused: boolean;
   onPress?: React.ComponentProps<typeof Pressable>['onPress'];
@@ -68,18 +76,6 @@ function TabButton({
   testID?: string;
 }) {
   const tintColor = focused ? colors.primary : `${colors.onSurfaceVariant}B3`;
-
-  // Bug fix, round 2: overriding just `backgroundColor` (previous attempt)
-  // stopped the box from showing on every tab, but the active tab still
-  // rendered a hard-edged rectangle instead of a pill — the library's own
-  // per-tab `style` also carries `borderRadius: 16` (BottomTabItem.js,
-  // Android's "material" variant), which we were still inheriting and
-  // never overrode. Rather than keep cancelling out individual properties
-  // one at a time (background, then radius, then whatever's next), stop
-  // inheriting the library's decorative styling altogether: pull out only
-  // `flex` (needed so all 4 tabs share the row equally) and discard
-  // everything else. Only our own `tabContent`/`tabContentActive` (with
-  // `radii.full`) can paint a background now, on any platform.
   const libraryFlex = StyleSheet.flatten(
     typeof style === 'function' ? undefined : style
   )?.flex;
@@ -87,21 +83,13 @@ function TabButton({
   return (
     <Pressable
       onPress={onPress}
-      // Bug fix, round 3: padding values (16/4, matching home-code.html's
-      // `px-4 py-1` exactly) were already correct — the pill still looked
-      // oversized because this Pressable had no explicit `alignItems`, so
-      // RN's default `alignItems: 'stretch'` stretched `tabContent` to
-      // fill this Pressable's full flex-width (a quarter of the tab bar),
-      // instead of hugging just the icon+label like the reference image.
-      // `alignItems: 'center'` lets it size to its own intrinsic content
-      // width instead.
-      style={{ flex: libraryFlex, alignItems: 'center' }}
+      style={{ flex: libraryFlex, alignItems: 'center', justifyContent: 'center' }}
       testID={testID}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
     >
-      <View style={[styles.tabContent, focused && styles.tabContentActive]}>
-        <MaterialIcons name={name} size={24} color={tintColor} />
+      <View style={styles.tabContent}>
+        <Ionicons name={focused ? activeIcon : inactiveIcon} size={24} color={tintColor} />
         <Text style={[styles.label, { color: tintColor }]}>{label}</Text>
       </View>
     </Pressable>
@@ -117,10 +105,6 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: `${colors.onSurfaceVariant}B3`,
         tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
-        // BlurView confirmed NOT the earlier bug (a plain View fallback was
-        // just as invisible) — restored, since expo-blur's own README
-        // already documents its Android behavior (falls back to a plain
-        // translucent View there, real blur on iOS only).
         tabBarBackground: () => (
           <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
         ),
@@ -133,7 +117,8 @@ export default function TabsLayout() {
           title: 'Home',
           tabBarButton: (props) => (
             <TabButton
-              name="home"
+              activeIcon="home"
+              inactiveIcon="home-outline"
               label="Home"
               focused={!!props['aria-selected']}
               onPress={props.onPress}
@@ -149,7 +134,8 @@ export default function TabsLayout() {
           title: 'Library',
           tabBarButton: (props) => (
             <TabButton
-              name="apps"
+              activeIcon="library"
+              inactiveIcon="library-outline"
               label="Library"
               focused={!!props['aria-selected']}
               onPress={props.onPress}
@@ -163,15 +149,14 @@ export default function TabsLayout() {
         name="player"
         options={{
           title: 'Player',
-          // No more special-cased onPress here — tapping Player now always
-          // navigates to its own route like every other tab. That screen
-          // (app/(tabs)/player.tsx) decides what to show: its own
-          // dedicated empty state, or a redirect to the real Session
-          // Player when one is genuinely in progress (tracked via
-          // ActiveSessionContext). See that file for the full rationale.
+          // Tapping Player always navigates to its own route; that screen
+          // (app/(tabs)/player.tsx) decides whether to show its empty state
+          // or redirect to a genuinely in-progress session, via
+          // ActiveSessionContext.
           tabBarButton: (props) => (
             <TabButton
-              name="waves"
+              activeIcon="play-circle"
+              inactiveIcon="play-circle-outline"
               label="Player"
               focused={!!props['aria-selected']}
               onPress={props.onPress}
@@ -187,7 +172,8 @@ export default function TabsLayout() {
           title: 'Insights',
           tabBarButton: (props) => (
             <TabButton
-              name="show-chart"
+              activeIcon="trending-up"
+              inactiveIcon="trending-up-outline"
               label="Insights"
               focused={!!props['aria-selected']}
               onPress={props.onPress}
@@ -212,30 +198,11 @@ const styles = StyleSheet.create({
   tabItem: {
     paddingTop: 4,
   },
-  // home-code.html: `bg-primary-container/20 rounded-xl px-4 py-1` on the
-  // active tab only.
+  // No background/pill by design (LinkedIn-style) — active vs. inactive is
+  // conveyed entirely by icon fill variant + color, set in TabButton.
   tabContent: {
-    // Bug fix, round 4: `alignItems: 'center'` on the parent Pressable
-    // (round 3) fixed this on web but NOT on-device — confirmed via a
-    // full force-stop/clear-cache/reconnect that this was a genuine
-    // Android layout difference, not staleness. Forcing the constraint
-    // directly on this element instead of relying on the parent:
-    // `alignSelf: 'center'` overrides whatever the parent's alignItems
-    // does for this specific child, and flexGrow/flexShrink: 0 stop it
-    // from being stretched/resized by the parent's flex layout at all —
-    // it can only ever be as wide as its own icon+label content plus
-    // padding, regardless of platform-specific parent-stretch behavior.
-    alignSelf: 'center',
-    flexGrow: 0,
-    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: radii.full,
-  },
-  tabContentActive: {
-    backgroundColor: `${colors.primaryContainer}33`,
   },
   label: {
     fontFamily: typography.labelSm.fontFamily,

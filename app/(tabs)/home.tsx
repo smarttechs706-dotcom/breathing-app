@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 // calculation bug. Flagging the fragility: could break on an expo-router
 // upgrade that reorganizes this internal path.
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BreathOrb } from '../../src/components/BreathOrb';
@@ -93,17 +93,16 @@ export default function HomeScreen() {
                       {formatDuration(featuredSession.durationSec)}
                     </Text>
                   </View>
-                  <View
+                  <Pressable
                     style={styles.beginButton}
-                    onTouchEnd={() => {
+                    onPress={() => {
                       // architecture.md: tapping Begin opens Session Player
                       // directly at the pre-mood phase for this session.
-                      // Session Player doesn't exist yet (build order step 4).
                       router.push(`/session-player?sessionId=${featuredSession.id}`);
                     }}
                   >
                     <Text style={styles.beginButtonText}>Begin</Text>
-                  </View>
+                  </Pressable>
                 </View>
               </View>
             </GlassCard>
