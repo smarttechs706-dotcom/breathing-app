@@ -3,17 +3,29 @@
 ## Status
 Workspace scaffolded, folder structure set up, PRD.md/architecture.md/CLAUDE.md
 in place, design references loaded, theme tokens done, Expo Router wired up.
-Build order steps 1-5 done and verified on-device: Home, Library, Session
-Player, shared tab bar/navigation, and Insights. One known cosmetic-only
-deferral remains (tab bar active-pill width, not shape). This session
-(2026-09-15) closed out the remaining pre-Onboarding cleanup: Home's Begin
-button now uses `Pressable`/`onPress`, Library's "last card overlaps tab
-bar" report was investigated and found to be the same already-understood
-first-paint/floating-tab-bar behavior (not a new bug, no code change), and
-the Insights/Library tab icons were updated (`trending-up`, `library`).
-All three verified on an isolated web server; **awaiting on-device
-confirmation** — no ADB device was paired this session. Next up: Onboarding
-(build order step 6).
+Build order steps 1-6 done and verified on-device: Home, Library, Session
+Player, shared tab bar/navigation, Insights, and now Onboarding. Two known
+cosmetic-only deferrals remain (tab bar active-pill width; Library's last
+card requiring a scroll under the floating tab bar — both previously
+investigated and understood, not regressions). This session (2026-09-16)
+built Onboarding (3 screens) and confirmed all 3 screens plus every exit
+path (Next/Next/Get Started, Skip, Enable Reminders) on-device. A later
+same-week session (2026-09-17) added real "why this helps" descriptions
+to the 5 sessions that lacked them, matching Deep Exhale's existing copy
+style — additive-only, `src/data/sessions.ts` only. A same-week session
+(2026-09-18) replaced `BreathOrb` (Home) and `SessionThumbnail` (Library)'s
+programmatic-SVG placeholders with the user's 7 real illustration images
+in `assets/illustrations/` — see "Real illustrations" section below. A
+following 2026-09-18/19 session investigated a reported Home orb
+flicker on-device (no bug found in the animation itself — see "Home orb
+art investigation" below), then the user supplied a cleaned-up
+transparent `hero-orb.png` and 6 cleaned-up session illustrations,
+re-keyed `SessionThumbnail` from `pattern` to session `id`, and fixed two
+real thumbnail bugs (off-center Deep Exhale, undersized Stress Relief) —
+see the corresponding dated sections below for full detail. On-device
+confirmation of the illustration/thumbnail-fix work is still pending
+(adb connection to the user's phone needs re-pairing). Next up: Settings
+(build order step 7) — needs a design pass first, per CLAUDE.md.
 
 ## Done
 - Scaffolded Expo project (`breathing-app`) with TypeScript template
@@ -816,10 +828,11 @@ doesn't own).
   `tabContentActive`) renders as a wider box on at least one Android
   device despite 4 verified-correct attempts — deferred, cosmetic only
 - ~~`BreathOrb` (Home) and `SessionThumbnail` (Library) are programmatic
-  gradient placeholders, not real Stitch illustrations~~ — DONE
-  2026-09-13, see "thumbnail art pass" below: replaced with real local
-  SVG illustrations (not the mockup's hotlinked, unlicensed images),
-  confirmed on-device
+  gradient placeholders, not real Stitch illustrations~~ — DONE 2026-09-13
+  (procedural SVG art pass), then superseded again 2026-09-18 once the
+  user supplied real illustration PNGs — see "Real illustrations added"
+  section below. Both components now render real `Image` assets from
+  `assets/illustrations/`, awaiting on-device confirmation.
 - ~~Home's "Begin" button uses `onTouchEnd` instead of `Pressable`/
   `onPress`~~ — DONE 2026-09-15, see "Fixed: Home's Begin button" below
 
@@ -1550,6 +1563,300 @@ still needs on-device confirmation. If the user re-pairs
 (`adb pair <ip>:<port>`, then `adb connect <ip>:<port>`), screenshots can
 resume being pulled directly as in prior sessions.
 
+## Done: Onboarding (3 screens, build order step 6) (2026-09-16)
+Built `app/onboarding/{welcome,how-it-works,build-habit}.tsx` per
+architecture.md's `app/onboarding/` folder placeholder and PRD.md's "3
+screens, first launch only" spec. Did not touch Home, Library, Session
+Player, Insights, the Player empty state, or `app/(tabs)/_layout.tsx` —
+confirmed via `git status`/`git diff --stat` before and after (additive
+plus `app/index.tsx`, which now gates first launch into onboarding instead
+of always redirecting to `/home`).
+
+**Reference files actually used** (read in full before writing any code,
+per this session's explicit instruction):
+- `assets/design-reference/onboarding-1-welcome-code.html` +
+  `onboarding-1-welcome-screenshot.png`
+- `assets/design-reference/onboarding-2-how-it-works-code.html` +
+  `onboarding-2-how-it-works-screenshot.png`
+- `assets/design-reference/onboarding-3-build-habit-code.html` +
+  `onboarding-3-build-habit-screenshot.png`
+- `assets/design-reference/DESIGN.md` (re-read for this session; no
+  onboarding-specific tokens beyond what `src/theme/tokens.ts` already has)
+- No separate `design.md` exists — `DESIGN.md` (capitalized) is the only
+  design-spec file in the folder and is the same one `tokens.ts` was
+  already built from; confirmed by listing the folder before writing code.
+
+New files: `src/utils/onboarding.ts` (AsyncStorage-backed
+`getOnboardingComplete`/`setOnboardingComplete`), `app/onboarding/
+welcome.tsx`, `app/onboarding/how-it-works.tsx`, `app/onboarding/
+build-habit.tsx`. Modified: `app/index.tsx` (was an unconditional
+`<Redirect href="/home" />`; now checks the onboarding flag and redirects
+to `/home` or `/onboarding/welcome`). Installed
+`@react-native-async-storage/async-storage` (`npx expo install ... --
+--legacy-peer-deps`, consistent with this project's established need for
+that flag) — architecture.md's "Auth (v1)" section already anticipated
+AsyncStorage as this app's local-persistence mechanism, so this isn't a
+new architectural direction.
+
+### PRD.md-locked fix applied
+"How it Works" screen's "Pick a session" step description replaced per
+PRD.md's explicit copy override: the reference's "Choose from guided
+breaths, body scans, or nature sounds" → "Choose a guided breathing
+session matched to how you're feeling."
+
+### Flagged deviations from the reference (not silent)
+1. **Welcome + Build-the-Habit illustrations are hotlinked, unowned
+   images** (same category of issue as Home's `BreathOrb`/Library's
+   `SessionThumbnail`, already resolved that way earlier in this project):
+   - Screen 1's orb image → reused the existing `BreathOrb` component
+     as-is (no new component needed; already built off DESIGN.md's own
+     "large, central sphere that pulses with a soft glow" spec).
+   - Screen 3's illustration is more than just unowned — it's a mockup of
+     a mini session card showing **fake vital-sign readouts ("64 bpm",
+     "98%", "Low" stress)**. CLAUDE.md's house rules explicitly forbid
+     reintroducing real/simulated biometric data (heart rate, blood
+     oxygen, stress %). Built a streak/flame illustration instead (matches
+     the headline's daily-habit theme and reuses Home's existing streak
+     flame color) inside the same circular glass-panel + float-animation
+     treatment the reference specifies.
+2. **Screen 3 button copy**: the actual reference/screenshot has "Get
+   Started" (primary) + "Enable reminders" (secondary text link) — there
+   is no separate "Skip for now" button on this screen (only the shared
+   header "Skip", present on screens 1-2, which screen 3's own reference
+   omits). Per this session's instruction that both of this screen's
+   actions must end in Home, both "Get Started" and "Enable Reminders" do
+   — "Enable Reminders" additionally shows a dummy permission-style Alert
+   first (real `expo-notifications` wiring is build order step 10, not
+   done here).
+3. **Non-token gradient hex**: screen 2's "Next" button CSS
+   (`linear-gradient(135deg, #7189f6, #00d2ff)`) uses `#00d2ff`, a color
+   with no corresponding DESIGN.md frontmatter token — the HTML's own
+   inline comment admits this ("Indigo to Cyan approximation..."). Per
+   architecture.md's "Colors — source of truth" rule (frontmatter tokens
+   only), substituted the closest actual token, `tertiary` (#a6ccde),
+   instead of hardcoding the non-token hex. Screens 1 and 3's button
+   gradients matched their CSS exactly with real tokens (no substitution
+   needed): `primary`→`primaryContainer` and `primaryContainer`→`tertiary`
+   respectively.
+4. **Background treatment**: approximated each screen's CSS
+   `radial-gradient(...)` body background with the same single/double
+   soft-glow-circle pattern already established on Home/Library/Insights,
+   rather than a literal radial gradient (`expo-linear-gradient` has no
+   radial mode; consistent with the rest of the app's existing
+   approximation, not a new technique).
+5. **Screen 2 needed a `ScrollView`, unlike the other two**: the reference
+   HTML is an unconstrained-height web page; laid out at a real phone
+   viewport (390×844), its headline + body + 3 step cards + Next button
+   overflow one screen. Wrapped the content in a `ScrollView` (same
+   pattern as Home/Library/Insights) — confirmed via Playwright that all 3
+   cards and the Next button are reachable by scrolling, with no content
+   irretrievably cut off.
+
+### Verified interactively (web, isolated port-8084 server, phone server
+left alone)
+`npx tsc --noEmit`: clean throughout. Via `playwright-cli` at a 390×844
+viewport: screenshotted all 3 screens against their reference screenshots;
+clicked through the full forward flow (Welcome → Next → How it Works →
+NEXT → Build the Habit); clicked Skip (→ `/home`); clicked Get Started (→
+`/home`); confirmed the onboarding-complete flag persists (`localStorage`
+on web) so reloading `/` redirects straight to `/home` on a "second
+launch," and that clearing it redirects back to `/onboarding/welcome` on
+a "first launch." Noted `Alert.alert` is a no-op on `react-native-web`
+(same known limitation already documented for Session Player's exit
+dialog) — "Enable Reminders" couldn't be verified past the tap on web,
+only on-device.
+
+### Confirmed on-device (2026-09-16)
+Paired fresh via wireless ADB this session (`adb pair`/`adb connect`,
+same procedure as prior sessions — pairing doesn't persist across
+sessions). Ran a phone-facing dev server (port 8085) and drove the phone
+by hand (per this project's established ADB constraints: screenshots are
+directly automatable via `adb exec-out screencap`, but touch/key
+injection and remote app-focus are blocked on this specific device —
+OEM/HyperOS-level wireless-ADB hardening, documented earlier this
+project). Confirmed via real on-device screenshots after each tap:
+- All 3 screens render correctly: gradient headlines, `BreathOrb`, all
+  icons (`local-florist`, `arrow-forward`, `chevron-right`,
+  `format-list-bulleted`, `sync`, `moving`, `local-fire-department`),
+  glass cards, gradient buttons — no wrong-glyph or clipping regressions
+- Forward flow: Welcome → Next → How it Works (scrolled, all 3 cards +
+  copy-override text visible) → NEXT → Build the Habit
+- "Enable Reminders" → real native `Alert.alert` dialog appears (title,
+  body, "Don't Allow"/"Allow") — confirmed this is NOT a no-op on native,
+  unlike the web preview → tapping "Allow" → `/home`
+- "Skip" (tested directly from Welcome) → `/home`
+- **Persistence**: force-stopped Expo Go and relaunched from scratch after
+  completing onboarding — landed directly on Home, onboarding did not
+  show again
+
+### Bug found + fixed during on-device verification: AsyncStorage key
+collision
+First on-device attempt landed straight on Home without ever showing
+Welcome, on a device that had never run this project's onboarding code
+before. Added a temporary on-screen debug readout (`app/index.tsx`,
+removed after) of the raw stored value — it read `"true"` already, before
+any onboarding screen had been tapped. Root cause: the key was the
+generic `onboarding_complete`, and Expo Go's AsyncStorage is not reliably
+sandboxed per anonymous/local-dev-URL project — an unrelated Expo Go
+project previously tested on the same phone most likely used the same
+generic key name, and its value leaked through. Fixed by namespacing the
+key (`src/utils/onboarding.ts`): `breathe_onboarding_complete_v1`. Not
+purely a diagnostic-session fluke — this is a real collision class worth
+guarding against for any future AsyncStorage key in this app, so
+generic/common key names should be avoided project-wide going forward.
+
+### Not yet done (explicitly out of scope for this step, per instruction)
+- Real `expo-notifications` permission request/scheduling — "Enable
+  Reminders" is a dummy `Alert.alert` placeholder only, per instruction
+  (build order step 10)
+- No settings/reminder-time persistence yet (Settings screen doesn't
+  exist — build order step 7, needs a design pass first per CLAUDE.md)
+
+## Session — 2026-09-17: session description copy pass
+Additive-only, per instruction — did not touch Home, Library, Session
+Player's structure, Insights, Onboarding, or the tab bar. Only edit:
+`src/data/sessions.ts`.
+
+Deep Exhale's description (from session-player-code.html) explains its
+technique + the physiological reason it helps ("Designed to activate your
+parasympathetic nervous system, lowering your heart rate and melting away
+residual tension."). The other 5 sessions previously had placeholder
+descriptions (flagged as such in this file's "Known deviations" and in
+the file's own header comment since 2026-09-12) that didn't follow that
+pattern — some named the technique, none explained the physiological
+"why." Rewrote all 5 to match Deep Exhale's tone: one sentence naming the
+session's actual `phaseConfig` technique (extended-exhale for Morning
+Reset/Calm Focus/Stress Relief/Wind Down; equal-count box breathing for
+Box Breathing) and the nervous-system-level reason it suits that
+session's specific mood/context:
+- **Morning Reset** (Sleep, 4-4-8): grogginess → gentle vs. jolting wake
+- **Calm Focus** (Calm, 4-4-8): racing mind → sustained focus
+- **Stress Relief** (Energy, 4-4-8): acute stress → fast parasympathetic reset
+- **Wind Down** (Sleep, 4-4-8): arousal → safe-to-rest signal before sleep
+- **Box Breathing** (Recovery, 4-4-4): erratic heart rate → autonomic balance
+  after strain
+
+These are still written copy, not Stitch-sourced (no Stitch export gives
+any of the other 5 sessions description text) — updated the file's own
+header comment to say so plainly rather than leaving the old "placeholder"
+language, which would now overstate how unfinished this text is.
+`heart rate` appears only as descriptive copy (matching Deep Exhale's
+existing precedent), not as reintroduced biometric tracking — no actual
+heart-rate data is read, stored, or displayed anywhere in the app, so this
+doesn't conflict with CLAUDE.md's no-real-biometrics rule.
+
+`npx tsc --noEmit`: clean. Not a visual change (copy-only, inside an
+existing data file — no screen renders new UI), so no screenshot
+verification was needed; confirmed by reading the diffed file directly
+above instead of just asserting it.
+
+### Next
+- Settings screen (build order step 7) — still needs a design pass first,
+  per CLAUDE.md
+
+## Session — 2026-09-17: Library session description rewrite (content-only)
+User-directed content change, scoped strictly to `src/data/sessions.ts`'s
+6 `description:` fields — no other file touched. Read PROGRESS.md and
+CLAUDE.md in full first per instruction; reported the full session
+name/ID inventory (data file, comments in `library.tsx`/
+`session-player.tsx`/`onboarding/build-habit.tsx`, `PRD.md`'s catalog
+table, architecture.md's LOCKED session-mapping table, the Stitch mockup
+HTML exports) and waited for explicit confirmation before editing
+anything, per instruction.
+
+Flagged before proceeding: the requested renames used identical titles
+to what was already in `sessions.ts` (Deep Exhale/Morning Reset/Calm
+Focus/Stress Relief/Wind Down/Box Breathing, same order) — only the
+description copy differed. User confirmed: titles unchanged, only the 6
+`description` values update, and confirmed scope as `sessions.ts` only
+(not `PRD.md`, `architecture.md`, the flagged comment references, or the
+design-reference HTML files, since none of those needed to change for
+this).
+
+Replaced the "why this helps" physiological-framing copy from the prior
+session (2026-09-17, see above) with simpler, user-provided copy for all
+6 sessions:
+- **Deep Exhale**: "Slow, deep breathing to help you release tension and feel more relaxed."
+- **Morning Reset**: "Gentle breathing to help shake off morning grogginess and ease into your day."
+- **Calm Focus**: "Slow, steady breathing to quiet a busy mind and help you focus."
+- **Stress Relief**: "A quick breathing reset to help you feel calmer when stress hits."
+- **Wind Down**: "Slow breathing to help you relax and get ready for sleep."
+- **Box Breathing**: "A steady breathing rhythm to help you reset and regain a sense of calm."
+
+`id`/`title`/`category`/`durationSec`/`phaseConfig`/`badge`/`pattern`
+fields left byte-for-byte unchanged for all 6 sessions. Confirmed via
+`git status`/`git diff` after editing that only `src/data/sessions.ts`
+shows this task's changes — `PRD.md`, `architecture.md`, `library.tsx`,
+`session-player.tsx`, `onboarding/build-habit.tsx`, and the
+design-reference HTML files are untouched, and showed the actual diff to
+the user rather than just asserting it, per CLAUDE.md's working-style
+rule.
+
+## Session — 2026-09-17: breathing phase pattern changed to 4-phase BREATHE IN / HOLD / BREATHE OUT / REST
+User-directed content change: all 6 sessions now use one uniform 4-4-8-4
+pattern, replacing each session's prior 3-phase `phaseConfig`. Read
+PROGRESS.md and CLAUDE.md in full first per instruction. Reported each
+session's current phase structure, confirmed `phaseConfig` is stored
+per-session (not shared — 6 separate inline objects, 5 already identical,
+Box Breathing's `exhale` differed), flagged that label/instruction text
+was hardcoded separately in `session-player.tsx` (not in the data file at
+all), and noted the new 20s cycle length doesn't change any session's
+`durationSec` (the active phase already ends purely on elapsed time, not
+cycle count). Waited for confirmation before editing anything, per
+instruction.
+
+**Flagged and stopped before proceeding** (per the task's own hard rule
+to ask rather than touch anything outside scope): the requested pattern
+needs a 4th phase architecture.md's `Session.phaseConfig` interface
+(line 78) doesn't have — it documents a 3-field `{ inhale, hold, exhale }`
+shape, and lines 163–168 document the exact current label convention
+("Inhale...", "Hold for 4 seconds") as part of the Session Player section
+`session-player.tsx`'s own comments call "(explicit — do not deviate)".
+Implementing the new pattern as specified genuinely requires changing the
+shared type and the Session Player's label/cycling logic, not just the
+data file. Presented 3 options; user chose to proceed as specified and
+flag the deviation here rather than silently diverging or blocking on an
+architecture.md rewrite first.
+
+**Changes made** (4 files, all directly required — confirmed via
+`git status` that no other screen/component/navigation file was touched):
+- `src/types/models.ts` — added `rest: number` to `Session.phaseConfig`
+  (was 3 fields, now 4)
+- `src/data/sessions.ts` — all 6 sessions' `phaseConfig` now
+  `{ inhale: 4, hold: 4, exhale: 8, rest: 4 }` (Box Breathing's `exhale`
+  also changed 4→8, since the new pattern is uniform across all
+  sessions per instruction); updated the file's own header comment to
+  describe the new pattern and flag the architecture.md deviation
+- `app/session-player.tsx` — `BreathSubPhase` extended from 3 states to
+  4 (`inhale`/`hold`/`exhale`/`rest`) with a new cycle map
+  (inhale→hold→exhale→rest→inhale); `phaseLabel` now reads
+  `BREATHE IN`/`HOLD`/`BREATHE OUT`/`REST`; `phaseSubLabel` now reads the
+  exact instruction copy ("Breathe in slowly for N seconds", "Hold
+  gently for N seconds", "Breathe out slowly for N seconds", "Stay
+  relaxed for N seconds"), interpolated from `phaseConfig` the same way
+  the file already worked; passes the new `restSec` prop through to
+  `BreathingRing`
+- `src/components/BreathingRing.tsx` — added a `restSec` prop and a
+  matching `Animated.delay(restSec * 1000)` after the exhale animation,
+  so the ring's visual pulse loop stays 20s (matching the new label
+  cycle) instead of looping 4s early and silently drifting out of sync
+  with the on-screen phase text
+
+`titles`/`descriptions`/`badge`/`category`/`durationSec`/`pattern`
+(visual rings/wave/etc.) fields left byte-for-byte unchanged for all 6
+sessions, as instructed. `npx tsc --noEmit`: clean. Showed the full diff
+to the user rather than just asserting it, per CLAUDE.md's working-style
+rule.
+
+**Known deviation from architecture.md — not yet resolved there**:
+architecture.md:78's `Session.phaseConfig` interface and lines 163–168's
+documented phase-label copy convention are now out of date against the
+actual app behavior. architecture.md itself was intentionally **not**
+edited this session (out of scope for this task) — a future session
+should either update architecture.md to match (4-field `phaseConfig`,
+new label convention) or revisit this decision, so the two don't stay
+silently out of sync indefinitely.
+
 ## Blockers
 - None
 
@@ -1650,3 +1957,297 @@ resume being pulled directly as in prior sessions.
 ### Next Steps
 - Build Library screen, using the locked session mapping (dummy/placeholder
   data)
+
+## Real illustrations added: BreathOrb (Home) + SessionThumbnail (Library) (2026-09-18)
+User added 7 real illustration PNGs to `assets/illustrations/`: `hero-orb.png`
+(Home's Featured Session) and 6 per-session images —
+`deepexhale.png`/`morningreset.png`/`calmfocus.png`/`stressrelief.png`/
+`winddown.png`/`boxbreathing.png` — replacing the programmatic-SVG
+placeholders both components used since the "thumbnail art pass" noted in
+the visual-polish backlog above. Additive-only per instruction — only
+`src/components/BreathOrb.tsx` and `src/components/SessionThumbnail.tsx`
+were touched; no other component, screen, or theme token was modified.
+
+- **`BreathOrb.tsx`**: swapped the `react-native-svg` gradient-sphere markup
+  for an `Image` (`require('../../assets/illustrations/hero-orb.png')`,
+  `resizeMode="contain"`) inside the same `Animated.View`/`scale` — the
+  existing pulsing loop (`1 → 1.06 → 1`, 2s each way) is untouched and still
+  drives the new Image the same way it drove the old Svg.
+- **`SessionThumbnail.tsx`**: swapped the per-`pattern` SVG mark + gradient
+  for a `PATTERN_IMAGES` lookup (`Record<Session['pattern'], ...>`) mapping
+  each of the 6 locked `pattern` values to its matching image via `require`,
+  rendered as an `Image` (`resizeMode="cover"`) inside the same outer `View`
+  that still owns the rounded-corner/`overflow:hidden` container styling —
+  unchanged from before. Keyed by `pattern` rather than session id since
+  that's the prop this component already receives from Library
+  (`library.tsx:190`); each of the 6 sessions has a distinct `pattern`
+  value today (see `src/data/sessions.ts`'s locked mapping), so
+  pattern→image is equivalent to session→image with no ambiguity.
+  Mapping: rings→deepexhale, wave→morningreset, starburst→calmfocus,
+  dot-grid→stressrelief, spiral→winddown, bloom→boxbreathing — chosen by
+  matching each image's actual visual motif (concentric rings, a wavy
+  sphere, a radiating starburst, a scattered dot/starfield sphere, a
+  spiral swirl, a faceted grid sphere) to the pattern name, not just file
+  order.
+
+**Bundling/optimization check performed, no setup changes needed**: Expo's
+default Metro config already treats `.png` as a bundled asset extension
+(no custom `metro.config.js` exists in this repo, and none was needed).
+Checked actual dimensions via PowerShell (`System.Drawing`) before
+assuming: all 7 images are roughly square (274×267 to 433×429px,
+99KB–257KB each) — reasonable source resolution for display at the sizes
+these components actually use (`SessionThumbnail` 80×80, `BreathOrb`
+160–220 depending on screen), no re-export/resize of the source files was
+necessary. Did not add `@2x`/`@3x` variants — single-resolution source
+files are common practice for React Native and Metro doesn't require
+suffixed variants to bundle an image; flagging as a possible future
+sharpness improvement on very-high-density screens, not a current defect.
+
+**Known incidental effect (flagged, not silent)**: `BreathOrb` is also used
+by `app/onboarding/welcome.tsx` (not mentioned in this task's scope), which
+now automatically renders the same real `hero-orb.png` image too, since
+there's only one shared `BreathOrb` component and no separate "Home-only"
+variant. This seems like a net improvement (the onboarding screen's own
+code comment already flagged its orb as a stand-in for a real illustration,
+same as Home's), but noting it since the task named only Home.
+
+**Known asset inconsistency (flagged, not asked about — cosmetic only)**:
+opened each of the 7 images directly and found `deepexhale.png` and
+`morningreset.png` have a small baked-in text caption at the bottom
+("Deep Exhale / calm breathing session", "Morning Reset / Ethereal
+Breath") baked into the artwork itself; the other 5 images (`calmfocus`,
+`stressrelief`, `winddown`, `boxbreathing`, `hero-orb`) don't. At
+Library's actual 80×80 thumbnail size the caption is tiny and barely
+legible next to the card's own real title text, so it reads as a very
+minor redundancy rather than a real bug — not fixed (would require
+cropping/re-exporting images the user supplied), just flagged for
+awareness.
+
+**Verified interactively (not just asserted)**, on an isolated web server
+(port 8082, `--clear`; the user's own phone-testing server on port 8081 was
+never touched or restarted) via `playwright-cli`, screenshotted at a real
+phone viewport (393×852):
+- Home: the Featured Session hero now shows the real `hero-orb.png`
+  artwork in place of the old gradient sphere, matching
+  `home-screenshot.png`'s own square dark-backdrop framing around the orb
+  closely (the reference's hotlinked mockup image has the same dark square
+  behind the sphere, not a transparent cutout — confirmed this is the
+  correct look, not a bug)
+- Library: all visible session rows (Deep Exhale, Morning Reset, Calm
+  Focus, Stress Relief) show their correct matching real illustration
+  inside the existing rounded-corner container, per the mapping above
+- `npx tsc --noEmit`: clean
+- Browser console: 0 errors, only the pre-existing unrelated
+  `shadow*`-deprecation warning already noted earlier in this file
+- Isolated port-8082 server and its `.playwright-cli/` temp output were
+  torn down after (including a `taskkill` on the underlying node PID —
+  `TaskStop` alone left it listening, the same known gap noted earlier in
+  this file under the Home gradient-text fix)
+- Screenshots saved to the user's Desktop: `home-illustrations-verify.png`,
+  `library-illustrations-verify.png`
+
+**Not yet confirmed on-device** — per this task's explicit ask and this
+project's repeated lesson that web verification has missed real
+Android-specific differences before (tab bar icons/pill sizing, calendar
+grid, glow clipping), this isn't done until the user confirms on their
+phone against `home-screenshot.png`/`library-screenshot.png` directly.
+One thing specifically worth checking on-device: these are *new* binary
+asset files (not just edited existing files), and this session's earlier
+"new file didn't trigger a Metro rescan" lesson was about new source
+files specifically — if the phone's already-running dev server doesn't
+pick up the new `require()`d images via Fast Refresh, a full restart with
+`--clear` (same procedure used earlier this session for new files) should
+resolve it.
+
+## Home orb art investigation (2026-09-18/19): on-device animation check, then a cleaner asset
+Two follow-ups in the same session, both read-only/asset-only — no
+component or screen code was touched in either.
+
+### On-device animation check (no bug found in the pulse itself)
+User reported the Home hero orb "flickering/blinking" and described the
+intended behavior as "smooth circular/orbiting motion." Investigated
+directly on-device per explicit instruction not to just read the code:
+- Paired and connected to the user's physical Android device via
+  `adb pair`/`adb connect` (wireless debugging)
+- Captured sequential `adb exec-out screencap` stills of the Home hero
+  during live playback — showed smooth, monotonic scale change, no
+  blinking/swapping/blank frames
+- User then supplied a 23.5s screen recording. Analyzed it
+  **quantitatively, not just by eye**: extracted every frame at the
+  video's native 24fps via a local `ffmpeg` (installed through
+  `pip install imageio-ffmpeg`, not a system install), computed
+  frame-to-frame pixel diffs with `numpy` across all ~580 frames, and
+  auto-flagged any abnormal jump
+  - Result: the orb's own pulse animation never flickers — diff stays at
+    noise level the entire clip
+  - Found exactly 2 real anomalies, both explained by the **Home
+    ScrollView briefly scrolling** ~25–30px (t≈13.0s and t≈16.0–16.5s) —
+    confirmed by pulling full uncropped stills at both moments (the
+    "Deep Exhale" title becomes/stops being visible below the hero card
+    as content shifts). Not an animation bug.
+  - User confirmed this scroll shift is what they'd perceived as
+    flicker — **not yet root-caused or fixed**, next step if pursued
+- Also confirmed via code reading (both `BreathOrb.tsx` and
+  `BreathingRing.tsx`, in case "orbiting" meant the Session Player ring
+  instead): **neither has ever implemented circular/orbiting motion** —
+  both are, and always were, a scale-only pulse. Flagged this mismatch
+  to the user rather than guessing at a feature addition.
+
+### Reference asset swap: hero-orb.png replaced with a transparent version (2026-09-19)
+User replaced `assets/illustrations/hero-orb.png` in place (same path
+`BreathOrb.tsx` already `require()`s — 178,952 → 185,102 bytes, same
+428×428 dimensions) with a cleaned-up version: genuinely transparent
+background (confirmed via PIL: RGBA, ~68% fully-transparent pixels), no
+more baked-in dark-navy square backdrop/shadow-frame artifact the
+original illustration had.
+
+**No code changes were needed or made** — `BreathOrb.tsx`'s container has
+no `backgroundColor` set, so it was already transparent behind the
+`Image`; swapping the file's bytes at the existing `require()` path is
+sufficient on its own. Verified this is genuinely true (not just assumed)
+via an isolated web server (port 8082, `--clear`; phone's port-8081
+server untouched throughout) and `playwright-cli`, screenshotted at a
+real phone viewport (393×852): the hero orb now renders directly on the
+card background with no square/frame artifact, console 0 errors (2
+pre-existing, unrelated, web-only warnings: `shadow*` deprecation,
+`useNativeDriver` web fallback). Isolated server torn down after
+(`TaskStop` again left the underlying node process listening on 8082 —
+same known gap as before in this file — required a direct `taskkill` on
+the PID). Screenshot saved to the user's Desktop:
+`home-transparent-orb-verify.png`.
+
+**Flagged, not fixed**: `BreathOrb` is shared with
+`app/onboarding/welcome.tsx` (same incidental-effect situation as the
+original illustration swap above) — the onboarding screen's orb will
+also pick up this new transparent artwork automatically, for the same
+reason (one shared component, no Home-only variant).
+
+**Awaiting on-device confirmation** — flagged a real risk before this was
+asked for: RN's `Image` can cache locally-bundled assets by their
+require-path, so even though the file's bytes changed, the user's
+already-running Expo Go session may show a stale cached copy of the old
+opaque-square version under a normal Fast Refresh. User was told to do a
+full reload (not Fast Refresh) on their phone to confirm.
+
+## SessionThumbnail (Library): re-keyed from `pattern` to session id, new cleaned illustrations (2026-09-19)
+User replaced all 6 per-session illustrations in `assets/illustrations/`
+in place (`deepexhale.png`, `morningreset.png`, `calmfocus.png`,
+`stressrelief.png`, `winddown.png`, `boxbreathing.png` — new byte sizes,
+same filenames) with a cleaned-up set matching `hero-orb.png`'s new
+treatment: genuinely transparent backgrounds (confirmed via PIL alpha
+histograms: 40–76% fully-transparent pixels, soft glow falloff at the
+edges — the "white" appearance when viewed outside the app is just how
+transparency previews render, not an opaque white background), no more
+baked-in text captions (`deepexhale`/`morningreset` had one before, see
+the "Known asset inconsistency" note above — gone now).
+
+Explicit instruction this time: key the thumbnail lookup by **session
+id/title**, not the generic `pattern` field used in the previous pass —
+these filenames correspond to specific sessions directly. Changed:
+- **`SessionThumbnail.tsx`**: replaced `PATTERN_IMAGES` (keyed by
+  `Session['pattern']`) with `SESSION_IMAGES` (keyed by `Session['id']`,
+  `Record<string, ...>` since `id` is an open string type, not a closed
+  union like `pattern` was). Prop renamed `pattern` → `sessionId` to
+  match. Added a defensive `source &&` guard around the `Image` render
+  (renders an empty rounded container instead of crashing) for an
+  unrecognized id — `id` isn't a closed union so this isn't provably
+  unreachable the way the old `pattern`-keyed `Record` was; no session in
+  today's catalog hits this path.
+- **`app/(tabs)/library.tsx`**: updated its one call site
+  (`library.tsx:190`) from `<SessionThumbnail pattern={session.pattern} .../>`
+  to `<SessionThumbnail sessionId={session.id} .../>` — the only other
+  file touched, since the prop rename required it. No other part of
+  `library.tsx` was changed.
+
+**Bundling/optimization re-checked**: same conclusion as the original
+illustration pass — Expo's default Metro config already covers `.png`,
+no `metro.config.js` needed. Dimensions vary more this time
+(`deepexhale`/`morningreset` are 230×230/200×200; the other four are
+~430×430) — still comfortably above the 80×80 display size in both
+cases, so no resizing was necessary, just noting the inconsistency
+across the supplied set rather than silently treating them as uniform.
+
+**Verified interactively**, isolated web server (port 8082, `--clear`;
+phone's port-8081 server untouched throughout) + `playwright-cli` at a
+real phone viewport (393×852), scrolled to see all 6 rows (RN Web scrolls
+an inner container, not `document.body` — used mouse-wheel scroll, not
+`window.scrollTo`, per this file's earlier-documented lesson on that):
+all 6 sessions (Deep Exhale, Morning Reset, Calm Focus, Stress Relief,
+Wind Down, Box Breathing) render their correct matching illustration via
+the new id-keyed lookup, inside the existing rounded-corner container,
+no leftover white/square artifacts. `npx tsc --noEmit`: clean. Console: 0
+errors, 1 pre-existing unrelated `shadow*`-deprecation warning. Isolated
+server torn down after (`TaskStop` again left the node process listening
+on 8082 — same recurring gap noted twice already in this file — required
+a direct `taskkill`). Screenshot saved to the user's Desktop:
+`library-sessionid-verify.png`.
+
+**Not yet confirmed on-device** — same reasoning as every prior asset/
+visual change in this file: awaiting the user's on-phone check against
+`library-screenshot.png`. Same caching risk flagged for the Home orb
+swap likely applies here too (RN `Image` caching locally-bundled assets
+by require-path) — a full reload rather than Fast Refresh is the safer
+check.
+
+## Fixed: SessionThumbnail centering + inconsistent sizing (2026-09-19)
+User reported two visual bugs after the id-keyed illustration swap above:
+Deep Exhale's artwork rendered off-center (shifted toward the bottom-
+right), and Stress Relief rendered noticeably smaller than the other 5
+thumbnails.
+
+Root-caused with measured evidence before changing anything (PIL alpha-
+channel bounding-box analysis on all 6 source PNGs — `Image.open(f)
+.getchannel('A').point(lambda a: 255 if a>30 else 0).getbbox()`), since
+the existing code already applied `resizeMode="cover"` + a fixed 80×80
+container uniformly to all 6 (so a plain resizeMode/container bug was
+already ruled out before investigating further):
+- **deep-exhale.png**: visible content's bounding box is offset +6.7%/
+  +7.0% from the canvas center (content touches the canvas's right/bottom
+  edge exactly, with a real ~31–32px empty margin only on the top-left) —
+  the artwork itself isn't centered within its own 230×230 canvas.
+  `resizeMode="cover"` scales the whole canvas; it can't recenter content
+  that's already off-center inside the source file.
+- **stress-relief.png**: visible content fills only 63% of its own
+  430×428 canvas — the smallest content-to-canvas ratio of all 6 (the
+  other 5 range 71–100%, e.g. morning-reset fills 100%). `cover` scales
+  the *entire* canvas including empty padding, so more padding directly
+  means smaller-looking content at an identical container size.
+
+**Fix** (`src/components/SessionThumbnail.tsx` only): replaced the flat
+`SESSION_IMAGES: Record<string, source>` with `SESSION_IMAGES: Record<string,
+{ source, w, h, contentBox }>`, where `contentBox` is each image's
+measured content bounding box in source pixels (documented inline with
+the exact PIL command used, and a note to re-measure if these source
+files are ever replaced again). The component now computes, per image:
+`scale = max(size/contentW, size/contentH)` (scales the *content box* to
+cover the container, not the raw canvas), then renders the `Image` at
+`meta.w*scale × meta.h*scale` absolutely positioned so the content box's
+center lands on the container's center. This is a manual "cover-to-
+content" implementation — plain `resizeMode` has no concept of a sub-
+region within an image, so it couldn't have solved either bug on its
+own. Applied uniformly to all 6 sessions, not just the 2 reported ones,
+per instruction. No asset files were modified — this is purely a display-
+time fix; `SESSION_IMAGES`'s `contentBox` constants are the only new
+"data" involved, and they're derived measurements, not guesses.
+
+**Verified interactively**, isolated web server (port 8082, `--clear`;
+phone's port-8081 server untouched) + `playwright-cli`, phone viewport
+(393×852), scrolled to see all 6: Deep Exhale's rings are now centered;
+Stress Relief's dot cluster now fills its circle at the same visual scale
+as the other 5; no regressions on the 4 that were already correct.
+`npx tsc --noEmit`: clean. Console: 0 errors, 1 pre-existing unrelated
+`shadow*` warning. Isolated server torn down after (`TaskStop` again left
+the node process listening — same recurring gap noted repeatedly in this
+file — required a direct `taskkill`). Screenshot saved to the user's
+Desktop: `library-thumbnail-fix-verify.png`.
+
+**On-device verification attempted but not completed this session**: the
+user explicitly asked for on-device confirmation (comparing all 6 side by
+side), and this file's own established lesson is that web verification
+has missed real Android-specific rendering differences before. Attempted
+to check directly via `adb` (same wireless-debugging device used for the
+earlier orb-flicker investigation), but `adb devices` came back empty —
+the prior pairing/connection had dropped since that session and needs to
+be re-established (new pairing code, or a fresh IP:port if wireless
+debugging is still on). Not yet re-paired as of this entry — still
+pending either the user's on-phone check or a fresh adb reconnection.

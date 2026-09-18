@@ -9,6 +9,11 @@ interface BreathingRingProps {
   inhaleSec: number;
   holdSec: number;
   exhaleSec: number;
+  // 4-phase pattern (2026-09-17): a trailing flat delay after exhale,
+  // mirroring the existing hold delay, so this animation's loop length
+  // stays in sync with session-player.tsx's 4-state phase cycle (which
+  // now includes a REST sub-phase) instead of looping 4s early.
+  restSec: number;
   paused: boolean;
   size?: number;
 }
@@ -27,6 +32,7 @@ export function BreathingRing({
   inhaleSec,
   holdSec,
   exhaleSec,
+  restSec,
   paused,
   size = 256,
 }: BreathingRingProps) {
@@ -50,6 +56,7 @@ export function BreathingRing({
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
+        Animated.delay(restSec * 1000),
       ]).start(({ finished }) => {
         if (finished) loop();
       });
@@ -59,7 +66,7 @@ export function BreathingRing({
     return () => {
       scale.stopAnimation();
     };
-  }, [scale, inhaleSec, holdSec, exhaleSec, paused]);
+  }, [scale, inhaleSec, holdSec, exhaleSec, restSec, paused]);
 
   const coreSize = size * 0.625; // matches mockup's w-40 inside w-64 (160/256)
 

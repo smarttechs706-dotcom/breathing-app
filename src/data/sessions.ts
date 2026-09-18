@@ -18,81 +18,87 @@ import type { Session } from '../types/models';
 // table durations as-is.
 //
 // description: only Deep Exhale has real Stitch copy (session-player-code.html,
-// per the above). The other 5 sessions have no Stitch-sourced copy anywhere in
+// per the above) — no other session has Stitch-sourced copy anywhere in
 // assets/design-reference/ (library-code.html only shows title + icon, no
-// description) — their description text below is placeholder and should be
-// revisited (real copywriting or a Stitch update) before the Library/Session
-// Player build steps.
+// description). The other 5 sessions' descriptions below (added 2026-09-17)
+// are written copy matching Deep Exhale's tone — one sentence naming the
+// session's actual phaseConfig technique and the physiological reason it
+// suits that session's mood/context — not Stitch-sourced, and should still
+// be revisited if a real Stitch export ever supplies canonical copy.
 //
-// phaseConfig (inhale/hold/exhale seconds): not specified anywhere in
-// PRD.md/architecture.md/DESIGN.md yet — placeholder values consistent with
-// PRD's "paced/extended-exhale breathing" (exhale longer than inhale).
+// phaseConfig: explicit product decision (2026-09-17) — all 6 sessions use
+// the same 4-4-8-4 BREATHE IN / HOLD / BREATHE OUT / REST pattern, replacing
+// the prior per-session (mostly identical) 3-phase placeholder values.
+// architecture.md:78 still documents the older 3-field { inhale, hold,
+// exhale } shape and its "Inhale.../Hold for 4 seconds" copy convention —
+// flagged as an intentional, known deviation rather than silently updated;
+// see PROGRESS.md. `rest` is a new field (src/types/models.ts).
 export const sessions: Session[] = [
   {
     id: 'deep-exhale',
     title: 'Deep Exhale',
     category: 'Calm',
     durationSec: 10 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 8 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Leaf',
     pattern: 'rings',
     description:
-      'Designed to activate your parasympathetic nervous system, lowering your heart rate and melting away residual tension.',
+      'Slow, deep breathing to help you release tension and feel more relaxed.',
   },
   {
     id: 'morning-reset',
     title: 'Morning Reset',
     category: 'Sleep',
     durationSec: 18 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 8 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Moon',
     pattern: 'wave',
     description:
-      'Ease into the day with a gentle, grounding breath pattern that clears overnight grogginess.',
+      'Gentle breathing to help shake off morning grogginess and ease into your day.',
   },
   {
     id: 'calm-focus',
     title: 'Calm Focus',
     category: 'Calm',
     durationSec: 15 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 8 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Leaf',
     pattern: 'starburst',
     description:
-      'Steady, even breathing to settle a busy mind and sharpen focus before a task.',
+      'Slow, steady breathing to quiet a busy mind and help you focus.',
   },
   {
     id: 'stress-relief',
     title: 'Stress Relief',
     category: 'Energy',
     durationSec: 10 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 8 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Zap',
     pattern: 'dot-grid',
     description:
-      'A quick reset for high-pressure moments — short, extended-exhale breaths to lower tension fast.',
+      'A quick breathing reset to help you feel calmer when stress hits.',
   },
   {
     id: 'wind-down',
     title: 'Wind Down',
     category: 'Sleep',
     durationSec: 12 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 8 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Moon',
     pattern: 'spiral',
     description:
-      'Slow the nervous system down at the end of the day to prepare the body for rest.',
+      'Slow breathing to help you relax and get ready for sleep.',
   },
   {
     id: 'box-breathing',
     title: 'Box Breathing',
     category: 'Recovery',
     durationSec: 12 * 60,
-    phaseConfig: { inhale: 4, hold: 4, exhale: 4 },
+    phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Heart',
     pattern: 'bloom',
     description:
-      'Equal-count inhale, hold, and exhale to restore balance and steady the heart rate.',
+      'A steady breathing rhythm to help you reset and regain a sense of calm.',
   },
 ];
 

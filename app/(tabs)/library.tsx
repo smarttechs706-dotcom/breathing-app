@@ -187,7 +187,7 @@ export default function LibraryScreen() {
               >
                 <GlassCard radius={radii.DEFAULT} style={styles.sessionCard}>
                   <View style={styles.sessionCardRow}>
-                    <SessionThumbnail pattern={session.pattern} size={80} />
+                    <SessionThumbnail sessionId={session.id} size={80} />
                     <View style={styles.sessionInfo}>
                       <Text style={styles.sessionTitle}>{session.title}</Text>
                       <View style={styles.sessionMetaRow}>

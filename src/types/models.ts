@@ -6,7 +6,11 @@ export interface Session {
   title: string;
   category: 'Calm' | 'Sleep' | 'Energy' | 'Recovery';
   durationSec: number;
-  phaseConfig: { inhale: number; hold: number; exhale: number };
+  // 4-phase pattern (2026-09-17 product decision): architecture.md:78
+  // originally spec'd a 3-field { inhale, hold, exhale } shape — `rest`
+  // is an intentional, flagged extension for the new BREATHE IN / HOLD /
+  // BREATHE OUT / REST pattern applied to all 6 sessions. See PROGRESS.md.
+  phaseConfig: { inhale: number; hold: number; exhale: number; rest: number };
   badge: 'Leaf' | 'Moon' | 'Zap' | 'Heart';
   pattern: 'rings' | 'wave' | 'starburst' | 'dot-grid' | 'spiral' | 'bloom';
   // Not in architecture.md's original interface, but required by both the

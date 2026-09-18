@@ -56,7 +56,9 @@ import { colors, radii, spacing, typography } from '../src/theme/tokens';
 // all reflect it) and in PRD.md's table to match — see PROGRESS.md.
 
 type Phase = 'pre-mood' | 'active' | 'post-mood';
-type BreathSubPhase = 'inhale' | 'hold' | 'exhale';
+// 4-phase pattern (2026-09-17): BREATHE IN / HOLD / BREATHE OUT / REST,
+// replacing the prior 3-phase inhale/hold/exhale cycle — see sessions.ts.
+type BreathSubPhase = 'inhale' | 'hold' | 'exhale' | 'rest';
 
 function formatDurationBadge(durationSec: number) {
   return `${Math.round(durationSec / 60)} MIN SESSION`;
@@ -135,11 +137,16 @@ export default function SessionPlayerScreen() {
       inhale: session.phaseConfig.inhale,
       hold: session.phaseConfig.hold,
       exhale: session.phaseConfig.exhale,
+      rest: session.phaseConfig.rest,
+    };
+    const nextSubPhase: Record<BreathSubPhase, BreathSubPhase> = {
+      inhale: 'hold',
+      hold: 'exhale',
+      exhale: 'rest',
+      rest: 'inhale',
     };
     const id = setTimeout(() => {
-      setBreathSubPhase((cur) =>
-        cur === 'inhale' ? 'hold' : cur === 'hold' ? 'exhale' : 'inhale'
-      );
+      setBreathSubPhase((cur) => nextSubPhase[cur]);
     }, durations[breathSubPhase] * 1000);
     return () => clearTimeout(id);
   }, [phase, paused, breathSubPhase, session.phaseConfig]);
@@ -201,18 +208,24 @@ export default function SessionPlayerScreen() {
     100
   );
 
-  const phaseLabel =
-    breathSubPhase === 'inhale'
-      ? 'Inhale...'
-      : breathSubPhase === 'hold'
-        ? 'Hold...'
-        : 'Exhale...';
+  // 4-phase pattern (2026-09-17 product decision): exact labels/instruction
+  // copy per session — see PROGRESS.md. Deviates from architecture.md:163-168's
+  // documented "Inhale.../Hold for 4 seconds" convention; flagged, not silent.
+  const PHASE_LABEL: Record<BreathSubPhase, string> = {
+    inhale: 'BREATHE IN',
+    hold: 'HOLD',
+    exhale: 'BREATHE OUT',
+    rest: 'REST',
+  };
+  const phaseLabel = PHASE_LABEL[breathSubPhase];
   const phaseSubLabel =
     breathSubPhase === 'inhale'
-      ? `Breathe in for ${session.phaseConfig.inhale} seconds`
+      ? `Breathe in slowly for ${session.phaseConfig.inhale} seconds`
       : breathSubPhase === 'hold'
-        ? `Hold for ${session.phaseConfig.hold} seconds`
-        : `Breathe out for ${session.phaseConfig.exhale} seconds`;
+        ? `Hold gently for ${session.phaseConfig.hold} seconds`
+        : breathSubPhase === 'exhale'
+          ? `Breathe out slowly for ${session.phaseConfig.exhale} seconds`
+          : `Stay relaxed for ${session.phaseConfig.rest} seconds`;
 
   return (
     <View style={styles.root}>
@@ -314,6 +327,7 @@ export default function SessionPlayerScreen() {
                     inhaleSec={session.phaseConfig.inhale}
                     holdSec={session.phaseConfig.hold}
                     exhaleSec={session.phaseConfig.exhale}
+                    restSec={session.phaseConfig.rest}
                     paused={paused}
                   />
                   <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
