@@ -33,6 +33,18 @@ import type { Session } from '../types/models';
 // exhale } shape and its "Inhale.../Hold for 4 seconds" copy convention —
 // flagged as an intentional, known deviation rather than silently updated;
 // see PROGRESS.md. `rest` is a new field (src/types/models.ts).
+//
+// title/category: explicit product decision (2026-09-19) — "Calm Focus"
+// renamed to "Calm and Focus" (title only, id/description/duration/badge/
+// pattern unchanged); Morning Reset moved Sleep→Energy; Stress Relief moved
+// Energy→Calm. architecture.md:103-105's LOCKED "Library session mapping"
+// table still shows the old title/category values for these rows — flagged
+// as a known, intentional deviation (not silently re-derived) rather than
+// edited there, same handling as the phaseConfig deviation above; see
+// PROGRESS.md. badge/pattern were left untouched per instruction, so Morning
+// Reset (badge Moon) and Stress Relief (badge Zap) now carry a badge that no
+// longer matches their new category's icon convention elsewhere in the app —
+// also flagged, not fixed here.
 export const sessions: Session[] = [
   {
     id: 'deep-exhale',
@@ -48,7 +60,7 @@ export const sessions: Session[] = [
   {
     id: 'morning-reset',
     title: 'Morning Reset',
-    category: 'Sleep',
+    category: 'Energy',
     durationSec: 18 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Moon',
@@ -58,7 +70,7 @@ export const sessions: Session[] = [
   },
   {
     id: 'calm-focus',
-    title: 'Calm Focus',
+    title: 'Calm and Focus',
     category: 'Calm',
     durationSec: 15 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
@@ -70,7 +82,7 @@ export const sessions: Session[] = [
   {
     id: 'stress-relief',
     title: 'Stress Relief',
-    category: 'Energy',
+    category: 'Calm',
     durationSec: 10 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
     badge: 'Zap',

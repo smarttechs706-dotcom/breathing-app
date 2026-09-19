@@ -1857,6 +1857,119 @@ should either update architecture.md to match (4-field `phaseConfig`,
 new label convention) or revisit this decision, so the two don't stay
 silently out of sync indefinitely.
 
+## Session — 2026-09-19: session title/category changes (data-only) (Part 1)
+User-directed content change, scoped strictly to `src/data/sessions.ts` per
+instruction (additive/data-only) plus the required PRD.md doc updates —
+no screen/component file touched (confirmed via `git status`/`git diff
+--stat` after editing: only `src/data/sessions.ts` and `PRD.md` changed).
+
+1. **"Calm Focus" → "Calm and Focus"** — title only; `id` (`calm-focus`),
+   `description`, `durationSec`, `badge` (`Leaf`), `pattern` (`starburst`)
+   all left byte-for-byte unchanged.
+2. **Morning Reset**: category `Sleep` → `Energy`.
+3. **Stress Relief**: category `Energy` → `Calm`.
+
+**Recalculated real category counts** (Library's tab counts are computed
+live from `sessions.ts` via `library.tsx:50-51` — `sessions.filter((s) =>
+s.category === category).length` — so no code change was needed there,
+only confirmed the computation still reads correctly against the new
+data): **Calm 3** (Deep Exhale, Calm and Focus, Stress Relief), **Sleep 1**
+(Wind Down), **Energy 1** (Morning Reset), **Recovery 1** (Box Breathing).
+Updated PRD.md's category-count example line and its session catalog table
+to match (`Calm Focus`→`Calm and Focus`, Morning Reset→Energy, Stress
+Relief→Calm), with an inline note explaining the change, same pattern as
+the earlier Deep-Exhale-duration doc update.
+
+**Flagged, not silently resolved**: this makes `sessions.ts`/PRD.md diverge
+from architecture.md's LOCKED "Library session mapping" table (lines
+103-105), which still lists Morning Reset as Sleep, Stress Relief as
+Energy, and the session as "Calm Focus" — CLAUDE.md's house rule against
+*re-deriving* this table doesn't apply here (this was an explicit,
+directed category/title change, not a guess), but architecture.md itself
+was out of scope for this task and was intentionally left unedited, so it's
+now stale on these 3 fields — same handling precedent as the phaseConfig
+deviation flagged 2026-09-17. A future session should either update
+architecture.md's locked table to match or revisit this decision.
+
+Also flagged, not fixed: `badge`/`pattern` were left untouched per
+instruction (data-only, additive scope), so Morning Reset now carries
+`badge: 'Moon'` (the old Sleep-category icon) under its new Energy
+category, and Stress Relief carries `badge: 'Zap'` (the old Energy icon)
+under its new Calm category — both now inconsistent with the
+badge↔category convention every other session in the catalog still follows
+(Leaf/Calm, Moon/Sleep, Zap/Energy, Heart/Recovery).
+
+`npx tsc --noEmit`: clean. Full diff shown to the user above rather than
+just asserted, per CLAUDE.md's working-style rule.
+
+## Tab-bar-overlap investigation: CLOSED (2026-09-19, policy decision)
+Read-only diagnostic audit performed first (no code changes), covering
+every previous fix attempt for this recurring bug across this file's
+history, whether Home/Library/Player/Insights share the same
+padding/spacing mechanism, and whether this is genuinely one root cause
+or several. Findings, then the user's resulting decision:
+
+**Root cause (confirmed, not re-guessed)**: `app/(tabs)/_layout.tsx`'s
+tab bar is a real floating overlay (`tabBarStyle.position: 'absolute'`,
+height 84, over a `BlurView`), and all 4 screens already use the
+*identical* correct bottom-padding mechanism
+(`useBottomTabBarHeight() + spacing.base * 2` — verified byte-identical
+across Home/Library/Player/Insights, so there was never a drift in this
+part of the mechanism). Padding only affects how far content *can*
+scroll, never what's visible at `scrollY=0` — so any screen taller than
+one viewport will always show its last element sitting partly behind the
+bar before the user scrolls. Every "overlap" report in this file's
+history (Home's mood/streak card, Insights' stat row, Library's Box
+Breathing card) was this exact same mechanism, confirmed each time via
+real bounding-box measurements, not guesswork. It only *looked* like
+several different bugs because two different response policies were
+used: Home/Insights were "fixed" by trimming spacing until *current*
+content happened to fit above the fold pre-scroll (fragile — re-breaks
+the instant content grows, which is why it kept resurfacing); Library was
+investigated the same way but deliberately left as-is, treating
+scroll-to-reveal-the-last-card as expected behavior for a growing list
+(same pattern as Instagram/Spotify) rather than a defect. Unrelated bugs
+(Android `flexWrap` collapsing the Insights stat grid/calendar, `BlurView`
+corner-clipping at `radii.xl`, the tab-bar active-pill shape bug) got
+tangled into the same investigation threads historically but are separate,
+already-closed issues — not more instances of the overlap mechanism.
+
+**Decision (user, after reviewing the findings): Option 1 — retire the
+pre-scroll-fit expectation for Home and Insights**, formally aligning
+them with Library's already-correct, already-verified policy: guarantee
+clean clearance *after* full scroll (already true on all 4 screens, and
+confirmed on-device for this exact padding mechanism earlier in this
+file), and accept that content may sit partially behind the tab bar
+before scrolling — same as Library, Instagram, and Spotify. **No code
+change was needed for this part** — the existing `useBottomTabBarHeight()`
+padding already satisfies the accepted policy on every screen; what
+changes is that this project no longer treats "fits without scrolling" as
+a requirement for Home/Insights, so their existing tightened first-paint
+spacing is left as-is (harmless, not un-done) but won't be re-tuned
+further if it stops fitting as content grows. This closes out the
+recurring investigation for good — there is no longer a "bug" here to
+re-open, only expected floating-tab-bar-over-scrollable-content behavior.
+
+## Fixed (side effect of the "Calm and Focus" rename): Library title
+wrapping to 2 lines (2026-09-19)
+Flagged during the tab-bar-overlap audit above: "Calm and Focus" is 4
+characters longer than the old "Calm Focus" title, and Library's
+`sessionTitle` `Text` had no line clamp — risked wrapping to 2 lines on
+narrower screens and disrupting the session grid's per-card layout
+consistency (all 6 cards are otherwise uniform height). Fixed
+(`app/(tabs)/library.tsx` only): added `numberOfLines={1}
+ellipsizeMode="tail"` to that `Text`, so every session title (regardless
+of length) stays on one line and ellipsizes rather than wraps.
+
+Verified on an isolated web server (port 8090, `--clear`; torn down after,
+including a direct `taskkill` on the underlying node PID — the same
+recurring `TaskStop`-doesn't-kill-the-process gap noted repeatedly
+elsewhere in this file) via `playwright-cli` at a real phone viewport
+(393×852): screenshotted the Library grid — "Calm and Focus" renders on a
+single line, all 6 card titles same treatment, no wrapping, category tab
+counts show the new distribution (For You 6, Calm 3, Sleep 1 visible in
+frame). `npx tsc --noEmit`: clean.
+
 ## Blockers
 - None
 

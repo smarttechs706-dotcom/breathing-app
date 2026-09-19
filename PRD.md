@@ -47,9 +47,10 @@ Browse → Play → Check in → See result → Come back
    this list said 4 tabs and omitted Energy, which didn't match the
    category-count example below it), Quick Start button, session grid
    - Category tab counts must reflect real counts from the 6-session
-     catalog (e.g. "Calm 2", "Sleep 2", "Energy 1", "Recovery 1") — NOT the
-     Stitch mockup's placeholder numbers (e.g. "For You 292", "Calm 45"),
-     which were illustrative filler for the design mockup only
+     catalog (as of 2026-09-19: "Calm 3", "Sleep 1", "Energy 1",
+     "Recovery 1" — see the session catalog table below) — NOT the Stitch
+     mockup's placeholder numbers (e.g. "For You 292", "Calm 45"), which
+     were illustrative filler for the design mockup only
    - Quick Start immediately begins the current "For You" recommended
      session — skips Library browsing entirely, opens Session Player
      directly at the pre-mood phase
@@ -91,9 +92,9 @@ Browse → Play → Check in → See result → Come back
 | Session | Category | Duration |
 |---|---|---|
 | Deep Exhale | Calm | 10 min |
-| Morning Reset | Sleep | 18 min |
-| Calm Focus | Calm | 15 min |
-| Stress Relief | Energy | 10 min |
+| Morning Reset | Energy | 18 min |
+| Calm and Focus | Calm | 15 min |
+| Stress Relief | Calm | 10 min |
 | Wind Down | Sleep | 12 min |
 | Box Breathing | Recovery | 12 min |
 
@@ -103,3 +104,10 @@ were updated to match session-player-code.html's version — 10 min,
 heart rate and melting away residual tension." — made canonical everywhere
 by explicit product decision (2026-09-12), overriding this table's
 original value and home-code.html's differing description text.
+
+"Calm Focus" was renamed to "Calm and Focus" (title only), Morning Reset
+moved from Sleep to Energy, and Stress Relief moved from Energy to Calm —
+explicit product decision (2026-09-19). This makes this table (and the
+category counts above) diverge from architecture.md's LOCKED "Library
+session mapping" table, which still lists the old title/category values —
+flagged as a known, intentional deviation there, not silently re-derived.

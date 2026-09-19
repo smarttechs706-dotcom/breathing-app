@@ -189,7 +189,18 @@ export default function LibraryScreen() {
                   <View style={styles.sessionCardRow}>
                     <SessionThumbnail sessionId={session.id} size={80} />
                     <View style={styles.sessionInfo}>
-                      <Text style={styles.sessionTitle}>{session.title}</Text>
+                      {/* numberOfLines pins the row height across all 6 cards
+                          regardless of title length — "Calm and Focus" is 4
+                          chars longer than "Calm Focus" and would otherwise
+                          wrap to 2 lines, disrupting card layout consistency
+                          (see PROGRESS.md's 2026-09-19 title-change entry). */}
+                      <Text
+                        style={styles.sessionTitle}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {session.title}
+                      </Text>
                       <View style={styles.sessionMetaRow}>
                         <MaterialIcons
                           name={BADGE_ICON[session.badge]}
