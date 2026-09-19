@@ -98,15 +98,20 @@ interface Streak {
 ```
 
 ## Locked reference data — Library session mapping
-Do not re-derive this from category or title. This is final, confirmed data:
+Do not re-derive this from category or title. This is final, confirmed data.
+
+Updated 2026-09-19 by explicit product decision to match `src/data/
+sessions.ts` (title/category renames + a corresponding badge fix — see
+that file's header comment for the full reasoning, including why the
+badge column changed for Morning Reset and Stress Relief):
 
 | id | title | category | badge | pattern |
 |---|---|---|---|---|
 | deep-exhale | Deep Exhale | Calm | Leaf | rings |
-| morning-reset | Morning Reset | Sleep | Moon | wave |
-| calm-focus | Calm Focus | Calm | Leaf | starburst |
-| stress-relief | Stress Relief | Energy | Zap | dot-grid |
-| wind-down | Wind Down | Sleep | Moon | spiral |
+| morning-reset | Morning Reset | Energy | Zap | wave |
+| calm-focus | Calm and Focus | Calm | Leaf | starburst |
+| stress-relief | Stress Relief | Calm | Leaf | dot-grid |
+| wind-down | Sleep Wind Down | Sleep | Moon | spiral |
 | box-breathing | Box Breathing | Recovery | Heart | bloom |
 
 ## API contract

@@ -1994,6 +1994,52 @@ triggered at this width, unlike the concern that prompted the earlier
 
 `npx tsc --noEmit`: clean.
 
+## Resolved: badge/category mismatch + architecture.md locked-table sync (2026-09-19)
+Addressed the divergence flagged in the two rename entries above. Read
+PROGRESS.md's full history first per instruction, then reviewed
+`src/data/sessions.ts` and the original Stitch source
+(`assets/design-reference/library-code.html`) before deciding, rather than
+guessing.
+
+**Finding**: `library-code.html` assigns each session's badge icon 1:1
+with its (then) category, with zero exceptions — Calm→`eco`(Leaf),
+Sleep→`bedtime`(Moon), Energy→`bolt`(Zap), Recovery→`favorite`(Heart).
+This is decisive, not genuinely ambiguous: badge is a category indicator
+by original design intent, not an independent per-session
+technique/feel attribute. Presented this finding and the resulting
+recommendation to the user before editing anything, per instruction.
+
+**Change** (`src/data/sessions.ts`): updated the two mismatched badges to
+follow the convention rather than leaving them flagged —
+- **Morning Reset** (category now Energy): `badge` Moon → **Zap**
+- **Stress Relief** (category now Calm): `badge` Zap → **Leaf**
+
+`id`/`description`/`durationSec`/`phaseConfig`/`pattern` unchanged for
+both. Rewrote the file's header comment block to fold the three
+2026-09-19 rename/badge entries into one coherent note (title/category
+renames, the badge-fix reasoning, and the architecture.md sync below),
+replacing the earlier "flagged, not fixed" language now that it's
+actually resolved.
+
+**Change** (`architecture.md`): updated the LOCKED "Library session
+mapping" table (lines 103-110) to match `sessions.ts` exactly — title
+(Calm and Focus, Sleep Wind Down), category (Morning Reset→Energy,
+Stress Relief→Calm), and badge (Morning Reset→Zap, Stress Relief→Leaf) —
+with a dated note explaining this is an explicit, reasoned update to the
+locked table, not a silent re-derivation (CLAUDE.md's house rule is about
+not *guessing* this data, not about it being permanently frozen against
+an explicit, documented product decision). PRD.md's catalog table was
+**not** touched this round (still says "Wind Down," out of scope for this
+task, already flagged separately) — left as-is rather than expanding
+scope beyond what was asked.
+
+`npx tsc --noEmit`: clean. Verified visually on an isolated web server
+(port 8092, `--clear`; torn down after via direct `taskkill`, same
+recurring `TaskStop` gap noted elsewhere in this file) + `playwright-cli`
+at a real phone viewport (393×852): Morning Reset now shows the bolt
+(Zap) icon, Stress Relief now shows the leaf (Leaf) icon, both consistent
+with their new categories; no regression on the other 4 sessions' badges.
+
 ## Blockers
 - None
 

@@ -35,23 +35,27 @@ import type { Session } from '../types/models';
 // see PROGRESS.md. `rest` is a new field (src/types/models.ts).
 //
 // title/category: explicit product decision (2026-09-19) — "Calm Focus"
-// renamed to "Calm and Focus" (title only, id/description/duration/badge/
-// pattern unchanged); Morning Reset moved Sleep→Energy; Stress Relief moved
-// Energy→Calm. architecture.md:103-105's LOCKED "Library session mapping"
-// table still shows the old title/category values for these rows — flagged
-// as a known, intentional deviation (not silently re-derived) rather than
-// edited there, same handling as the phaseConfig deviation above; see
-// PROGRESS.md. badge/pattern were left untouched per instruction, so Morning
-// Reset (badge Moon) and Stress Relief (badge Zap) now carry a badge that no
-// longer matches their new category's icon convention elsewhere in the app —
-// also flagged, not fixed here.
+// renamed to "Calm and Focus" (title only, id/description/duration/pattern
+// unchanged); Morning Reset moved Sleep→Energy; Stress Relief moved
+// Energy→Calm. "Wind Down" renamed to "Sleep Wind Down" (title only, same
+// day, separate request).
 //
-// title: explicit product decision (2026-09-19) — "Wind Down" renamed to
-// "Sleep Wind Down" (title only, id/description/duration/badge/pattern/
-// category unchanged). architecture.md:103-105's LOCKED table and PRD.md's
-// catalog table both still show "Wind Down" — flagged as a known,
-// intentional deviation, same handling as the renames above; see
-// PROGRESS.md.
+// badge: checked the original Stitch source (library-code.html) before
+// deciding — it assigns each session's badge icon 1:1 with its (then)
+// category with zero exceptions (Calm→eco/Leaf, Sleep→bedtime/Moon,
+// Energy→bolt/Zap, Recovery→favorite/Heart), confirming badge is a
+// category indicator, not an independent per-session technique/feel
+// attribute. So when Morning Reset and Stress Relief's categories moved
+// above, their badges were updated to match the convention rather than
+// left pointing at the old category: Morning Reset Moon→Zap (Sleep→Energy),
+// Stress Relief Zap→Leaf (Energy→Calm) — resolved 2026-09-19, not left as a
+// flagged mismatch.
+//
+// architecture.md:103-110's LOCKED "Library session mapping" table has been
+// updated to match all of the above (title/category/badge) as part of this
+// same resolution, so it's back in sync with this file — this is an
+// intentional, explicit update to the locked table, not a silent
+// re-derivation (see CLAUDE.md's house rule and PROGRESS.md).
 export const sessions: Session[] = [
   {
     id: 'deep-exhale',
@@ -70,7 +74,7 @@ export const sessions: Session[] = [
     category: 'Energy',
     durationSec: 18 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
-    badge: 'Moon',
+    badge: 'Zap',
     pattern: 'wave',
     description:
       'Gentle breathing to help shake off morning grogginess and ease into your day.',
@@ -92,7 +96,7 @@ export const sessions: Session[] = [
     category: 'Calm',
     durationSec: 10 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
-    badge: 'Zap',
+    badge: 'Leaf',
     pattern: 'dot-grid',
     description:
       'A quick breathing reset to help you feel calmer when stress hits.',
