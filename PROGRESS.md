@@ -1970,6 +1970,30 @@ single line, all 6 card titles same treatment, no wrapping, category tab
 counts show the new distribution (For You 6, Calm 3, Sleep 1 visible in
 frame). `npx tsc --noEmit`: clean.
 
+## Session — 2026-09-19: "Wind Down" renamed to "Sleep Wind Down" (data-only)
+User-directed content change, scoped strictly to `src/data/sessions.ts`
+per instruction (additive/data-only) — no other file touched (confirmed
+via `git status`/`git diff --stat` after editing).
+
+Title only: `id` (`wind-down`), `description`, `durationSec` (12 min),
+`badge` (`Moon`), `pattern` (`spiral`), and `category` (`Sleep`) all left
+byte-for-byte unchanged. Added a header-comment flag matching the pattern
+used for the earlier "Calm and Focus" rename: architecture.md:103-105's
+LOCKED table and PRD.md's catalog table both still say "Wind Down" —
+known, intentional deviation, not silently re-derived; not updated in
+those two files this round since this task's scope was `sessions.ts` only.
+
+**Verified the requested one-line check**, per instruction: on an isolated
+web server (port 8091, `--clear`; torn down after via a direct `taskkill`
+on the underlying node PID — same recurring `TaskStop` gap noted elsewhere
+in this file) + `playwright-cli` at a real phone viewport (393×852),
+scrolled to the Wind Down card: "Sleep Wind Down" renders comfortably on
+one line with the existing `numberOfLines={1}` fix — no ellipsis was even
+triggered at this width, unlike the concern that prompted the earlier
+"Calm and Focus" fix. All 6 card titles remain visually uniform.
+
+`npx tsc --noEmit`: clean.
+
 ## Blockers
 - None
 

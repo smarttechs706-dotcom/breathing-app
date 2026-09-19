@@ -45,6 +45,13 @@ import type { Session } from '../types/models';
 // Reset (badge Moon) and Stress Relief (badge Zap) now carry a badge that no
 // longer matches their new category's icon convention elsewhere in the app —
 // also flagged, not fixed here.
+//
+// title: explicit product decision (2026-09-19) — "Wind Down" renamed to
+// "Sleep Wind Down" (title only, id/description/duration/badge/pattern/
+// category unchanged). architecture.md:103-105's LOCKED table and PRD.md's
+// catalog table both still show "Wind Down" — flagged as a known,
+// intentional deviation, same handling as the renames above; see
+// PROGRESS.md.
 export const sessions: Session[] = [
   {
     id: 'deep-exhale',
@@ -92,7 +99,7 @@ export const sessions: Session[] = [
   },
   {
     id: 'wind-down',
-    title: 'Wind Down',
+    title: 'Sleep Wind Down',
     category: 'Sleep',
     durationSec: 12 * 60,
     phaseConfig: { inhale: 4, hold: 4, exhale: 8, rest: 4 },
