@@ -21,6 +21,16 @@ abstraction), and precise control over business logic (streak calculation,
 mood-delta rules) that's easier to express correctly in real code than
 through a low-code backend layer.
 
+**Confirmed (2026-09-23, breathing-app-api/PROGRESS.md):** this is
+permanent, not per-feature — the mobile app never calls Supabase directly
+with an anon/public key for anything, ever. `breathing-app-api` is the
+sole gateway, using the `service_role` key only. Consequence: Supabase
+Row Level Security on the underlying tables must still be enabled with
+deny-all policies for `anon`/`authenticated` — `service_role` bypasses
+RLS regardless, so this costs the API nothing, but the anon key is
+publicly discoverable and RLS is the only thing stopping it from reading/
+writing the tables directly, bypassing this API entirely.
+
 ## Repo structure
 
 ### Mobile app (`breathing-app/`)
