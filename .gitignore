@@ -41,3 +41,13 @@ yarn-error.*
 /android
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Agent Skills packs (installed via `npx skills add`, third-party, not project
+# source) — the real files land in .agents/skills/, then get symlinked into
+# .claude/skills/ for Claude Code. playwright-cli in .claude/skills/ predates
+# this and is genuine project content, not part of an installed pack, so it's
+# explicitly kept.
+.agents/
+skills-lock.json
+.claude/skills/*
+!.claude/skills/playwright-cli/
