@@ -103,6 +103,13 @@ export function MoodTrendChart({
         </Filter>
       </Defs>
       <Path d={fillPath} fill="url(#moodWaveGradient)" stroke="none" />
+      {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
+          2026-09-19 COLOR-AUDIT.md pass changed this stroke to flat
+          colors.inversePrimary (#3c55bf) — computed WCAG contrast against
+          this card's dark background is only ~2.86:1, below the 3:1 AA
+          minimum for a graphical/UI element. Reverted to colors.primary
+          (#b9c3ff), ~10.85:1 against the same background — matches the tab
+          bar and Library category-tab active-state contrast fixes. */}
       <Path
         d={linePath}
         fill="none"

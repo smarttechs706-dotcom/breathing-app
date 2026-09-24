@@ -75,6 +75,16 @@ function TabButton({
   style?: React.ComponentProps<typeof Pressable>['style'];
   testID?: string;
 }) {
+  // CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the 2026-09-19
+  // COLOR-AUDIT.md pass put colors.inversePrimary (#3c55bf) here as a flat
+  // foreground color — computed WCAG contrast against this screen's
+  // near-black background (#111415) is only ~2.86:1, below the 3:1 (icon)
+  // / 4.5:1 (label text) AA minimums. Reverted to colors.primary (#b9c3ff),
+  // which computes to ~10.85:1 against the same background — the CTA
+  // *buttons* still use the darker gradient family (fixed separately, see
+  // home.tsx/library.tsx/player.tsx), but a small icon+label indicator on a
+  // dark background needs a genuinely light foreground color, not the
+  // gradient's dark end.
   const tintColor = focused ? colors.primary : `${colors.onSurfaceVariant}B3`;
   const libraryFlex = StyleSheet.flatten(
     typeof style === 'function' ? undefined : style

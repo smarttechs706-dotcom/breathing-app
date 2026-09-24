@@ -74,13 +74,24 @@ export default function HowItWorksScreen() {
 
           <View style={styles.stepsColumn}>
             {steps.map((step) => (
-              <GlassCard key={step.title} radius={radii.xl} style={styles.stepCard}>
-                <View style={styles.stepIconCircle}>
-                  <MaterialIcons name={step.icon} size={28} color={step.iconColor} />
-                </View>
-                <Text style={styles.stepTitle}>{step.title}</Text>
-                <Text style={styles.stepDescription}>{step.description}</Text>
-              </GlassCard>
+              // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md Medium finding):
+              // expo-blur's native BlurView on Android doesn't reliably clip
+              // to a rounded rect via the parent's own overflow:hidden at
+              // radii.xl (48px) — confirmed on-device for Insights' cards at
+              // this same radius (see PROGRESS.md's "stat card corners
+              // uneven" entry). These step cards use the same radius and
+              // never got the matching fix. Wrapping in a second
+              // overflow:hidden + matching borderRadius View outside the
+              // BlurView, same technique as insights.tsx's cardClip.
+              <View key={step.title} style={styles.stepCardClip}>
+                <GlassCard radius={radii.xl} style={styles.stepCard}>
+                  <View style={styles.stepIconCircle}>
+                    <MaterialIcons name={step.icon} size={28} color={step.iconColor} />
+                  </View>
+                  <Text style={styles.stepTitle}>{step.title}</Text>
+                  <Text style={styles.stepDescription}>{step.description}</Text>
+                </GlassCard>
+              </View>
             ))}
           </View>
 
@@ -88,14 +99,23 @@ export default function HowItWorksScreen() {
             onPress={() => router.push('/onboarding/build-habit')}
             style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
           >
+            {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
+                2026-09-19 primaryContainer -> inversePrimary gradient with
+                onPrimaryFixed text computed to only ~2.6:1 contrast at the
+                gradient's darker end — below the 4.5:1 AA minimum. Swapped
+                to inversePrimary -> onPrimaryFixedVariant (both stops dark
+                enough that white text stays >=6.47:1 across the whole
+                gradient — see AUDIT-2.md for the full before/after math)
+                with white text, matching Home/Library/Player's identical
+                fix. */}
             <LinearGradient
-              colors={[colors.primaryContainer, colors.tertiary]}
+              colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.nextButtonGradient}
             >
               <Text style={styles.nextButtonText}>NEXT</Text>
-              <MaterialIcons name="arrow-forward" size={16} color={colors.onPrimaryFixed} />
+              <MaterialIcons name="arrow-forward" size={16} color="#ffffff" />
             </LinearGradient>
           </Pressable>
         </ScrollView>
@@ -181,6 +201,12 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: spacing.gutter,
   },
+  // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md) — see the step-card JSX
+  // comment above.
+  stepCardClip: {
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+  },
   stepCard: {
     padding: spacing.base * 3,
     alignItems: 'center',
@@ -233,6 +259,8 @@ const styles = StyleSheet.create({
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
     letterSpacing: typography.labelSm.letterSpacing,
-    color: colors.onPrimaryFixed,
+    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the NEXT button's
+    // LinearGradient comment above for the full before/after math.
+    color: '#ffffff',
   },
 });

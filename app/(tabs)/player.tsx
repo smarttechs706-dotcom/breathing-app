@@ -61,7 +61,13 @@ export default function PlayerScreen() {
           >
             Breathe
           </GradientText>
-          <MaterialIcons name="settings" size={24} color={colors.primary} />
+          <Pressable
+            onPress={() => router.push('/settings')}
+            hitSlop={12}
+            style={styles.settingsButton}
+          >
+            <MaterialIcons name="settings" size={24} color={colors.primary} />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -84,9 +90,18 @@ export default function PlayerScreen() {
                 Start a guided breathing session from the Library to see it
                 here.
               </Text>
+              {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
+                  2026-09-19 primaryContainer -> inversePrimary gradient with
+                  onPrimaryContainer text computed to only ~2.2:1 contrast at
+                  the gradient's darker end — below the 4.5:1 AA minimum.
+                  Swapped to inversePrimary -> onPrimaryFixedVariant (both
+                  stops dark enough that white text stays >=6.47:1 across the
+                  whole gradient — see AUDIT-2.md for the full before/after
+                  math) with white text, matching Home/Library's identical
+                  fix and Session Player's own Begin Journey button. */}
               <Pressable onPress={() => router.push('/library')}>
                 <LinearGradient
-                  colors={[colors.primaryContainer, colors.inversePrimary]}
+                  colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.startButton}
@@ -130,6 +145,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
     height: 64,
+  },
+  // Same padding-only Pressable-wrapper pattern already used by
+  // session-player.tsx's settings icon.
+  settingsButton: {
+    padding: spacing.base,
   },
   avatar: {
     width: 32,
@@ -196,6 +216,8 @@ const styles = StyleSheet.create({
     fontFamily: typography.labelSm.fontFamily,
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
-    color: colors.onPrimaryContainer,
+    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Start a Session
+    // LinearGradient comment above for the full before/after math.
+    color: '#ffffff',
   },
 });

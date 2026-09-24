@@ -59,14 +59,23 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/onboarding/how-it-works')}
             style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
           >
+            {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
+                2026-09-19 primaryContainer -> inversePrimary gradient with
+                onPrimaryFixed text computed to only ~2.6:1 contrast at the
+                gradient's darker end — below the 4.5:1 AA minimum. Swapped
+                to inversePrimary -> onPrimaryFixedVariant (both stops dark
+                enough that white text stays >=6.47:1 across the whole
+                gradient — see AUDIT-2.md for the full before/after math)
+                with white text, matching Home/Library/Player's identical
+                fix. */}
             <LinearGradient
-              colors={[colors.primary, colors.primaryContainer]}
+              colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.nextButtonGradient}
             >
               <Text style={styles.nextButtonText}>Next</Text>
-              <MaterialIcons name="arrow-forward" size={18} color={colors.onPrimaryFixed} />
+              <MaterialIcons name="arrow-forward" size={18} color="#ffffff" />
             </LinearGradient>
           </Pressable>
         </View>
@@ -162,6 +171,8 @@ const styles = StyleSheet.create({
     fontFamily: typography.labelSm.fontFamily,
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
-    color: colors.onPrimaryFixed,
+    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Next button's
+    // LinearGradient comment above for the full before/after math.
+    color: '#ffffff',
   },
 });
