@@ -10,6 +10,13 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
 // selected position, with "Stressed"/"Calm" labels under the ends.
 export const MOOD_EMOJIS = ['😫', '😟', '😐', '🙂', '😌'] as const;
 
+// Word labels for each mood value, along the same Stressed<->Calm spectrum
+// as this component's own end labels below. Not Stitch-sourced (no design
+// reference specifies per-value words, only the two endpoints) — added for
+// Home's "current mood" card, which needs a word alongside the emoji per
+// architecture.md's spec. See PROGRESS.md.
+export const MOOD_LABELS = ['Stressed', 'Uneasy', 'Neutral', 'Content', 'Calm'] as const;
+
 export function MoodSelector({
   value,
   onChange,

@@ -1,22 +1,55 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { fetchInsights, type InsightsResponse } from '../../src/api/client';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MoodTrendChart } from '../../src/components/MoodTrendChart';
-import {
-  consistencyCalendar,
-  mindfulMinutes,
-  monthOverMonthDelta,
-  moodTrend,
-  streak,
-  totalSessions,
-} from '../../src/data/insights';
+import type { MoodPoint } from '../../src/data/insights';
+import type { Checkin } from '../../src/types/models';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
+import { getDeviceId } from '../../src/utils/deviceId';
+
+const CONSISTENCY_DAYS = 28;
+
+// Each real checkin's postMood becomes one real point, chronological
+// (oldest first — checkins arrives newest-first from the API). No
+// averaging/bucketing per day: multiple same-day checkins just become
+// multiple real points, exactly as they happened.
+function buildMoodTrend(checkins: Checkin[]): MoodPoint[] {
+  return [...checkins]
+    .reverse()
+    .map((c) => ({ date: c.createdAt.slice(0, 10), mood: c.postMood }));
+}
+
+// One boolean per day for the last CONSISTENCY_DAYS days (oldest first,
+// today last) — true iff at least one real checkin exists that calendar
+// date. Grouped from the same real checkins array, no invented days.
+function buildConsistencyCalendar(checkins: Checkin[]): boolean[] {
+  const checkinDates = new Set(checkins.map((c) => c.createdAt.slice(0, 10)));
+  const days: boolean[] = [];
+  const today = new Date();
+  for (let i = CONSISTENCY_DAYS - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    days.push(checkinDates.has(iso));
+  }
+  return days;
+}
 
 // architecture.md's /api/insights: mindfulMinutes is a raw minute count —
 // insights-screenshot.png displays it as "12h", so the hour formatting
@@ -52,8 +85,82 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
+// Shared across the loading/error/success render branches below.
+function TopBar() {
+  return (
+    <View style={styles.topBar}>
+      <View style={styles.avatar}>
+        <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
+      </View>
+      <GradientText colors={[colors.primary, colors.tertiary]} style={styles.headline}>
+        Breathe
+      </GradientText>
+      <Pressable
+        onPress={() => router.push('/settings')}
+        hitSlop={12}
+        style={styles.settingsButton}
+      >
+        <MaterialIcons name="settings" size={24} color={colors.primary} />
+      </Pressable>
+    </View>
+  );
+}
+
 export default function InsightsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  // null = still loading (first fetch, or a retry in flight).
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    setInsights(null);
+    getDeviceId()
+      .then(fetchInsights)
+      .then(setInsights)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load insights.')
+      );
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (error) {
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <TopBar />
+          <View style={styles.centerState}>
+            <MaterialIcons name="error-outline" size={32} color={colors.onSurfaceVariant} />
+            <Text style={styles.centerStateText}>Couldn&apos;t load insights.</Text>
+            <Text style={styles.centerStateSubtext}>{error}</Text>
+            <Pressable onPress={load} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (insights === null) {
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <TopBar />
+          <View style={styles.centerState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const moodTrend = buildMoodTrend(insights.checkins);
+  const consistencyCalendar = buildConsistencyCalendar(insights.checkins);
+  const deltaSign = insights.monthOverMonthDelta >= 0 ? '+' : '';
 
   const statCards: StatCardConfig[] = [
     {
@@ -65,14 +172,14 @@ export default function InsightsScreen() {
       key: 'streak',
       icon: 'whatshot',
       iconColor: colors.primary,
-      value: `${streak.currentStreak}`,
+      value: `${insights.streak.currentStreak}`,
       label: 'Current Streak',
     },
     {
       key: 'sessions',
       icon: 'check-circle',
       iconColor: colors.secondary,
-      value: `${totalSessions}`,
+      value: `${insights.totalSessions}`,
       label: 'Total Sessions',
     },
     {
@@ -84,7 +191,7 @@ export default function InsightsScreen() {
       key: 'minutes',
       icon: 'access-time',
       iconColor: colors.tertiary,
-      value: formatMindfulMinutes(mindfulMinutes),
+      value: formatMindfulMinutes(insights.mindfulMinutes),
       label: 'Mindful Minutes',
     },
     {
@@ -99,7 +206,10 @@ export default function InsightsScreen() {
       key: 'trend',
       icon: 'moving',
       iconColor: colors.primary,
-      value: `+${monthOverMonthDelta}%`,
+      // Real monthOverMonthDelta can be negative (sessions declined) —
+      // the old dummy-data version hardcoded a leading "+", which would
+      // misrender a real negative value as e.g. "+-12%".
+      value: `${deltaSign}${insights.monthOverMonthDelta}%`,
       label: 'Vs Last Month',
     },
   ];
@@ -107,18 +217,7 @@ export default function InsightsScreen() {
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.topBar}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
-          </View>
-          <GradientText
-            colors={[colors.primary, colors.tertiary]}
-            style={styles.headline}
-          >
-            Breathe
-          </GradientText>
-          <MaterialIcons name="settings" size={24} color={colors.primary} />
-        </View>
+        <TopBar />
 
         <ScrollView
           contentContainerStyle={[
@@ -165,7 +264,7 @@ export default function InsightsScreen() {
               </View>
               <View style={styles.calendarFooter}>
                 <Text style={styles.calendarFooterStrong}>
-                  {streak.currentStreak} Week Streak
+                  {insights.streak.currentStreak} Week Streak
                 </Text>
                 <Text style={styles.calendarFooterMuted}>Keep going</Text>
               </View>
@@ -208,6 +307,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
     height: 56,
+  },
+  // Same padding-only Pressable-wrapper pattern already used by
+  // session-player.tsx's settings icon.
+  settingsButton: {
+    padding: spacing.base,
   },
   avatar: {
     width: 32,
@@ -342,5 +446,37 @@ const styles = StyleSheet.create({
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
     color: colors.onSurfaceVariant,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.base,
+    paddingHorizontal: spacing.marginMobile,
+  },
+  centerStateText: {
+    fontFamily: typography.bodyLg.fontFamily,
+    fontSize: typography.bodyLg.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  centerStateSubtext: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base * 3,
+    paddingVertical: spacing.base * 1.25,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onPrimary,
   },
 });

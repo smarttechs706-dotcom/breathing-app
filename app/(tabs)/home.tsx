@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 // Deep import, not a documented public path: expo-router vendors its own
 // react-navigation/bottom-tabs copy (there's no separate
@@ -12,24 +13,25 @@ import { router } from 'expo-router';
 // calculation bug. Flagging the fragility: could break on an expo-router
 // upgrade that reorganizes this internal path.
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { fetchInsights, type InsightsResponse } from '../../src/api/client';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
+import { MOOD_EMOJIS, MOOD_LABELS } from '../../src/components/MoodSelector';
 import { featuredSession } from '../../src/data/sessions';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
-
-// Dummy/placeholder data per CLAUDE.md's build order — real personalization,
-// mood, and streak values arrive once the backend (architecture.md's API
-// contract) exists. These mirror the Stitch home-code.html mockup's own
-// placeholder numbers exactly (12 sessions, 5-day streak, "Calm" mood).
-const snapshot = {
-  mood: { label: 'Calm', emoji: '😊' },
-  sessionsThisWeek: 12,
-  currentStreak: 5,
-};
+import { getDeviceId } from '../../src/utils/deviceId';
 
 function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)} min`;
@@ -37,6 +39,29 @@ function formatDuration(durationSec: number) {
 
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  // null = still loading (first fetch, or a retry in flight).
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    setInsights(null);
+    getDeviceId()
+      .then(fetchInsights)
+      .then(setInsights)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load your snapshot.')
+      );
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // "Current mood" isn't a field GET /api/insights returns — derived from
+  // the most recent real checkin's postMood (checkins is newest-first).
+  // No checkins yet -> no mood to show, not a fake default.
+  const latestMood = insights?.checkins[0]?.postMood ?? null;
 
   return (
     <View style={styles.root}>
@@ -60,7 +85,13 @@ export default function HomeScreen() {
               </GradientText>
             </View>
           </View>
-          <MaterialIcons name="settings" size={24} color={colors.primary} />
+          <Pressable
+            onPress={() => router.push('/settings')}
+            hitSlop={12}
+            style={styles.settingsButton}
+          >
+            <MaterialIcons name="settings" size={24} color={colors.primary} />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -94,14 +125,30 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <Pressable
-                    style={styles.beginButton}
                     onPress={() => {
                       // architecture.md: tapping Begin opens Session Player
                       // directly at the pre-mood phase for this session.
                       router.push(`/session-player?sessionId=${featuredSession.id}`);
                     }}
                   >
-                    <Text style={styles.beginButtonText}>Begin</Text>
+                    {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding):
+                        the 2026-09-19 primaryContainer -> inversePrimary
+                        gradient with onPrimaryContainer text computed to only
+                        ~2.2:1 contrast at the gradient's darker end — below
+                        the 4.5:1 AA minimum. Swapped to inversePrimary ->
+                        onPrimaryFixedVariant (both stops dark enough that
+                        white text stays >=6.47:1 across the whole gradient —
+                        see AUDIT-2.md for the full before/after math) with
+                        white text, matching Library/Player's identical fix
+                        and Session Player's own Begin Journey button. */}
+                    <LinearGradient
+                      colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.beginButton}
+                    >
+                      <Text style={styles.beginButtonText}>Begin</Text>
+                    </LinearGradient>
                   </Pressable>
                 </View>
               </View>
@@ -115,49 +162,72 @@ export default function HomeScreen() {
               <MaterialIcons name="more-horiz" size={22} color={colors.onSurfaceVariant} />
             </View>
 
-            <View style={styles.snapshotStack}>
-              <GlassCard radius={radii.md} style={styles.snapshotCard}>
-                <View style={styles.snapshotCardRow}>
-                  <MaterialIcons name="mood" size={22} color={colors.secondary} />
-                  <Text style={styles.snapshotEmoji}>{snapshot.mood.emoji}</Text>
-                </View>
-                <View>
-                  <Text style={styles.snapshotValue}>{snapshot.mood.label}</Text>
-                  <Text style={styles.snapshotLabel}>CURRENT MOOD</Text>
-                </View>
-              </GlassCard>
+            {error ? (
+              <View style={styles.snapshotCenterState}>
+                <MaterialIcons name="error-outline" size={28} color={colors.onSurfaceVariant} />
+                <Text style={styles.snapshotCenterStateText}>
+                  Couldn&apos;t load your snapshot.
+                </Text>
+                <Text style={styles.snapshotCenterStateSubtext}>{error}</Text>
+                <Pressable onPress={load} style={styles.retryButton}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
+              </View>
+            ) : insights === null ? (
+              <View style={styles.snapshotCenterState}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
+              <View style={styles.snapshotStack}>
+                <GlassCard radius={radii.md} style={styles.snapshotCard}>
+                  <View style={styles.snapshotCardRow}>
+                    <MaterialIcons name="mood" size={22} color={colors.secondary} />
+                    {latestMood !== null && (
+                      <Text style={styles.snapshotEmoji}>
+                        {MOOD_EMOJIS[latestMood - 1]}
+                      </Text>
+                    )}
+                  </View>
+                  <View>
+                    <Text style={styles.snapshotValue}>
+                      {latestMood !== null ? MOOD_LABELS[latestMood - 1] : '—'}
+                    </Text>
+                    <Text style={styles.snapshotLabel}>CURRENT MOOD</Text>
+                  </View>
+                </GlassCard>
 
-              <GlassCard radius={radii.md} style={styles.snapshotCard}>
-                <View style={styles.snapshotCardRow}>
-                  <MaterialIcons name="calendar-month" size={22} color={colors.tertiary} />
-                </View>
-                <View>
-                  <Text style={styles.snapshotValue}>
-                    {snapshot.sessionsThisWeek}{' '}
-                    <Text style={styles.snapshotValueUnit}>sessions</Text>
-                  </Text>
-                  <Text style={styles.snapshotLabel}>THIS WEEK</Text>
-                </View>
-              </GlassCard>
+                <GlassCard radius={radii.md} style={styles.snapshotCard}>
+                  <View style={styles.snapshotCardRow}>
+                    <MaterialIcons name="calendar-month" size={22} color={colors.tertiary} />
+                  </View>
+                  <View>
+                    <Text style={styles.snapshotValue}>
+                      {insights.sessionsThisWeek}{' '}
+                      <Text style={styles.snapshotValueUnit}>sessions</Text>
+                    </Text>
+                    <Text style={styles.snapshotLabel}>THIS WEEK</Text>
+                  </View>
+                </GlassCard>
 
-              <GlassCard
-                radius={radii.md}
-                style={[styles.snapshotCard, styles.streakCard]}
-              >
-                <View style={styles.snapshotCardRow}>
-                  <MaterialIcons name="local-fire-department" size={22} color="#fb923c" />
-                </View>
-                <View>
-                  <Text style={styles.snapshotValue}>
-                    {snapshot.currentStreak}{' '}
-                    <Text style={styles.snapshotValueUnit}>days</Text>
-                  </Text>
-                  <Text style={[styles.snapshotLabel, styles.streakLabel]}>
-                    CURRENT STREAK
-                  </Text>
-                </View>
-              </GlassCard>
-            </View>
+                <GlassCard
+                  radius={radii.md}
+                  style={[styles.snapshotCard, styles.streakCard]}
+                >
+                  <View style={styles.snapshotCardRow}>
+                    <MaterialIcons name="local-fire-department" size={22} color="#fb923c" />
+                  </View>
+                  <View>
+                    <Text style={styles.snapshotValue}>
+                      {insights.streak.currentStreak}{' '}
+                      <Text style={styles.snapshotValueUnit}>days</Text>
+                    </Text>
+                    <Text style={[styles.snapshotLabel, styles.streakLabel]}>
+                      CURRENT STREAK
+                    </Text>
+                  </View>
+                </GlassCard>
+              </View>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -194,6 +264,12 @@ const styles = StyleSheet.create({
     // scrolling) clears the floating tab bar better — see PROGRESS.md's
     // "first impression" spacing pass.
     height: 56,
+  },
+  // Same padding-only Pressable-wrapper pattern already used by
+  // session-player.tsx's settings icon — increases the tap target
+  // without shifting the icon's centered position in the top bar.
+  settingsButton: {
+    padding: spacing.base,
   },
   topBarLeft: {
     flexDirection: 'row',
@@ -305,7 +381,6 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   beginButton: {
-    backgroundColor: colors.primary,
     paddingHorizontal: spacing.base * 3,
     paddingVertical: spacing.base,
     borderRadius: radii.full,
@@ -314,7 +389,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.labelSm.fontFamily,
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
-    color: colors.onPrimary,
+    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Begin button's
+    // LinearGradient comment above for the full before/after math.
+    color: '#ffffff',
   },
   snapshotStack: {
     gap: spacing.base * 1.5,
@@ -357,5 +434,36 @@ const styles = StyleSheet.create({
   },
   streakLabel: {
     color: 'rgba(254,215,170,0.7)',
+  },
+  snapshotCenterState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.base,
+    paddingVertical: spacing.sectionGap,
+  },
+  snapshotCenterStateText: {
+    fontFamily: typography.bodyLg.fontFamily,
+    fontSize: typography.bodyLg.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  snapshotCenterStateSubtext: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base * 3,
+    paddingVertical: spacing.base * 1.25,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onPrimary,
   },
 });

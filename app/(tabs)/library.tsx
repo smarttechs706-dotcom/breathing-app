@@ -4,8 +4,9 @@ import { router } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,10 +16,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { fetchSessions } from '../../src/api/client';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { SessionThumbnail } from '../../src/components/SessionThumbnail';
-import { featuredSession, sessions } from '../../src/data/sessions';
+// featuredSession still comes from local dummy data — Quick Start just
+// needs a session id to route to, and Session Player (untouched this
+// phase, per instruction) still reads from this same file, so this stays
+// consistent until Session Player is wired to the real backend too.
+import { featuredSession } from '../../src/data/sessions';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
 
@@ -42,21 +48,40 @@ function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)} min`;
 }
 
-// Real counts from the 6-session catalog (src/data/sessions.ts) — NOT
-// library-code.html's placeholder mockup numbers ("For You 292", "Calm 45",
-// "Recovery 38", "Sleep 24"), which PRD.md explicitly calls out as
-// illustrative filler only.
-function countFor(category: CategoryFilter): number {
-  if (category === 'For You') return sessions.length;
-  return sessions.filter((s) => s.category === category).length;
-}
-
 export default function LibraryScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('For You');
   const [query, setQuery] = useState('');
+  // null = still loading (first fetch, or a retry in flight).
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    setSessions(null);
+    fetchSessions()
+      .then(setSessions)
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : 'Failed to load sessions.')
+      );
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Real counts from the live fetched catalog — NOT library-code.html's
+  // placeholder mockup numbers ("For You 292", "Calm 45", "Recovery 38",
+  // "Sleep 24"), which PRD.md explicitly calls out as illustrative filler
+  // only. 0 while loading/errored, same as an empty catalog would show.
+  function countFor(category: CategoryFilter): number {
+    if (!sessions) return 0;
+    if (category === 'For You') return sessions.length;
+    return sessions.filter((s) => s.category === category).length;
+  }
 
   const visibleSessions = useMemo(() => {
+    if (!sessions) return [];
     const byCategory =
       selectedCategory === 'For You'
         ? sessions
@@ -64,7 +89,7 @@ export default function LibraryScreen() {
     const q = query.trim().toLowerCase();
     if (!q) return byCategory;
     return byCategory.filter((s) => s.title.toLowerCase().includes(q));
-  }, [selectedCategory, query]);
+  }, [sessions, selectedCategory, query]);
 
   const handleQuickStart = () => {
     // PRD.md: Quick Start immediately begins the current "For You"
@@ -88,9 +113,29 @@ export default function LibraryScreen() {
           >
             Breathe
           </GradientText>
-          <MaterialIcons name="settings" size={24} color={colors.primary} />
+          <Pressable
+            onPress={() => router.push('/settings')}
+            hitSlop={12}
+            style={styles.settingsButton}
+          >
+            <MaterialIcons name="settings" size={24} color={colors.primary} />
+          </Pressable>
         </View>
 
+        {error ? (
+          <View style={styles.centerState}>
+            <MaterialIcons name="error-outline" size={32} color={colors.onSurfaceVariant} />
+            <Text style={styles.centerStateText}>Couldn&apos;t load sessions.</Text>
+            <Text style={styles.centerStateSubtext}>{error}</Text>
+            <Pressable onPress={load} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : sessions === null ? (
+          <View style={styles.centerState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : (
         <ScrollView
           contentContainerStyle={[
             styles.scrollContent,
@@ -164,14 +209,24 @@ export default function LibraryScreen() {
           </ScrollView>
 
           {/* Quick Start */}
+          {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
+              original primaryContainer -> inversePrimary gradient with
+              onPrimaryContainer text computed to only ~2.2:1 contrast at the
+              gradient's darker (inversePrimary) end — below the 4.5:1 AA
+              minimum. Swapped to inversePrimary -> onPrimaryFixedVariant (a
+              narrower, uniformly dark-navy range, both stops <=~0.12
+              luminance) with white text/icon, which computes to >=6.47:1
+              across the entire gradient — see AUDIT-2.md for the full
+              before/after math. Matches Session Player's Begin Journey
+              button's own white-text approach. */}
           <Pressable onPress={handleQuickStart}>
             <LinearGradient
-              colors={[colors.primaryContainer, colors.inversePrimary]}
+              colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.quickStart}
             >
-              <MaterialIcons name="play-arrow" size={20} color={colors.onPrimaryContainer} />
+              <MaterialIcons name="play-arrow" size={20} color="#ffffff" />
               <Text style={styles.quickStartText}>Quick Start</Text>
             </LinearGradient>
           </Pressable>
@@ -221,6 +276,7 @@ export default function LibraryScreen() {
             )}
           </View>
         </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -240,6 +296,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
     height: 64,
+  },
+  // Same padding-only Pressable-wrapper pattern already used by
+  // session-player.tsx's settings icon.
+  settingsButton: {
+    padding: spacing.base,
   },
   avatar: {
     width: 32,
@@ -301,6 +362,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
+  // CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the 2026-09-19
+  // COLOR-AUDIT.md pass switched this active-state indicator to flat
+  // colors.inversePrimary (#3c55bf) — computed WCAG contrast against this
+  // screen's dark background is only ~2.86-2.9:1 (worse still against the
+  // count badge's own translucent fill), below the 4.5:1 AA minimum for
+  // this label/count text. Reverted to colors.primary (#b9c3ff), ~10.85:1
+  // against the same background — matches the tab bar's own contrast fix.
   categoryTabActive: {
     borderColor: `${colors.primary}80`,
   },
@@ -341,7 +409,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.labelSm.fontFamily,
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
-    color: colors.onPrimaryContainer,
+    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Quick Start
+    // LinearGradient comment above for the full before/after math.
+    color: '#ffffff',
   },
   grid: {
     gap: spacing.base * 1.5,
@@ -380,5 +450,37 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     paddingVertical: spacing.base * 4,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.base,
+    paddingHorizontal: spacing.marginMobile,
+  },
+  centerStateText: {
+    fontFamily: typography.bodyLg.fontFamily,
+    fontSize: typography.bodyLg.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  centerStateSubtext: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base * 3,
+    paddingVertical: spacing.base * 1.25,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onPrimary,
   },
 });

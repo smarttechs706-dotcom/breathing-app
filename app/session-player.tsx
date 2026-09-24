@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   BackHandler,
@@ -14,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { postCheckin } from '../src/api/client';
 import { BreathingRing } from '../src/components/BreathingRing';
 import { GlassCard } from '../src/components/GlassCard';
 import { GradientText } from '../src/components/GradientText';
@@ -21,6 +23,7 @@ import { MOOD_EMOJIS, MoodSelector } from '../src/components/MoodSelector';
 import { featuredSession, getSessionById } from '../src/data/sessions';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
+import { getDeviceId } from '../src/utils/deviceId';
 
 // ============================================================================
 // FLAGGED CONFLICT (per instruction: flag rather than silently pick one)
@@ -80,6 +83,13 @@ export default function SessionPlayerScreen() {
   // pass a real id today, so this mainly guards a direct/malformed deep link.
   const session = getSessionById(sessionId ?? '') ?? featuredSession;
 
+  // AUDIT.md High finding (2026-09-19): router.push('/settings') from this
+  // screen doesn't unmount it — it just loses focus while Settings sits on
+  // top. Without this, the timers below and the BackHandler further down
+  // keep acting as if this screen were still the one on screen. Gates both
+  // on actual navigation focus, not just component lifetime.
+  const isFocused = useIsFocused();
+
   const { setActiveSessionId } = useActiveSession();
   // Marks a session "in progress" for the Player tab (app/(tabs)/player.tsx)
   // for as long as this screen is mounted, in any phase — cleared on exit,
@@ -97,6 +107,12 @@ export default function SessionPlayerScreen() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [paused, setPaused] = useState(false);
   const [breathSubPhase, setBreathSubPhase] = useState<BreathSubPhase>('inhale');
+  // Save state for the real POST /api/checkin call Done triggers. On
+  // failure, we stay on this screen with saveError set (preMood/postMood
+  // stay in state, untouched) instead of silently discarding the
+  // completed session — see PROGRESS.md for the full reasoning.
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
 
@@ -111,15 +127,17 @@ export default function SessionPlayerScreen() {
     }).start();
   }, [phase, transitionAnim]);
 
-  // Elapsed-time timer — only ticks during the active phase, and not while
-  // paused.
+  // Elapsed-time timer — only ticks during the active phase, not while
+  // paused, and not while this screen has lost focus (e.g. Settings was
+  // pushed on top) — otherwise a long-enough visit to Settings mid-session
+  // could silently auto-complete it in the background.
   useEffect(() => {
-    if (phase !== 'active' || paused) return;
+    if (phase !== 'active' || paused || !isFocused) return;
     const id = setInterval(() => {
       setElapsedSec((s) => s + 1);
     }, 1000);
     return () => clearInterval(id);
-  }, [phase, paused]);
+  }, [phase, paused, isFocused]);
 
   // Auto-advance to post-mood once the session's full duration has elapsed.
   useEffect(() => {
@@ -130,9 +148,10 @@ export default function SessionPlayerScreen() {
 
   // Breathing sub-phase cycle (inhale -> hold -> exhale -> inhale...),
   // timed from the session's own phaseConfig. Self-scheduling chain since
-  // each sub-phase has a different duration.
+  // each sub-phase has a different duration. Also paused while unfocused —
+  // same reasoning as the elapsed-time timer above.
   useEffect(() => {
-    if (phase !== 'active' || paused) return;
+    if (phase !== 'active' || paused || !isFocused) return;
     const durations: Record<BreathSubPhase, number> = {
       inhale: session.phaseConfig.inhale,
       hold: session.phaseConfig.hold,
@@ -149,7 +168,7 @@ export default function SessionPlayerScreen() {
       setBreathSubPhase((cur) => nextSubPhase[cur]);
     }, durations[breathSubPhase] * 1000);
     return () => clearTimeout(id);
-  }, [phase, paused, breathSubPhase, session.phaseConfig]);
+  }, [phase, paused, isFocused, breathSubPhase, session.phaseConfig]);
 
   const exitSession = () => {
     setActiveSessionId(null);
@@ -161,31 +180,42 @@ export default function SessionPlayerScreen() {
   };
 
   // architecture.md's back-button spec: during `active`, confirm before
-  // exiting; during `pre-mood`/`post-mood`, exit directly. Never steps
-  // backward between phases (e.g. active -> pre-mood) — only continues
-  // forward or exits entirely.
-  const handleExitPress = () => {
+  // leaving; during `pre-mood`/`post-mood`, act directly. Shared by every
+  // way of leaving the active phase (X button, hardware back, and the
+  // settings gear — AUDIT.md High finding, 2026-09-19) so none of them can
+  // silently skip the confirmation the others already show.
+  const confirmIfActive = (action: () => void) => {
     if (phase === 'active') {
       Alert.alert('Exit session?', "Your progress won't be saved", [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Exit', style: 'destructive', onPress: exitSession },
+        { text: 'Exit', style: 'destructive', onPress: action },
       ]);
     } else {
-      exitSession();
+      action();
     }
   };
 
-  // Android hardware back button — same rule as the X button. Re-registers
-  // per phase change so the handler always sees the current phase (no
-  // stale-closure risk from a listener registered once on mount).
+  const handleExitPress = () => confirmIfActive(exitSession);
+  const handleSettingsPress = () => confirmIfActive(() => router.push('/settings'));
+
+  // Android hardware back button — same rule as the X button, but only
+  // while this screen is actually the focused one. Without the isFocused
+  // guard, this global listener kept firing even while Settings was
+  // pushed on top (this screen doesn't unmount, just loses focus) and
+  // showed "Exit session?" over the Settings UI (AUDIT.md High finding,
+  // 2026-09-19). When unfocused, returning false lets Android's default
+  // back behavior run instead — correctly popping back to this screen.
+  // Re-registers on every phase/focus change so the handler never reads a
+  // stale value (no stale-closure risk from a listener registered once).
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!isFocused) return false;
       handleExitPress();
       return true; // we always handle it ourselves, never let it fall through
     });
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [phase, isFocused]);
 
   const handleBeginJourney = () => {
     setElapsedSec(0);
@@ -195,12 +225,22 @@ export default function SessionPlayerScreen() {
 
   const handlePauseToggle = () => setPaused((p) => !p);
 
-  const handleDone = () => {
-    // TODO: POST /api/checkin { userId, sessionId: session.id, preMood,
-    // postMood } once breathing-app-api exists (architecture.md's API
-    // contract) — backend doesn't exist yet, so this is a stub for now.
-    setActiveSessionId(null);
-    router.replace('/home');
+  const handleDone = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const userId = await getDeviceId();
+      await postCheckin({ userId, sessionId: session.id, preMood, postMood });
+      setActiveSessionId(null);
+      router.replace('/home');
+    } catch (err) {
+      // Stay on this screen — preMood/postMood are still in state, so
+      // Retry (below) can resend the exact same completed session data
+      // rather than losing it.
+      setSaveError(err instanceof Error ? err.message : 'Failed to save your session.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const progressPercent = Math.min(
@@ -252,10 +292,7 @@ export default function SessionPlayerScreen() {
             Breathe
           </GradientText>
           <Pressable
-            onPress={() => {
-              // Settings screen doesn't exist yet (build order step 7,
-              // needs a design pass first per CLAUDE.md) — no-op for now.
-            }}
+            onPress={handleSettingsPress}
             hitSlop={12}
             style={styles.topBarButton}
           >
@@ -320,43 +357,57 @@ export default function SessionPlayerScreen() {
             )}
 
             {phase === 'active' && (
-              <GlassCard radius={radii.xl} style={[styles.card, styles.activeCard]}>
-                <View style={styles.activeCenter}>
-                  <Text style={styles.phaseLabel}>{phaseLabel}</Text>
-                  <BreathingRing
-                    inhaleSec={session.phaseConfig.inhale}
-                    holdSec={session.phaseConfig.hold}
-                    exhaleSec={session.phaseConfig.exhale}
-                    restSec={session.phaseConfig.rest}
-                    paused={paused}
-                  />
-                  <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
-                </View>
+              // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md Medium finding):
+              // expo-blur's native BlurView on Android doesn't reliably clip
+              // to a rounded rect via the parent's own overflow:hidden at
+              // radii.xl (48px) — confirmed on-device as 2-of-4 corners
+              // staying sharp (see PROGRESS.md's Insights "stat card corners
+              // uneven" entry, and src/components/GlassCard.tsx). This card
+              // is the only other radii.xl GlassCard in the app besides
+              // Insights', which already has this same wrapper — Insights
+              // never got a matching fix here because the two pieces of work
+              // happened in separate sessions. Wrapping in a second
+              // overflow:hidden + matching borderRadius View outside the
+              // BlurView, same technique as insights.tsx's cardClip.
+              <View style={styles.activeCardClip}>
+                <GlassCard radius={radii.xl} style={[styles.card, styles.activeCard]}>
+                  <View style={styles.activeCenter}>
+                    <Text style={styles.phaseLabel}>{phaseLabel}</Text>
+                    <BreathingRing
+                      inhaleSec={session.phaseConfig.inhale}
+                      holdSec={session.phaseConfig.hold}
+                      exhaleSec={session.phaseConfig.exhale}
+                      restSec={session.phaseConfig.rest}
+                      paused={paused}
+                    />
+                    <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
+                  </View>
 
-                <View style={styles.activeFooter}>
-                  <View style={styles.timeRow}>
-                    <Text style={styles.timeText}>{formatTime(elapsedSec)}</Text>
-                    <Text style={styles.timeText}>
-                      {formatTime(session.durationSec)}
-                    </Text>
+                  <View style={styles.activeFooter}>
+                    <View style={styles.timeRow}>
+                      <Text style={styles.timeText}>{formatTime(elapsedSec)}</Text>
+                      <Text style={styles.timeText}>
+                        {formatTime(session.durationSec)}
+                      </Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <LinearGradient
+                        colors={[colors.primary, colors.tertiary]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[styles.progressFill, { width: `${progressPercent}%` }]}
+                      />
+                    </View>
+                    <Pressable onPress={handlePauseToggle} style={styles.pauseButton}>
+                      <MaterialIcons
+                        name={paused ? 'play-arrow' : 'pause'}
+                        size={24}
+                        color={colors.onSurface}
+                      />
+                    </Pressable>
                   </View>
-                  <View style={styles.progressTrack}>
-                    <LinearGradient
-                      colors={[colors.primary, colors.tertiary]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={[styles.progressFill, { width: `${progressPercent}%` }]}
-                    />
-                  </View>
-                  <Pressable onPress={handlePauseToggle} style={styles.pauseButton}>
-                    <MaterialIcons
-                      name={paused ? 'play-arrow' : 'pause'}
-                      size={24}
-                      color={colors.onSurface}
-                    />
-                  </Pressable>
-                </View>
-              </GlassCard>
+                </GlassCard>
+              </View>
             )}
 
             {phase === 'post-mood' && (
@@ -403,8 +454,30 @@ export default function SessionPlayerScreen() {
                   <MoodSelector value={postMood} onChange={setPostMood} />
                 </View>
 
-                <Pressable onPress={handleDone} style={styles.doneButton}>
-                  <Text style={styles.doneButtonText}>Done</Text>
+                {saveError && (
+                  <View style={styles.saveErrorBox}>
+                    <MaterialIcons name="error-outline" size={20} color={colors.error} />
+                    <View style={styles.saveErrorTextGroup}>
+                      <Text style={styles.saveErrorTitle}>
+                        Couldn&apos;t save your session.
+                      </Text>
+                      <Text style={styles.saveErrorSubtext}>{saveError}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <Pressable
+                  onPress={handleDone}
+                  disabled={saving}
+                  style={[styles.doneButton, saving && styles.doneButtonDisabled]}
+                >
+                  {saving ? (
+                    <ActivityIndicator color={colors.onSurface} />
+                  ) : (
+                    <Text style={styles.doneButtonText}>
+                      {saveError ? 'Try Again' : 'Done'}
+                    </Text>
+                  )}
                 </Pressable>
               </GlassCard>
             )}
@@ -513,6 +586,15 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   // ---- active ----
+  // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md) — see the active-phase
+  // GlassCard's JSX comment above. flex:1 so the wrapper still fills
+  // phaseContainer the same way the GlassCard's own flex:1 (styles.card)
+  // did before this wrapper existed.
+  activeCardClip: {
+    flex: 1,
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+  },
   activeCard: {
     alignItems: 'center',
   },
@@ -638,9 +720,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
+  doneButtonDisabled: {
+    opacity: 0.7,
+  },
   doneButtonText: {
     fontFamily: typography.bodyLg.fontFamily,
     fontSize: typography.bodyLg.fontSize,
     color: colors.onSurface,
+  },
+  saveErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.base,
+    marginTop: spacing.sectionGap,
+    padding: spacing.base * 1.5,
+    borderRadius: radii.md,
+    backgroundColor: `${colors.onErrorContainer}1A`,
+    borderWidth: 1,
+    borderColor: `${colors.error}4D`,
+  },
+  saveErrorTextGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  saveErrorTitle: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  saveErrorSubtext: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.onSurfaceVariant,
   },
 });
