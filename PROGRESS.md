@@ -24,8 +24,17 @@ re-keyed `SessionThumbnail` from `pattern` to session `id`, and fixed two
 real thumbnail bugs (off-center Deep Exhale, undersized Stress Relief) —
 see the corresponding dated sections below for full detail. On-device
 confirmation of the illustration/thumbnail-fix work is still pending
-(adb connection to the user's phone needs re-pairing). Next up: Settings
-(build order step 7) — needs a design pass first, per CLAUDE.md.
+(adb connection to the user's phone needs re-pairing — see "Blockers").
+A 2026-09-19 session made several data-only changes to
+`src/data/sessions.ts` (title renames, category moves, a corresponding
+badge fix synced into architecture.md's locked table — see the dated
+entries below), then built Settings (build order step 7) once the user
+supplied its design reference — `app/settings.tsx`, two cards (Daily
+Reminder, About) per `settings-code.html`/`DESIGN.md`, additive-only, not
+yet confirmed on-device (see "Done: Settings screen" below and
+"Blockers"). Next up: Settings needs on-device confirmation, then
+Notifications (build order step 10) and the backend (step 8) remain the
+biggest unbuilt pieces.
 
 ## Done
 - Scaffolded Expo project (`breathing-app`) with TypeScript template
@@ -2040,8 +2049,548 @@ at a real phone viewport (393×852): Morning Reset now shows the bolt
 (Zap) icon, Stress Relief now shows the leaf (Leaf) icon, both consistent
 with their new categories; no regression on the other 4 sessions' badges.
 
+## Done: Settings screen (build order step 7) (2026-09-19)
+Built `app/settings.tsx` — a top-level route (sibling to `session-player.tsx`,
+per architecture.md's repo-structure listing at line 39, no bottom tab bar
+while mounted, matching that screen's precedent). Read PROGRESS.md,
+PRD.md, architecture.md, and CLAUDE.md first per instruction. Additive
+only — confirmed via `git status` that no existing screen, component, or
+theme file was touched; only the new file plus the two new reference
+files the user supplied were added.
+
+**Flagged before proceeding, not silently worked around**:
+- Two files were referenced as being "at the project root" — `design.md`,
+  `settings-code.html`, `settings-screenshot.png`. Neither is at the
+  project root. `design.md` doesn't exist anywhere in the project (only
+  `DESIGN.md`, uppercase, at `assets/design-reference/DESIGN.md` — the
+  same file every other screen was already built from); the HTML/
+  screenshot live in `assets/design-reference/` like every other screen's
+  reference files, and the screenshot's actual filename is
+  `settings-screenshort.png` (typo, not `-screenshot.png`). Used
+  `DESIGN.md` and the files from their actual location rather than
+  stopping — the established per-screen pattern made this unambiguous,
+  not a genuine blocker.
+- architecture.md has **no** "Settings screen implementation" section
+  (confirmed by listing every `##`/`###` heading in the file) — unlike
+  Session Player and Home, which do have explicit "(do not deviate)"
+  content sections. It only mentions Settings in passing twice: the repo
+  structure (`app/settings.tsx`'s file location) and the Notifications
+  section ("user-configurable time in Settings"). Proceeded using
+  `settings-code.html` + `DESIGN.md` as the definitive spec instead, per
+  this task's own explicit instruction that those files are "ground
+  truth alongside architecture.md" — architecture.md just confirms the
+  file's location and top-level-route pattern, nothing structural was
+  missing as a result.
+
+**Built exactly two cards, nothing more**, per instruction and the Stitch
+source: header (back arrow + "Settings" title, no trailing icon — this
+screen doesn't need the gear glyph every other screen's header has, since
+it *is* that destination), a background glow blob (flat-circle
+approximation of `settings-code.html`'s `blur-3xl`, same established
+technique as Home/Player's glow — RN has no backdrop-blur for a bare
+shape), then:
+1. **Daily Reminder** — title + large "8:00 PM" time text (dummy,
+   matches the Stitch static value; real value awaits `expo-notifications`
+   scheduling, build order step 10) + a toggle
+2. **About** — title + "Version 1.0.0" plain text
+
+No audio/haptics, health integrations, extra links, badges, presets,
+day-of-week selector, or footer — confirmed against both
+`settings-code.html` and the screenshot that neither shows anything past
+these two cards.
+
+**Toggle**: `settings-code.html`'s switch uses a *gradient* track when on
+(`primary-container`→`secondary`), which RN's built-in `Switch` can't
+render (it only supports flat `trackColor` per state). Built a local
+`ReminderToggle` (Pressable + `LinearGradient`, using the same
+`expo-linear-gradient` dependency already used by Library/Player's CTAs)
+sized to the HTML's exact pixel values (48×28 track, 20×20 thumb, 4px
+inset, 20px thumb travel) rather than approximating with a flat-color
+`Switch`. Kept local to `settings.tsx` (not a new shared component) since
+no other screen uses it.
+
+**Typography/color check performed, not just eyeballed**: cross-referenced
+every Tailwind class in `settings-code.html` against `src/theme/tokens.ts`
+before writing styles (e.g. `font-display-lg text-headline-lg text-primary
+font-bold` for the time → `typography.headlineLg` size/lineHeight with
+`fontWeight: '700'` override, `color: colors.primary`) — all colors used
+(`primary-container`, `secondary`, `on-primary`, `on-surface`,
+`on-surface-variant`, `primary`, `surface-variant`) matched `tokens.ts`
+hex-for-hex against the HTML's own inline Tailwind config. Reused
+`GlassCard` (`radii.lg`, matching the HTML's `rounded-lg`→2rem/32px per
+its own inline Tailwind config, i.e. `radii.lg`'s exact value) unchanged —
+same shared glass-surface component as Home/Library/Player, per
+instruction to match the already-established design system rather than
+hand-roll a new card style for this screen.
+
+`npx tsc --noEmit`: clean. Verified visually on an isolated web server
+(port 8093, `--clear`; torn down after via direct `taskkill` on the
+underlying node PID, same recurring `TaskStop` gap noted elsewhere in
+this file) + `playwright-cli` at a real phone viewport (393×852):
+screenshotted `/settings` directly and compared side-by-side against
+`settings-screenshort.png` — header, both cards, spacing (content's
+`paddingTop`/16px and inter-card `gap`/24px map exactly to the HTML's
+`pt-4`/`space-y-6`), typography, and colors all match; toggle renders in
+its gradient "on" state matching the reference.
+
+**Not yet done / explicitly out of scope for this step**:
+- Not wired up: no screen's header "settings" gear icon navigates here
+  yet (Home/Library/Player/Insights' gear icons are still inert,
+  pre-existing). This task was scoped to building `app/settings.tsx`
+  itself, not wiring navigation into it — flagging as a natural next step
+  rather than doing it unasked.
+- No real persistence (`AsyncStorage`) or `expo-notifications` scheduling
+  for the reminder toggle/time — matches CLAUDE.md's build order (step
+  10 is Notifications); this screen is dummy-data only, like every other
+  screen at this stage.
+- Not yet confirmed on-device (ADB wireless pairing is still blocked by
+  what looks like router-level Wi-Fi client isolation — see the
+  standalone entry on that below; awaiting the user's decision between a
+  USB cable or a router setting change).
+
+## Done: wired up settings-icon navigation (2026-09-19)
+Per explicit instruction, wired every existing "settings" gear icon in the
+app to navigate to `/settings` (built in the previous entry), using the
+same navigation pattern already established elsewhere (`router.push`, as
+Home's Begin/Library's Quick Start/etc. already use). Did **not** modify
+`app/settings.tsx` itself — purely the missing navigation link, confirmed
+via `git status`/`git diff` that the settings screen file has zero
+changes this round.
+
+Found 5 gear-icon locations total (not just Home, since the icon exists
+identically on every tab-bar screen plus Session Player):
+- `app/(tabs)/home.tsx`, `library.tsx`, `player.tsx`, `insights.tsx` — all
+  4 had a bare, non-interactive `<MaterialIcons name="settings" .../>`
+  with no wrapper at all. Wrapped each in a `Pressable` (`onPress={() =>
+  router.push('/settings')}`, `hitSlop={12}`, a small `padding:
+  spacing.base` style) — the exact same padding-only wrapper pattern
+  `session-player.tsx`'s settings icon already used. `insights.tsx`
+  needed `router` and `Pressable` added to its imports (neither was
+  imported there before, since nothing on that screen navigated
+  anywhere).
+- `app/session-player.tsx` — already had a `Pressable` wrapper with an
+  explicit `// Settings screen doesn't exist yet ... no-op for now`
+  comment (scaffolded in anticipation of this exact moment). Replaced the
+  no-op body with `router.push('/settings')` and removed the now-false
+  comment — no structural change, just completing what was already
+  wired.
+
+`npx tsc --noEmit`: clean. Verified interactively on an isolated web
+server (port 8094, `--clear`; torn down after via direct `taskkill`, same
+recurring `TaskStop` gap noted elsewhere in this file) + `playwright-cli`:
+clicked Home's gear icon → navigated to `/settings`; clicked Library's
+gear icon → navigated to `/settings`; clicked Settings' own in-app "Go
+back" button (not the browser's back button — tested the screen's actual
+`router.back()` call) → correctly returned to `/library`, matching
+whichever screen it was opened from, not a hardcoded destination.
+Player/Insights/Session Player weren't individually click-tested this
+round (identical code pattern to Home/Library, already proven), but were
+confirmed via the same visual/typecheck pass.
+
+## Fixed: AUDIT.md High finding — Session Player's BackHandler not focus-aware (2026-09-19)
+Per explicit instruction, fixed only this one finding from AUDIT.md — no
+other screen, no other finding, no refactors beyond what this required.
+Confirmed via `git diff`/`git status` that `app/session-player.tsx` is
+the only file this task touched.
+
+**Root cause recap** (see AUDIT.md's High finding for full detail):
+`router.push('/settings')` from Session Player doesn't unmount it — it
+just loses navigation focus while Settings sits on top. Its elapsed-time
+timer, breath sub-phase cycle, and Android `BackHandler` listener all kept
+running/intercepting as if Session Player were still the visible screen,
+which didn't matter until this session's earlier work wired the settings
+gear into `session-player.tsx` (previously a no-op).
+
+**Fix** (`app/session-player.tsx` only):
+- Imported `useIsFocused` from `expo-router`'s own top-level export
+  (`expo-router/build/exports.js` re-exports it directly — a real,
+  documented public API, not the fragile deep `bottom-tabs` import path
+  this project already uses elsewhere for `useBottomTabBarHeight`;
+  AUDIT.md's own suggested import path, `@react-navigation/native`, turned
+  out not to be independently resolvable in this project's `node_modules`
+  — checked before using it).
+- Added `isFocused` to both the elapsed-time timer's and the breath
+  sub-phase cycle's guard conditions and dependency arrays (alongside the
+  existing `paused` check) — both now stop while this screen isn't
+  focused, satisfying requirement 1 (can't silently auto-complete in the
+  background while Settings is open).
+- Added `if (!isFocused) return false;` at the top of the `BackHandler`
+  callback, before it would otherwise call `handleExitPress()` — when
+  Session Player isn't the focused screen (Settings is on top), Android's
+  default back-navigation now runs instead, correctly popping back to
+  Session Player rather than firing its exit dialog over Settings
+  (requirement 2).
+- Extracted the existing exit-confirmation `Alert.alert` into a shared
+  `confirmIfActive(action)` helper (same title/message/buttons, just
+  parameterized on what happens if confirmed) and routed the settings
+  gear's `onPress` through it (`handleSettingsPress`), alongside the
+  existing `handleExitPress`. During `active`, tapping the gear now shows
+  the identical "Exit session?" confirmation the X button and hardware
+  back already show, and only navigates to `/settings` if confirmed —
+  outside `active`, it still navigates directly, unchanged (requirement
+  3). Confirming does **not** call `exitSession()` — it's not a real exit,
+  since the screen stays mounted-and-paused underneath, consistent with
+  requirement 1.
+
+`npx tsc --noEmit`: clean.
+
+**Verified interactively** on an isolated web server (port 8095,
+`--clear`; torn down after via direct `taskkill`, same recurring
+`TaskStop` gap noted elsewhere in this file):
+- Confirmed the gate itself: started a session, reached `active` phase
+  (elapsed timer running, visible "REST" sub-phase), tapped the settings
+  gear — URL stayed on `/session-player` (did **not** navigate to
+  `/settings`), unlike the pre-fix behavior, which navigated
+  unconditionally. `Alert.alert` is a confirmed no-op on
+  `react-native-web` (same standing limitation already documented in this
+  file for the original exit dialog), so the dialog itself isn't visible
+  on web and neither button can be resolved this way — but the underlying
+  gate (no more unconditional navigation during `active`) is directly
+  demonstrated, which is the actual defect being fixed.
+- Confirmed no regression outside `active`: tapped the gear during
+  `pre-mood` — navigated to `/settings` directly as before; tapped
+  Settings' own "Go back" button — correctly returned to
+  `/session-player`, matching the already-verified round-trip pattern
+  from every other screen's gear icon.
+- Attempted to test the pause/resume + hardware-back mechanics end-to-end
+  by simulating `router.push('/settings')` via raw
+  `history.pushState`/`popstate` (to route around the no-op `Alert`
+  blocking the real UI path) — this rendered the Settings screen
+  correctly, but going back via raw `history.back()` caused Session
+  Player to **remount** (reset to `pre-mood`) rather than reveal the
+  still-mounted instance underneath, unlike the real `router.push`/
+  `router.back()` API calls the app itself uses. This confirms the raw
+  History API approach doesn't faithfully replicate expo-router's actual
+  navigation-stack behavior (it bypasses expo-router's own Linking/history
+  integration entirely), so it isn't a valid way to test this — abandoned
+  rather than reported as a false result either way.
+
+**Not verifiable on web — needs on-device confirmation**, for the same
+reason the *original* exit-confirmation dialog needed it when Session
+Player was first built: `Alert.alert` has no working implementation on
+`react-native-web`, and `BackHandler` has zero web equivalent at all.
+Specifically still needs a real device check:
+- The "Exit session?" dialog actually appearing and being resolvable when
+  tapping the gear mid-session, and landing on `/settings` with the timer
+  genuinely paused there, then resuming correctly on return
+- Android hardware back on Settings (reached from an active session)
+  correctly performing default back navigation to Session Player, without
+  firing its exit dialog over Settings
+
+The `useIsFocused`-based fix is correct by construction (it's
+`expo-router`'s own documented, non-deep-imported focus API, used exactly
+per its intended purpose) and compiles clean under strict TypeScript, but
+per this project's own standing rule, not being called fully verified
+until confirmed on the user's phone — still blocked on the ADB/router-
+isolation issue below, or a USB cable connection.
+
+## Investigated: user report that the isFocused fix isn't working on-device (2026-09-19)
+User tested the previous fix directly on their phone: started a session,
+tapped the gear, watched Settings — the elapsed timer kept counting the
+whole time and never paused, contradicting the fix. Investigated per
+explicit instruction: re-read the actual shipped file (not just trusted
+the earlier diff), added temporary `console.log` instrumentation, and
+reproduced with a full reload rather than assuming the code was correct
+because it typechecked.
+
+**Re-read `app/session-player.tsx` first**: confirmed the `useIsFocused`
+import, the hook call, and its use in both timer effects' guards and
+dependency arrays are all genuinely present exactly as intended — not a
+comment-only description, not lost in an edit.
+
+**Instrumented and tested** (isolated web server, port 8097, `--clear`):
+added a log on every render (`isFocused` value) and a log in each gated
+effect stating whether it's starting or skipping. First reproduction
+attempt used the same raw `history.pushState`/`popstate` trick from the
+earlier fix's verification (since `Alert.alert` is a no-op on web and
+blocks reaching Settings from the *active* phase through the real gear
+tap) — **this showed `isFocused` permanently stuck at `true`, never
+flipping, even after the URL changed to `/settings` and Settings'
+content rendered.** Session Player's own render log kept firing every
+second (driven by its own still-running interval), proving it stays
+mounted — matching the user's report exactly.
+
+**Root-caused before concluding anything was broken**: rather than accept
+this as proof `useIsFocused()` itself is broken, tested whether the raw
+`history.pushState`/`popstate` simulation is even a valid way to trigger
+it, by comparing against a **genuine** `router.push('/settings')` call —
+tapping the actual gear icon during the *pre-mood* phase (which bypasses
+the `confirmIfActive` Alert legitimately, since it only gates the
+`active` phase, calling the identical `router.push('/settings')` gear
+tap during `active` would call anyway). Added a second debug log
+(`usePathname()`) for cross-reference. Result: via the **real** gear tap,
+`isFocused` correctly flips to `false` the moment `/settings` is pushed,
+`usePathname()` also correctly updates to `/settings`, and both gated
+effects correctly log `SKIPPING`. **This isolates the actual root cause:
+the raw `history.pushState`/`popstate` technique used for testing never
+registers as a real navigation with expo-router's own routing/focus
+state at all — it's an invalid test method, not a defect in the shipped
+fix.** The fix's actual code, exercised through its real code path, works
+correctly; `isFocused` genuinely detects the loss of focus, independent
+of `phase` (confirmed directly, not assumed, since `isFocused`'s
+computation has no dependency on `phase` — the pre-mood test is a valid
+proxy for the identical mechanism the active-phase gear tap relies on).
+
+**Conclusion**: no code defect found in the fix itself. The most likely
+explanation for the user's on-device failure is a **stale bundle** — this
+project has repeatedly hit exactly this class of issue this session and
+in prior sessions (new hooks/imports and new files not picked up by Fast
+Refresh, requiring a full `--clear` restart and reconnect), and this
+session in particular has had unusually disruptive dev-server churn
+(router-isolation blocking wireless ADB, switching to tunnel mode,
+multiple server restarts) that makes a stale connection plausible. Not
+ruled out entirely: a genuine Android-native-vs-web difference in
+`useIsFocused()`'s behavior for this specific screen structure — the web
+test is the closest verification possible without device access, but
+isn't literally the same runtime.
+
+**Cleaned up**: removed all temporary `console.log` statements and the
+diagnostic `usePathname` import/call added during this investigation —
+confirmed via `git diff` that `app/session-player.tsx` is back to
+byte-for-byte the same fix as before this investigation, nothing left
+behind.
+
+**Not committed, per explicit instruction** ("do not commit until this
+is verified working end-to-end, not just typechecking") — this needs a
+genuine on-device retest with a guaranteed fresh reload (force-stop Expo
+Go, reconnect to a freshly `--clear`-restarted server) before it can be
+called resolved. Still blocked on the ADB/router-isolation issue or a
+USB cable connection for that on-device check.
+
+## Investigating further: user confirmed NOT a stale bundle — native-specific behavior differs from web (2026-09-19)
+User force-stopped Expo Go, reconnected to a freshly `--clear`-restarted
+server, and retested from scratch on a real Android device — the timer
+still doesn't pause on Settings. This rules out staleness definitively
+and means the earlier web-based confirmation (that a genuine
+`router.push('/settings')` correctly flips `isFocused` to `false`) does
+**not** hold on native. Investigated the native-specific configuration
+directly via code (no device access available yet — still blocked on the
+ADB/router-isolation issue):
+
+1. **Confirmed `expo-router`'s `<Stack>` uses a real native-stack
+   implementation on native** (`NativeStackView.native.js`, rendering
+   `react-native-screens`' `ScreenStackItem` — genuine Fragment-based
+   navigation on Android), structurally different from the web renderer.
+   This is expected/correct, not itself a bug.
+2. **Ruled out screen freezing as the cause**: `react-native-screens`'
+   `ENABLE_FREEZE` defaults to `false`, and `enableFreeze()` is never
+   called anywhere in this project's code or in `expo-router`'s own
+   runtime (confirmed via `grep` across both) — the freeze/lazy-unmount
+   optimization the user asked about isn't active in this app at all.
+3. **Ruled out modal presentation**: no screen anywhere sets a
+   `presentation` option; Settings uses the default `'card'` push, not a
+   modal (which would have different focus semantics).
+
+None of these structural checks reveal an obvious cause on their own, so
+rather than guess further, added instrumentation for the user to run on
+their actual device (their explicit ask, since "we can't reproduce
+Android-native-specific behavior in a web-only test environment") —
+`app/session-player.tsx` currently has temporary debug logging:
+- The existing `isFocused` value + `Platform.OS`, logged on every render
+- Start/skip/cleanup logs on both the elapsed-timer and breath-cycle
+  effects (now also logging on cleanup, not just start/skip, to see
+  whether the interval/timeout is ever actually torn down at all)
+- **New**: a raw `navigation.addListener('focus'/'blur', ...)` listener,
+  completely bypassing `useIsFocused()`'s own hook machinery, logging
+  independently whenever the underlying navigation events fire — this
+  isolates whether the problem is in `useIsFocused()`'s wrapper or in the
+  lower-level event system it depends on.
+
+Started a fresh `--clear` dev server in tunnel mode (same
+`exp://uyhf050-anonymous-8081.exp.direct` URL as before — this machine's
+Wi-Fi is on a Public Windows network profile and the router appears to
+have Wi-Fi client isolation enabled, so tunnel mode remains the working
+connection method) and asked the user to fully disconnect/reconnect
+Expo Go (not just reload) and retest: start a session, tap the gear,
+watch Metro's console output while on Settings, then return to Session
+Player — and report back exactly what's logged.
+
+**Not concluding anything about the root cause until that device data
+comes back**, per explicit instruction. Debug logging is temporary and
+will be removed once a real fix is identified and confirmed working.
+
+**Not committed** — waiting on the user's on-device log output before
+deciding on a final approach (keep `useIsFocused()` if it turns out the
+events do fire correctly and something else was wrong, or switch to the
+raw `navigation.addListener` approach directly if that proves more
+reliable on this native stack).
+
+## RESOLVED on-device: Session Player focus-guard fix confirmed working (2026-09-19)
+User retested on their physical Android device after a full Expo Go
+disconnect/reconnect (fresh `--clear` tunnel server): started a session
+at 23 seconds, navigated to Settings, waited, returned — the timer was
+still at 23 and resumed normally. Pulled the actual device console
+output from the tunnel server's own log (Metro forwards connected-device
+`console.log` calls to the terminal running `expo start`) rather than
+relying on the observed behavior alone, per this project's "verify, don't
+just assert" standard. The log conclusively shows, on real Android
+hardware:
+- `render, isFocused = false` the moment Settings is pushed on top
+- `elapsed-timer effect: CLEANUP (clearing interval)` and
+  `breath-cycle effect: CLEANUP (clearing timeout)` firing immediately
+  after
+- Both effects then logging `SKIPPING` while unfocused
+- The **raw** `navigation.addListener('blur', ...)` diagnostic (bypassing
+  `useIsFocused()`'s own hook machinery entirely) firing independently,
+  confirming the underlying focus-event system genuinely works on this
+  native stack, not just the wrapper hook
+- On return: `raw navigation "focus" event fired`, followed by both
+  effects logging `STARTING` again
+
+This directly contradicts the *previous* failed on-device test and
+confirms `useIsFocused()` was never actually broken on native — the
+second test's failure (after user already ruled out simple staleness)
+remains unexplained in detail, but is no longer reproducible; the working
+theory is a deeper connection/caching issue with that specific test round
+(possibly the tunnel/CDN layer serving a cached bundle despite the local
+server being fresh), not a defect in the fix's logic, which this device
+log now proves correct end-to-end.
+
+**Cleaned up**: removed all temporary `console.log` statements, the
+`Platform` import, and the diagnostic `useNavigation`/raw
+`addListener('focus'/'blur')` effect from `app/session-player.tsx`.
+Confirmed via `git diff` the file is back to byte-for-byte the same
+fix verified in the "Fixed: AUDIT.md High finding" entry above — nothing
+left behind. `npx tsc --noEmit`: clean.
+
+**This fix is now considered done** — on-device confirmed, code clean,
+ready to commit whenever the user gives the go-ahead (bundled with
+whatever else is ready at that point).
+
+## Done: standardized CTA color per COLOR-AUDIT.md (2026-09-19)
+Per explicit instruction and COLOR-AUDIT.md's finding (two legitimate but
+unreconciled CTA treatments — Home/tab-bar's flat `colors.primary` vs.
+Library/Player/Session-Player's `primaryContainer`→`inversePrimary`
+gradient), standardized on the gradient treatment app-wide. Scoped to
+exactly the two files that needed to change — confirmed via `git diff`
+that Library, Player, Insights, and Session Player (already using the
+target treatment) are untouched by this task.
+
+- **`app/(tabs)/home.tsx`**: the "Begin" button's flat
+  `backgroundColor: colors.primary` pill replaced with a `LinearGradient`
+  (`[colors.primaryContainer, colors.inversePrimary]`,
+  `start:{0,0} end:{1,1}`) — byte-identical color pair and direction to
+  Library's Quick Start / Player's Start a Session. Button text color
+  updated `onPrimary` → `onPrimaryContainer` to match the pairing those
+  buttons already use (the correct text color for this background, not
+  an unrelated change). Added the `LinearGradient` import
+  (`expo-linear-gradient`, already a project dependency — no new
+  package).
+- **`app/(tabs)/_layout.tsx`**: the tab bar's active-tab color
+  (`TabButton`'s `tintColor` ternary, and the now-likely-vestigial
+  `tabBarActiveTintColor` in `screenOptions`) changed `colors.primary` →
+  `colors.inversePrimary`. A literal 2-color gradient doesn't translate
+  to a small icon+label indicator, so per the task's own pre-approved
+  fallback, used the gradient's darker end as a flat color instead of
+  rendering a literal gradient there — not treated as a separate
+  decision needing its own confirmation round-trip, since the
+  instruction already spelled out and authorized this exact fallback.
+
+`npx tsc --noEmit`: clean. Verified visually on an isolated web server
+(port 8099, `--clear`; torn down after via direct `taskkill`, same
+recurring `TaskStop` gap noted elsewhere in this file) + `playwright-cli`
+at a real phone viewport (393×852): screenshotted Home (Begin button now
+shows the gradient; Home tab icon+label now the deeper blue) and Library
+(Quick Start button and the now-active Library tab, both matching Home's
+new treatment) side by side — all four now read as the same color
+family, closing the inconsistency COLOR-AUDIT.md documented.
+
+**Not committed** — per instruction, left for the user's confirmation.
+
+## Done: closed out the remaining COLOR-AUDIT.md items (2026-09-19)
+Per explicit instruction, standardized the two remaining candidates
+COLOR-AUDIT.md's expanded inventory flagged, plus onboarding's CTA
+buttons (a related finding from that same inventory). Scoped to exactly
+4 files — confirmed via `git diff` that nothing else (no other screens,
+no other colors, none of the items explicitly marked "not part of it" —
+`GradientText` titles, settings gear icon, "NEW" badge, Insights stat
+icons, consistency calendar) was touched.
+
+- **`src/components/MoodTrendChart.tsx`**: the Mood Trend line's SVG
+  `stroke` changed `colors.primary` → `colors.inversePrimary`, matching
+  its own fill (already `primaryContainer`) and the app-wide gradient
+  standard. Fill gradient, glow filter, and everything else in the
+  component untouched.
+- **`app/onboarding/welcome.tsx`**, **`how-it-works.tsx`**,
+  **`build-habit.tsx`**: each screen's CTA button (`Next`/`NEXT`/
+  `Get Started`) gradient changed to `[colors.primaryContainer,
+  colors.inversePrimary]`, replacing welcome's `[primary,
+  primaryContainer]` and the other two screens' `[primaryContainer,
+  tertiary]` — all three now match Library/Player's exact recipe and
+  direction. Text/icon colors (`onPrimaryFixed`) left unchanged per
+  instruction's "no other colors" scope — verified visually they remain
+  legible against the new gradient. The screens' own `GradientText`
+  headlines (a separate, already-consistent branding pattern, explicitly
+  marked "not part of it" in COLOR-AUDIT.md) were not touched.
+
+**Flagged, not acted on**: the user's instruction described this as
+"following the same standard established for Library's category tabs
+(inversePrimary)" — worth noting for the record that Library's own
+category-tab pills (For You/Calm/Sleep/etc., inside `library.tsx`) still
+use flat `colors.primary` and were never changed; only the app-level
+bottom tab bar was changed to `inversePrimary` in the earlier task. Since
+this task's own instructions explicitly excluded touching Library or any
+other screen, this didn't affect anything actually done here, but noting
+the distinction so it isn't propagated as a mistaken assumption later.
+
+`npx tsc --noEmit`: clean. Verified visually on an isolated web server
+(port 8100, `--clear`; torn down after via direct `taskkill`, same
+recurring `TaskStop` gap noted elsewhere in this file) + `playwright-cli`
+at a real phone viewport (393×852): screenshotted Insights (Mood Trend
+line now the deeper blue, clearly visible with its glow intact against
+the dark background) and all 3 onboarding screens (Welcome, How It
+Works — scrolled to reach its button, Build Habit) — all three buttons
+render the new gradient with fully legible dark text, no contrast
+regression.
+
+**This closes every item COLOR-AUDIT.md's expanded inventory flagged as
+a real candidate.** Not committed — per instruction, left for the user's
+confirmation.
+
+## Done: closed the last open COLOR-AUDIT.md item — Library's category tabs (2026-09-19)
+Per explicit instruction, standardized Library's category-tab active state
+(For You/Calm/Sleep/Energy/Recovery pills — border, label text, count
+badge background, count text) from flat `colors.primary` to
+`colors.inversePrimary`, matching the bottom tab bar, Home's Begin
+button, the Mood Trend chart line, and onboarding's CTA buttons.
+
+Scoped to exactly `app/(tabs)/library.tsx`'s 4 style properties
+(`categoryTabActive.borderColor`, `categoryLabelActive.color`,
+`categoryCountActive.backgroundColor`, `categoryCountTextActive.color`)
+— confirmed via `git diff` that nothing else in the file (or anywhere
+else) changed for this task; the other diff hunks visible in that file
+are pre-existing, from earlier work this session.
+
+`npx tsc --noEmit`: clean. Verified visually on an isolated web server
+(port 8101, `--clear`; torn down after via direct `taskkill`, same
+recurring `TaskStop` gap noted elsewhere in this file) + `playwright-cli`
+at a real phone viewport (393×852): screenshotted the "For You" pill
+(default active state) and switched to "Calm" — both render the deeper
+`inversePrimary` border/text/count-badge clearly and legibly against the
+dark background, correctly filtering sessions, no contrast regression.
+
+**This closes the last open item from COLOR-AUDIT.md's expanded
+inventory** — every candidate identified across both audit rounds is now
+resolved. Not committed — per instruction, left for the user's
+confirmation.
+
 ## Blockers
-- None
+- Wireless ADB pairing to the user's phone is failing at the network
+  level, not a pairing-code issue: three fresh pairing attempts all
+  failed identically (protocol fault / timeout), and `Test-NetConnection`
+  confirms this laptop can reach the Wi-Fi router itself instantly
+  (`192.168.0.1`, 1ms) but cannot reach the phone
+  (`192.168.0.116`) at all — TCP connect and ICMP ping both fail. Router
+  reachable + peer device unreachable on the same subnet is the standard
+  signature of router-level Wi-Fi client/AP isolation, not something
+  fixable from either device alone. Blocked pending the user's choice:
+  disable "AP Isolation"/"Wireless Isolation" in the router's admin panel
+  (it identifies as a D-Link router, `dlinkrouter`), or switch to a USB
+  cable connection instead. (Separately, LAN-mode Expo dev server access
+  from the phone was already worked around via `expo start --tunnel` —
+  see the `@expo/ngrok` dependency addition — since this machine's Wi-Fi
+  network is also categorized as "Public" in Windows, which blocks direct
+  inbound LAN connections independent of the router-isolation issue.)
 
 ---
 
@@ -2434,3 +2983,456 @@ the prior pairing/connection had dropped since that session and needs to
 be re-established (new pairing code, or a fresh IP:port if wireless
 debugging is still on). Not yet re-paired as of this entry — still
 pending either the user's on-phone check or a fresh adb reconnection.
+
+## Frontend re-audit (`AUDIT-2.md`) + fix of its 2 Medium findings (2026-09-20)
+Ran a fresh, read-only re-audit (`AUDIT-2.md`, following `AUDIT.md`'s
+2026-09-19 precedent) covering everything built since then — Settings, the
+gear-icon navigation wiring, the Session Player focus-guard fix, and the
+2026-09-19 CTA color-standardization pass — plus a full screen-by-screen
+re-sweep. Read every screen/component file directly rather than trusting
+this file's own history, re-verified the tab-bar-overlap investigation is
+still closed (no regression), and re-confirmed `AUDIT.md`'s High finding
+(Session Player's `BackHandler` focus-awareness) is genuinely still fixed
+and has no leftover debug logging. Found 13 items total (0 Critical/High,
+3 Medium, 7 Low, 3 Info) — see `AUDIT-2.md` for the full breakdown. Then,
+per explicit follow-up instruction, fixed the 2 Medium findings the user
+asked for (the 3rd Medium, `BreathingRing`'s pause/resume desync, was
+explicitly left open — out of scope for this pass).
+
+### Fix 1: color-standardization contrast regression
+`AUDIT-2.md` found that the 2026-09-19 COLOR-AUDIT.md pass (which this
+file's own entries verified only by screenshot comparison, never measured)
+had actually dropped several elements below WCAG AA contrast minimums.
+Computed real WCAG relative-luminance contrast ratios (not re-asserted by
+eye) before and after this fix:
+
+**Standalone foreground text/icons on a dark background** — reverted
+`app/(tabs)/_layout.tsx`'s active-tab tint, `app/(tabs)/library.tsx`'s
+active category-tab border/label/count colors, and
+`src/components/MoodTrendChart.tsx`'s line stroke from flat
+`colors.inversePrimary` back to `colors.primary` (the token these used
+before 2026-09-19):
+| Element | Before | After |
+|---|---|---|
+| Tab bar active icon/label | 2.86:1 (fail) | 10.85:1 (pass) |
+| Library active category-tab text | ~2.86:1 (fail) | ~10.85:1 (pass) |
+| Mood Trend chart line | 2.86:1 (fail) | 10.85:1 (pass) |
+
+**CTA button gradient text/icons** (Home's Begin, Library's Quick Start,
+Player's Start a Session, and onboarding's 3 CTA buttons — 6 total): the
+old `primaryContainer -> inversePrimary` gradient's two stops are
+mathematically too close in luminance for any single flat text color to
+clear 4.5:1 against both ends (dark text passes only the light end at
+~4.5:1; white text passes only the dark end at ~6.5:1 and falls to ~3.2:1
+at the light end). Fixed by narrowing the gradient to `inversePrimary ->
+onPrimaryFixedVariant` (both existing tokens, both dark enough that white
+text clears 4.5:1 everywhere) with white button text/icons throughout,
+matching the approach Session Player's own "Begin Journey" button already
+used (left untouched — it wasn't part of the flagged failure):
+| Button group | Before, light end | Before, dark end | After, light end | After, dark end |
+|---|---|---|---|---|
+| Home/Library/Player (`onPrimaryContainer` text) | 4.54:1 (pass) | 2.23:1 (**fail**) | 6.47:1 (pass) | 9.40:1 (pass) |
+| Onboarding x3 (`onPrimaryFixed` text) | 5.39:1 (pass) | 2.64:1 (**fail**) | 6.47:1 (pass) | 9.40:1 (pass) |
+
+Since both new gradient stops move monotonically darker across all 3 RGB
+channels, the 6.47:1 figure is the worst point anywhere along the
+gradient — every intermediate pixel clears 4.5:1, not just the two
+sampled ends. No other colors touched (Insights' stat icons, `GradientText`
+titles, the settings gear icon, etc. left exactly as-is, per instruction).
+
+Files changed: `app/(tabs)/_layout.tsx`, `app/(tabs)/library.tsx`,
+`app/(tabs)/home.tsx`, `app/(tabs)/player.tsx`,
+`app/onboarding/{welcome,how-it-works,build-habit}.tsx`,
+`src/components/MoodTrendChart.tsx`.
+
+### Fix 2: Android `BlurView` corner-clip bug on 2 more `radii.xl` cards
+`AUDIT-2.md` found that Insights' `cardClip` defensive wrapper (added
+earlier to fix a confirmed on-device Android bug where `BlurView` doesn't
+reliably clip to a rounded rect at `radii.xl`/48px — see this file's
+"stat card corners uneven" entry) was never applied to the two other
+`GlassCard`s in the app using that same radius: `session-player.tsx`'s
+*active*-phase card and `onboarding/how-it-works.tsx`'s 3 step cards.
+Wrapped both in the identical technique (an extra `overflow:'hidden'` +
+matching `borderRadius` `View` outside the `GlassCard`) — a new
+`activeCardClip` style (`flex:1` to preserve the card's existing
+fill-available-space sizing) in `session-player.tsx`, and a new
+`stepCardClip` style in `how-it-works.tsx`. No other `GlassCard` usage
+touched (Home/Library/Player/Settings/Session Player's non-active cards
+all use `radii.lg`, never shown to trigger this bug).
+
+### Verification
+`npx tsc --noEmit`: clean throughout. Confirmed via `git diff`/`git
+status` that only the 8 source files above plus `AUDIT-2.md` and this
+file changed — no unrelated colors or components touched. Verified
+visually on an isolated Expo web server (port 8110, `--clear`; torn down
+after, including killing the underlying node PID) via `playwright-cli` at
+a real phone viewport (iPhone 15 emulation): screenshotted all 3
+onboarding CTA buttons, Home (tab bar + Begin button), Library (active
+category pill + Quick Start button), and Session Player's active phase —
+white text/icons are clearly legible end-to-end across every gradient
+button (including the darkest portion), the light-blue accent text/line
+is clearly legible against the dark background everywhere, and the
+active-phase card and step cards render with correctly rounded corners
+(web never reproduced the corner-clip bug in the first place, so this
+confirms no regression, not the Android fix itself). No console errors.
+
+**Not yet confirmed on-device**: no Android device was available this
+session (no active ADB pairing — same standing connectivity blocker as
+this file's "Blockers" section). The corner-clip fix is code-identical to
+Insights' own already-on-device-confirmed fix for the same component at
+the same radius, so it's expected to resolve the same way, but per this
+project's standing rule, treat it as unconfirmed until checked on the
+user's phone. The color-contrast fix doesn't carry the same native/web
+divergence risk (`LinearGradient`/`Text` color rendering has never been a
+source of web/native drift in this project, unlike `BlurView` clipping),
+so it isn't flagged as needing separate on-device confirmation.
+
+**Not committed** — per instruction, left for the user's confirmation.
+
+## Done (continued): Phase 6, Library wired to the real backend (2026-09-24)
+Per architecture.md's build order step 9 and the explicit instruction to
+go one screen at a time (Library first, reads only), wired
+`app/(tabs)/library.tsx` to the real `breathing-app-api` backend. Did
+NOT touch Session Player or Home/Insights this session, per instruction.
+
+**`src/api/client.ts` didn't exist yet** — checked before "updating" it
+as instructed; only `src/data/sessions.ts` (dummy catalog) existed.
+Created it fresh: one function, `fetchSessions(category?)`, calling
+`GET {API_BASE_URL}/api/sessions` and throwing on a non-OK response.
+
+**Base URL**: `API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ??
+'http://localhost:3000'`. Flagged before building: architecture.md
+doesn't actually pin "localhost" as a literal value (only "points at
+the Next.js API base URL") — treated the user's "should be localhost
+for dev" as their explicit call for the default, not something
+architecture.md itself dictates. Also flagged a real practical
+consequence: this repo's own history above shows testing has
+extensively used a physical Android device over Expo Go, where
+`localhost` resolves to the *phone*, not the dev machine — the env var
+lets that be overridden to a LAN IP without a code change; not yet
+needed this session since verification was web-only (see below).
+
+**`app/(tabs)/library.tsx` changes**: replaced the direct `sessions`
+import from `src/data/sessions.ts` with `fetchSessions()` called in a
+`useEffect` on mount (and via a `load` callback re-triggerable by
+Retry). `featuredSession` import kept as-is (still local dummy data) —
+Quick Start only needs a session id to route to, and Session Player
+(untouched this phase) still reads from that same file, so this stays
+consistent until Session Player is wired too.
+
+**Loading/error states** (explicit ask — shown live, not just
+described):
+- `sessions: Session[] | null` — `null` means "loading" (initial
+  mount, or a retry in flight). While `null`, the screen renders just
+  the top bar + a centered `ActivityIndicator`, nothing else.
+- `error: string | null` — set from a caught fetch rejection. While
+  set, renders the top bar + a centered error icon, "Couldn't load
+  sessions.", the raw error message, and a Retry button (`onPress`
+  re-runs `load()`).
+- Only once `sessions` is a real array (and `error` is null) does the
+  screen render its normal content (search/categories/Quick
+  Start/grid), now sourced from `sessions` state instead of the old
+  static import. `countFor()` and `visibleSessions` both guard on
+  `sessions` being non-null, returning `0`/`[]` while loading/errored.
+
+### CORS blocker found, flagged, fixed (breathing-app-api)
+Real fetch attempt in Expo web failed with a genuine browser console
+error (not a guess): `Access to fetch at 'http://localhost:3000/api/
+sessions' from origin 'http://localhost:8090' has been blocked by CORS
+policy: No 'Access-Control-Allow-Origin' header is present`. Native
+iOS/Android builds aren't subject to CORS at all (browser-only
+enforcement), so this had never surfaced before, and wouldn't block
+on-device testing — but it did block this session's only available
+verification method (Expo web via `playwright-cli`), and would block
+any actual browser-based usage of the app too.
+
+Flagged before touching the other repo for what was scoped as a
+Library-only task. User chose: fix it now, wildcard/permissive rather
+than scoped to specific origins (their instruction: scope it if
+trivial, otherwise permissive is fine since native builds don't need
+CORS anyway). Added `breathing-app-api/lib/cors.ts` + wired all 3
+routes to send `Access-Control-Allow-Origin: *` and handle `OPTIONS`
+preflight — full reasoning and verification in that repo's own
+PROGRESS.md, not duplicated here.
+
+### Verified live (not just asserted)
+Ran both servers together: `breathing-app-api`'s `npm run dev`
+(port 3000) + this repo's `npx expo start --web --port 8090` (isolated
+port, matching this file's established convention of never touching a
+phone-testing server — none was running this session). Drove it with
+`playwright-cli` at an iPhone 15 viewport:
+
+1. **Before the CORS fix**: loaded `/library` — network tab showed
+   `GET http://localhost:3000/api/sessions => FAILED`, console showed
+   the CORS error verbatim, page showed nothing beyond loading (no
+   dummy-data fallback silently masking the failure).
+2. **After the CORS fix**: reloaded — network tab showed the same
+   request now `=> 200 OK`, and the page rendered all 6 real sessions
+   with correct titles/durations (Deep Exhale 10 min, Morning Reset
+   18 min, Calm and Focus 15 min, Stress Relief 10 min, Sleep Wind
+   Down 12 min, Box Breathing 12 min) and correct category tab counts
+   (For You 6, Calm 3, Sleep 1, Energy 1, Recovery 1). Durations happen
+   to match the old dummy data exactly (the backend was seeded from
+   this same file, per breathing-app-api/PROGRESS.md), so content
+   alone can't prove it's live — the network-tab evidence (FAILED →
+   200, nothing rendered → rendered) is what actually proves it.
+3. **Error/Retry state, forced live**: stopped the API server mid-
+   session (confirmed down via `curl`), reloaded `/library` — page
+   correctly showed "Couldn't load sessions." + "Failed to fetch" +
+   Retry button. Restarted the API server, clicked Retry — page
+   recovered and rendered all 6 sessions again, confirming the retry
+   path actually re-fetches rather than being cosmetic.
+
+`npx tsc --noEmit`: clean. Browser and both dev servers closed/stopped
+after verification (isolated port 8090 and the API's port 3000; no
+phone-facing server was touched, since none was running). Temp
+Playwright snapshot files deleted afterward.
+
+**Stopping here per explicit instruction** — Session Player and
+Home/Insights remain on dummy data, awaiting the user's go-ahead to
+continue wiring them one at a time.
+
+## Done (continued): Session Player wired to POST /api/checkin (2026-09-24)
+Per architecture.md's build order step 9, wired `app/session-player.tsx`'s
+Done button to the real backend. Did NOT touch Library or Home/Insights
+this session, per instruction.
+
+**Confirmed before changing anything (explicit ask)**: re-read
+`session-player.tsx` against architecture.md's "Session Player
+implementation (explicit — do not deviate)" section — already matches
+exactly: one screen, `phase` as internal state (no separate routes),
+mood data in component state (not nav params), fade/scale transitions,
+back-button rules correct per phase (`confirmIfActive()` — Alert only
+during `active`; direct exit during `pre-mood`/`post-mood`), content
+per phase matches spec. No deviations found or fixed — only
+`handleDone` (the literal `TODO: POST /api/checkin` stub) and new
+save-state UI around it were touched.
+
+**`userId` source — didn't exist yet**, checked before assuming
+(explicit ask): searched the whole app for AsyncStorage/device-id
+logic; only `src/utils/onboarding.ts`'s onboarding-complete flag
+existed, nothing generating/persisting a user id. Built
+`src/utils/deviceId.ts` from scratch: `getDeviceId()`, AsyncStorage-
+backed + in-memory cached, generates a UUID v4 on first read via a
+plain `Math.random()` implementation (flagged: chose this over adding
+`expo-crypto` as a new dependency, since this is a local grouping
+identifier, not a security credential — no crypto-quality randomness
+needed). Falls back to an in-memory-only id if AsyncStorage itself
+throws, rather than crashing.
+
+**`src/api/client.ts`**: added `postCheckin({userId, sessionId,
+preMood, postMood})`, POSTing to `{API_BASE_URL}/api/checkin` with a
+JSON body, throwing on a non-OK response — same shape/pattern as
+`fetchSessions`.
+
+**Loading/error design around Done** (explicit ask — presented before
+implementing, confirmed via question): new `saving`/`saveError` state.
+While saving, the Done button shows a spinner (disabled). On failure,
+the screen stays on `post-mood` (no navigation, `preMood`/`postMood`
+untouched in state) and shows an error box ("Couldn't save your
+session." + the raw error) with the same button now reading "Try
+Again" instead of "Done" — pressing it re-runs the exact same save
+with the same mood values, so nothing is silently lost. Explicitly
+decided (confirmed with the user) to leave the top-bar X button's
+existing exit behavior completely untouched even when a save error is
+showing, rather than add a new confirmation there — that back-button
+behavior is architecture.md's own "do not deviate" spec, so extending
+it would be an unrequested scope expansion; the visible error+Retry on
+Done is what satisfies "don't lose data silently" for the actual ask.
+
+### Verified end-to-end (not just asserted)
+Ran both servers (`breathing-app-api`'s `npm run dev` port 3000 + this
+repo's `npx expo start --web --port 8091`, isolated, no phone-facing
+server touched) and drove the real flow with `playwright-cli`.
+
+**Test-duration workaround, reverted cleanly**: every real session is
+10+ minutes long, and the `active` phase only auto-advances on real
+elapsed time — not practical to wait out live. Used this file's own
+established pattern (temporarily force a value, verify, revert
+immediately, confirm via diff — see the 2026-09-12 post-mood
+verification entry above for precedent) instead of inventing a new
+one: temporarily set `deep-exhale`'s `durationSec` to `6` in
+`src/data/sessions.ts`, ran the full test below, then reverted and
+confirmed via `git diff src/data/sessions.ts` — **zero diff**, byte-
+for-byte back to the committed value.
+
+1. Opened `/session-player?sessionId=deep-exhale` directly — pre-mood
+   phase rendered correctly (title, description, mood picker, Begin
+   Journey).
+2. Clicked Begin Journey → active phase. Waited 8s (> the 6s test
+   duration) → auto-advanced to post-mood correctly ("0 Mindful
+   Minutes" showing is expected fallout of the artificially short test
+   duration, not a bug).
+3. **Failure case, forced live**: stopped the API server (confirmed
+   down via `curl`), clicked Done — screen correctly stayed on
+   `post-mood` (URL unchanged) and showed "Couldn't save your
+   session." + "Failed to fetch", button now reading "Try Again".
+4. Restarted the API server, clicked Try Again — succeeded, navigated
+   to `/home` (matching the real Done success path).
+5. **Verified directly in Supabase** (`execute_sql`): a real `checkins`
+   row landed (`user_id: d0b32e5b-6536-4bbe-98fd-6e3a14631d1a` — the
+   freshly-generated device UUID, `session_id: deep-exhale`, moods 3/3
+   matching the untouched default selector values, `created_at`
+   matching the Try Again click time) and a correctly-computed
+   `streaks` row (`current_streak: 1, longest_streak: 1` — correct
+   first-ever-checkin behavior). Only **one** checkin row exists —
+   confirms the earlier failed attempt (while the API was down) never
+   partially wrote anything, no duplicate from the retry.
+6. Deleted both test rows from Supabase afterward.
+
+`npx tsc --noEmit`: clean. Browser and both dev servers closed/stopped
+after verification. Temp Playwright snapshot files deleted.
+
+**Stopping here per explicit instruction** — Home/Insights remain on
+dummy data, awaiting the user's go-ahead to continue.
+
+## Done (continued): Home + Insights wired to GET /api/insights — last
+## piece of Phase 6 (2026-09-24)
+Per architecture.md's build order step 9, wired `app/(tabs)/home.tsx`
+and `app/(tabs)/insights.tsx` to the real backend. Did NOT touch
+Library, Session Player, or the backend routes, per instruction.
+
+**Pre-implementation analysis (explicit ask, confirmed before writing
+mapping code)**:
+- Surveyed both screens' dummy data and exactly what UI it fed (Home's
+  3 Snapshot cards; Insights' 4 stat cards, `MoodTrendChart`, 28-cell
+  consistency grid) before touching anything.
+- Compared `MoodTrendChart`'s actual needs (any ordered `{date, mood}`
+  list — it spaces points by array index, not real date gaps, per its
+  own `moodToPoints` implementation) and the calendar's needs (one
+  `boolean` per day, 28 days) against the real API shape (`checkins`:
+  last 30 days, `{preMood, postMood, createdAt}`, no other fields).
+- **Genuine gap found and NOT silently filled**: `GET /api/insights`
+  has no "current mood" field at all — Home's Mood card needs one.
+  Presented the gap and 2 real design forks to the user before writing
+  any code, both confirmed:
+  1. **Mood source**: `postMood` (not `preMood`) drives both Home's
+     current-mood card and the Insights mood-trend chart — user chose
+     postMood for "how they've been trending" consistency between the
+     two screens.
+  2. **Mood word labels**: no per-value word mapping existed anywhere
+     (only the two endpoint words "Stressed"/"Calm" from
+     `MoodSelector`) — user approved adding
+     `MOOD_LABELS = ['Stressed','Uneasy','Neutral','Content','Calm']`
+     (co-located with the existing `MOOD_EMOJIS` in
+     `MoodSelector.tsx`, reusing rather than duplicating the emoji set).
+
+**Exact transformation logic** (both in `app/(tabs)/insights.tsx`,
+operating on the real `checkins` array — no interpolation, no invented
+days/points):
+
+```ts
+// Each real checkin's postMood -> one real point, chronological
+// (checkins arrives newest-first from the API, so reversed).
+function buildMoodTrend(checkins: Checkin[]): MoodPoint[] {
+  return [...checkins].reverse()
+    .map((c) => ({ date: c.createdAt.slice(0, 10), mood: c.postMood }));
+}
+
+// One boolean per day for the last 28 days (oldest first, today last):
+// true iff >=1 real checkin exists that calendar date.
+function buildConsistencyCalendar(checkins: Checkin[]): boolean[] {
+  const checkinDates = new Set(checkins.map((c) => c.createdAt.slice(0, 10)));
+  const days: boolean[] = [];
+  const today = new Date();
+  for (let i = 27; i >= 0; i--) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - i);
+    days.push(checkinDates.has(d.toISOString().slice(0, 10)));
+  }
+  return days;
+}
+```
+No bucketing/averaging for multiple same-day checkins — each becomes
+its own real point in the trend; the calendar only cares whether >=1
+exists per day. The 30-day `checkins` array already covers the 28-day
+calendar window, so no extra API call was needed.
+
+**Home's current-mood derivation**: `insights.checkins[0]?.postMood`
+(newest-first, so index 0 is most recent) → `MOOD_EMOJIS`/`MOOD_LABELS`
+lookup. `null` (no checkins yet) renders as `—` with no emoji, not a
+fake default — matches the "don't invent data" rule for the zero-state.
+
+**Real bug found and fixed while wiring** (in scope — it's the exact
+field being wired, not an unrelated screen, same category as the CORS
+fix in an earlier phase): `insights.tsx` hardcoded `+${monthOverMonthDelta}%`,
+but the real value can be negative. Fixed to `${sign}${value}%` where
+`sign` is `'+'` only when `>= 0`.
+
+**Flagged, not touched**: the Consistency card's footer has always
+mislabeled the (day-based) streak as `"${n} Week Streak"` — pre-existing
+in the dummy version too, unrelated to this wiring task, left as-is.
+`src/data/insights.ts`'s dummy value exports (`moodTrend`, `streak`,
+`totalSessions`, `sessionsThisWeek`, `mindfulMinutes`,
+`monthOverMonthDelta`, `consistencyCalendar`) are now dead/unused —
+only its `MoodPoint` type is still imported. Left the file untouched
+per the "don't touch other files" instruction; flagging for cleanup
+later rather than silently deleting.
+
+**Loading/error/retry**: reused Library's exact pattern (`null` =
+loading spinner, `error` string = message + Retry button, same visual
+treatment/copy). Insights gates its entire screen (everything on it
+depends on this one fetch, matching Library's situation). Home gates
+only the "Your Snapshot" section — its Featured Session section still
+reads local dummy `featuredSession` data (unaffected by this fetch, out
+of scope this phase), so it renders unconditionally rather than being
+blocked behind the Snapshot section's loading state.
+
+### Verified live with real seeded data (not just zero-state)
+Ran both servers (isolated Expo web port 8092, no phone-facing server
+touched) and seeded 6 real backdated checkins via SQL for a test user
+(`test-user-home-insights-verify`) at known offsets/moods: 1/3/8/15/27
+days ago (postMood 2/5/3/4/1 respectively, all within the 30-day API
+window) plus one at 40 days ago (postMood 3, outside the window — to
+confirm correct exclusion from `checkins`/calendar/trend while still
+counting toward all-time `totalSessions`/`mindfulMinutes`), plus a
+fixture `streaks` row (`current_streak: 4, longest_streak: 6`).
+Pre-computed every expected value by hand before loading the app.
+
+Since `getDeviceId()` normally generates a random UUID, pre-seeded the
+browser's `localStorage` key `breathe_device_id_v1` (confirmed via
+reading `@react-native-async-storage/async-storage`'s web
+implementation source — it's a plain `window.localStorage` wrapper on
+web) with the test user's id before loading, so the app used the exact
+seeded user rather than a fresh random one.
+
+- **Home**: Mood card showed `😟` / "Uneasy" (postMood 2, the most
+  recent checkin) — exact match. "2 sessions THIS WEEK" (only the
+  1-day-ago and 3-day-ago checkins fall in the rolling 7-day window) —
+  exact match. "4 days CURRENT STREAK" — exact match (fixture
+  passthrough).
+- **Insights stat cards**: Current Streak "4", Total Sessions "6"
+  (all-time, includes the 40-day-old one), Mindful Minutes "1h" (6 ×
+  600s ÷ 60 = 60min), Vs Last Month "+400%" (current 30-day count 5 vs.
+  prior 30-60-day count 1 → `(5-1)/1*100`) — all exact matches,
+  including the sign-fix rendering correctly on a large positive value.
+- **Consistency calendar — verified at the DOM level, not just
+  visually**: used `playwright-cli eval` to read every cell's computed
+  `backgroundColor`, sorted by screen position into reading order, and
+  compared the resulting 28-value boolean array against the
+  hand-computed expected indices (`index = 27 - daysAgo`: 0, 12, 19,
+  24, 26). **Exact match** — filled cells at exactly those 5 indices,
+  all 23 others correctly empty.
+- **Mood trend chart — verified at the data level, not just
+  rendered**: extracted the actual SVG `<path>` `d` attribute via
+  `eval` and independently hand-computed the expected path from
+  `MoodTrendChart.tsx`'s own `moodToPoints`/`buildSmoothPath` algorithm
+  using the real mood sequence (1, 4, 3, 5, 2). **Byte-for-byte
+  match**: `M 20,180 Q 160,60 230,80 Q 300,100 370,60 Q 440,20 510,80
+  T 580,140`.
+- **Zero-state** (fresh `test-user-home-insights-zero`, no checkins):
+  0 console errors on both screens. Insights: all 4 stats show correct
+  zeros (`0`, `0`, `0h`, `+0%` — sign-fix correctly shows no `-`),
+  `MoodTrendChart` renders nothing (its own pre-existing `points.length
+  === 0` guard, no crash), calendar confirmed via the same DOM-eval
+  technique to have **0** filled cells. Home: mood card shows `—` with
+  no emoji (not a fake default), streak card shows "0 days".
+- Deleted both test users' `checkins`/`streaks` rows afterward.
+
+`npx tsc --noEmit`: clean. Browser and both dev servers closed/stopped.
+Temp Playwright snapshot files deleted.
+
+**This closes Phase 6** — all 3 backend routes are wired into all 4
+consuming screens (Library, Session Player, Home, Insights). Next per
+architecture.md's build order: step 10, Notifications (daily reminder +
+weekly recap) — not started, awaiting the user's go-ahead.
