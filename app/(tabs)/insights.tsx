@@ -52,11 +52,15 @@ function buildConsistencyCalendar(checkins: Checkin[]): boolean[] {
 }
 
 // architecture.md's /api/insights: mindfulMinutes is a raw minute count —
-// insights-screenshot.png displays it as "12h", so the hour formatting
-// happens here at render time rather than being baked into the dummy data.
+// the hour/minute formatting happens here at render time rather than
+// being baked into the dummy data.
 function formatMindfulMinutes(minutes: number): string {
-  const hours = Math.round(minutes / 60);
-  return `${hours}h`;
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
 interface StatCardConfig {
@@ -171,7 +175,10 @@ export default function InsightsScreen() {
       // font's original glyph set.
       key: 'streak',
       icon: 'whatshot',
-      iconColor: colors.primary,
+      // Matches Home's streak card treatment exactly (app/(tabs)/home.tsx)
+      // rather than the generic colors.primary every other stat card uses —
+      // same distinct orange for the fire/streak indicator on both screens.
+      iconColor: '#fb923c',
       value: `${insights.streak.currentStreak}`,
       label: 'Current Streak',
     },
@@ -277,10 +284,23 @@ export default function InsightsScreen() {
               <View key={rowIndex} style={styles.statRow}>
                 {row.map((stat) => (
                   <View key={stat.key} style={[styles.cardClip, styles.statCardClip]}>
-                    <GlassCard radius={radii.xl} style={styles.statCard}>
+                    <GlassCard
+                      radius={radii.xl}
+                      style={[
+                        styles.statCard,
+                        stat.key === 'streak' && styles.streakStatCard,
+                      ]}
+                    >
                       <MaterialIcons name={stat.icon} size={22} color={stat.iconColor} />
                       <Text style={styles.statValue}>{stat.value}</Text>
-                      <Text style={styles.statLabel}>{stat.label}</Text>
+                      <Text
+                        style={[
+                          styles.statLabel,
+                          stat.key === 'streak' && styles.streakStatLabel,
+                        ]}
+                      >
+                        {stat.label}
+                      </Text>
                     </GlassCard>
                   </View>
                 ))}
@@ -434,6 +454,15 @@ const styles = StyleSheet.create({
   statCard: {
     padding: spacing.base * 1.75,
     gap: spacing.base * 0.75,
+  },
+  // Matches Home's streakCard/streakLabel treatment exactly (app/(tabs)/
+  // home.tsx) — same #fb923c-derived tints, scoped to just this one stat
+  // card. Total Sessions/Mindful Minutes/Vs Last Month are untouched.
+  streakStatCard: {
+    borderColor: 'rgba(251,146,60,0.2)',
+  },
+  streakStatLabel: {
+    color: 'rgba(254,215,170,0.7)',
   },
   statValue: {
     fontFamily: typography.displayLg.fontFamily,

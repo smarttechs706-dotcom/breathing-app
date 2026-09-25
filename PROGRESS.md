@@ -3436,3 +3436,76 @@ Temp Playwright snapshot files deleted.
 consuming screens (Library, Session Player, Home, Insights). Next per
 architecture.md's build order: step 10, Notifications (daily reminder +
 weekly recap) — not started, awaiting the user's go-ahead.
+
+## Fixed: Mindful Minutes stat card showed "0h" for short sessions (2026-09-25)
+`formatMindfulMinutes` (`app/(tabs)/insights.tsx`) always rounded to whole
+hours (`Math.round(minutes / 60)` + `"h"`), so any real user with under 30
+mindful minutes total saw "0h" — technically correct but reads as broken,
+especially for a new user with only a few short sessions logged. Display-
+only bug; `mindfulMinutes` itself (computed server-side in `GET /api/
+insights`, see `breathing-app-api/app/api/insights/route.ts`) was untouched.
+
+Fixed to a two-tier format: under 60 minutes shows `"Nm"`; 60+ shows `"Nh"`
+if exact or `"Nh Mm"` if there's a remainder. Verified with 0→"0m",
+20→"20m", 60→"1h", 90→"1h 30m", 125→"2h 5m" (all correct) via a standalone
+script mirroring the function, plus `npx tsc --noEmit` clean.
+
+**Re-verified against real production data (2026-09-25).** Queried
+Supabase's `checkins` table directly for today's non-test rows and found
+the user's real device UUID (`e3c7f66f-...`) with 2 genuine checkins
+completed today (`morning-reset` 1080s + `deep-exhale` 600s = 1680s =
+28min) — exactly the previously-broken sub-60-minute case, real data not
+a fixture. Started the API dev server and called `GET /api/insights?
+user_id=e3c7f66f-...` live: `mindfulMinutes: 28`, confirming the backend
+number itself was always correct (this was purely a display bug, as
+suspected).
+
+Then started a *second*, isolated Expo web dev server (port 8082, the
+phone's port-8081 server left untouched, same pattern as every prior
+on-device-adjacent verification in this file), seeded `localStorage`
+with the real device UUID (`breathe_device_id_v1`) and the onboarding-
+complete flag, navigated straight to `/insights`, and confirmed via
+`playwright-cli find` + a screenshot that the Mindful Minutes card
+renders **"28m"** — not "0h". Both dev servers stopped and
+`.playwright-cli/` temp files deleted afterward.
+
+## Fixed: Insights' streak stat card didn't match Home's orange treatment (2026-09-25)
+User flagged a color inconsistency: Home's streak card (`app/(tabs)/
+home.tsx`) uses a distinct orange (`#fb923c`) for its flame icon plus a
+matching orange tint on the card border and label text, to visually mark
+it as the streak/fire indicator. Insights' "Current Streak" stat card
+(`app/(tabs)/insights.tsx`) instead used the generic `colors.primary`
+(blue) for its `whatshot` icon, with no card/label tint — same concept,
+inconsistent treatment between the two screens.
+
+Confirmed the exact existing values in both files before changing
+anything: Home's `streakCard` style is `borderColor: 'rgba(251,146,60,0.2)'`
+and `streakLabel` is `color: 'rgba(254,215,170,0.7)'`, both derived from
+the same `#fb923c` orange as the icon. `GlassCard`'s wrapper already sets
+`borderWidth: 1` with a default `borderColor`, and spreads the `style`
+prop last — so Insights' stat card layout could support the identical
+override mechanism Home already uses, no structural change needed.
+
+Scoped the fix to just the streak stat (`stat.key === 'streak'`) inside
+Insights' shared `statCards.map` render loop, so Total Sessions/Mindful
+Minutes/Vs Last Month are untouched:
+- Streak's `iconColor` changed from `colors.primary` to `'#fb923c'`
+- Added `streakStatCard: { borderColor: 'rgba(251,146,60,0.2)' }` and
+  `streakStatLabel: { color: 'rgba(254,215,170,0.7)' }` — same values as
+  Home, byte-for-byte — applied conditionally only to the streak card's
+  `GlassCard` style and label `Text` style
+
+`npx tsc --noEmit`: clean. Verified visually via an isolated Expo web dev
+server (`--port 8092`, phone's 8081 and backend's 3000 restarted fresh
+after both were reaped for memory pressure earlier this session, left
+running afterward) + `playwright-cli`, same pattern as this file's other
+web-based visual checks: screenshotted Home's streak card (baseline,
+unchanged) and Insights' Current Streak card side by side — both now show
+the same orange flame icon, border tint, and label tint. Also verified at
+the DOM level via `playwright-cli eval` (computed styles), not just a
+screenshot: Insights' streak card icon `rgb(251, 146, 60)` (= `#fb923c`),
+card `border-color: rgba(251, 146, 60, 0.2)`, label `color: rgba(254, 215,
+170, 0.7)` — exact matches to Home's values. Total Sessions' card
+(adjacent, untouched) confirmed still plain/blue in the same check.
+Browser closed, isolated web server stopped, temp screenshot/snapshot
+files deleted afterward.
