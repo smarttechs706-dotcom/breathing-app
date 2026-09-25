@@ -4,14 +4,25 @@ import { router } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
-import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { fetchInsights, fetchSessions } from '../../src/api/client';
+import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { useActiveSession } from '../../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
+import type { Session } from '../../src/types/models';
+import { getDeviceId } from '../../src/utils/deviceId';
 
 // architecture.md's "Bottom navigation — Player tab behavior": tapping
 // Player never silently redirects — it always shows this tab's own
@@ -29,22 +40,109 @@ import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 // commonly-hit path — flagging this rather than silently building
 // something that looks functional but rarely triggers.
 //
-// Visual treatment: this empty state has no Stitch export of its own (it
-// wasn't part of the original design handoff), so it's built to match the
-// app's established visual language instead — same top bar as
-// Home/Library (avatar + gradient "Breathe" title + settings), the same
-// soft background glow as Home, and the message/CTA inside a GlassCard
-// like every other content block in the app, per DESIGN.md's glassmorphic
-// component spec — not a bare, disconnected placeholder.
+// Redesigned (2026-09-25) per assets/design-reference/player-empty-code
+// .html / player-empty-screenshot.png, the first real Stitch export this
+// empty state has had (the previous version predated it and matched the
+// app's general visual language only). Same top bar as before; new
+// "BREATH PLAYER" status pill, hero card with glow blobs, "Explore
+// Library" CTA, Quick Suggestions, and a stats section — this file only,
+// per instruction (ActiveSessionContext/Home/Library/Session
+// Player/Insights/backend untouched).
+//
+// Two real-data decisions, flagged rather than silently resolved:
+// 1. The mockup's stats row is a 2-up grid: "Daily Goal" (a minutes-
+//    progress number) and "Calm Streak". architecture.md's GET
+//    /api/insights has no daily-goal concept at all — no real data exists
+//    to back it, and PRD.md doesn't define one either. Rather than invent
+//    a number, that card is omitted; only the real streak (same
+//    `streak.currentStreak` field Home/Insights already use) is shown, as
+//    a single card instead of a half-empty 2-up grid.
+// 2. Quick Suggestions: the mockup hardcodes "Box Breathing · 4m" and
+//    "Deep Exhale · 10m" with one-off icons (spa/nights_stay). Both
+//    sessions are real catalog entries, so their titles/durations come
+//    from the live GET /api/sessions catalog instead of the mockup's
+//    numbers (Box Breathing is actually 12m, not 4m — same "real catalog
+//    over mockup numbers" precedent as Library's category counts), and
+//    their icons reuse the LOCKED badge→icon mapping (Leaf→eco,
+//    Heart→favorite) from app/(tabs)/library.tsx's BADGE_ICON rather than
+//    inventing new ones — per CLAUDE.md's "never re-derive the Library
+//    session mapping" rule, this reuses those exact locked values, not
+//    fresh ones.
+//
+// FRONTEND-AUDIT-2.md High finding (fixed 2026-09-26): this used to read
+// src/data/sessions.ts, a local static catalog never cross-checked against
+// the live backend — now fetched via the same GET /api/sessions Library's
+// grid already uses, with its own loading/error handling below (not a
+// silent omission on failure, unlike the Calm Streak stat's still-open Low
+// finding from the same audit — out of scope for this fix).
+const BADGE_ICON: Record<Session['badge'], keyof typeof MaterialIcons.glyphMap> = {
+  Leaf: 'eco',
+  Moon: 'bedtime',
+  Zap: 'bolt',
+  Heart: 'favorite',
+};
+
+// Same two sessions the mockup names, by their real catalog ids.
+const QUICK_SUGGESTION_IDS = ['box-breathing', 'deep-exhale'] as const;
+
+function formatDuration(durationSec: number) {
+  return `${Math.round(durationSec / 60)}m`;
+}
+
 export default function PlayerScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { activeSessionId } = useActiveSession();
 
+  // null = loading, undefined = failed (shown as a quiet omission, not a
+  // blocking error — this is a supplementary stat, not the screen's
+  // primary content, matching Home's per-section-not-whole-screen gating
+  // philosophy for secondary widgets).
+  const [currentStreak, setCurrentStreak] = useState<number | null | undefined>(null);
+
   useEffect(() => {
     if (activeSessionId) {
       router.replace(`/session-player?sessionId=${activeSessionId}`);
+      return;
     }
+    let cancelled = false;
+    getDeviceId()
+      .then(fetchInsights)
+      .then((insights) => {
+        if (!cancelled) setCurrentStreak(insights.streak.currentStreak);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentStreak(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activeSessionId]);
+
+  // null = loading, undefined = fetch failed (shows an explicit error +
+  // Retry below, unlike the streak stat above — this is one of the 4
+  // screens FRONTEND-AUDIT-2.md's High finding named explicitly, so it
+  // gets the same real error/retry pattern Library/Home use, not the
+  // silent-omission pattern that finding also flagged separately).
+  const [quickSuggestions, setQuickSuggestions] = useState<Session[] | null | undefined>(
+    null
+  );
+
+  const loadQuickSuggestions = useCallback(() => {
+    if (activeSessionId) return;
+    setQuickSuggestions(null);
+    fetchSessions()
+      .then((sessions) => {
+        const matched = QUICK_SUGGESTION_IDS.map((id) =>
+          sessions.find((s) => s.id === id)
+        ).filter((s): s is Session => s !== undefined);
+        setQuickSuggestions(matched);
+      })
+      .catch(() => setQuickSuggestions(undefined));
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    loadQuickSuggestions();
+  }, [loadQuickSuggestions]);
 
   return (
     <View style={styles.root}>
@@ -81,35 +179,102 @@ export default function PlayerScreen() {
             // Brief placeholder while the redirect above takes effect.
             <View style={styles.redirectPlaceholder} />
           ) : (
-            <GlassCard radius={radii.lg} style={styles.card}>
-              <View style={styles.iconBadge}>
-                <MaterialIcons name="waves" size={32} color={colors.onSurfaceVariant} />
+            <>
+              <View style={styles.statusPill}>
+                <View style={styles.statusPillDot} />
+                <Text style={styles.statusPillText}>Breath Player</Text>
               </View>
-              <Text style={styles.title}>No session in progress</Text>
-              <Text style={styles.subtitle}>
-                Start a guided breathing session from the Library to see it
-                here.
-              </Text>
-              {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
-                  2026-09-19 primaryContainer -> inversePrimary gradient with
-                  onPrimaryContainer text computed to only ~2.2:1 contrast at
-                  the gradient's darker end — below the 4.5:1 AA minimum.
-                  Swapped to inversePrimary -> onPrimaryFixedVariant (both
-                  stops dark enough that white text stays >=6.47:1 across the
-                  whole gradient — see AUDIT-2.md for the full before/after
-                  math) with white text, matching Home/Library's identical
-                  fix and Session Player's own Begin Journey button. */}
-              <Pressable onPress={() => router.push('/library')}>
-                <LinearGradient
-                  colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.startButton}
-                >
-                  <Text style={styles.startButtonText}>Start a Session</Text>
-                </LinearGradient>
-              </Pressable>
-            </GlassCard>
+
+              <GlassCard radius={radii.lg} style={styles.heroCard}>
+                <View style={[styles.glowBlob, styles.glowBlobPrimary]} />
+                <View style={[styles.glowBlob, styles.glowBlobSecondary]} />
+
+                <View style={styles.orbWrapper}>
+                  <BreathOrb size={140} />
+                </View>
+
+                <Text style={styles.title}>No Session in Progress</Text>
+                <Text style={styles.subtitle}>
+                  Select a guided breathing practice from your Library to
+                  begin your mindful pause.
+                </Text>
+
+                <Pressable onPress={() => router.push('/library')}>
+                  {/* Same contrast-fixed gradient as Home/Library/Session
+                      Player's primary CTAs (AUDIT-2.md) — white text stays
+                      >=6.47:1 across the whole gradient. */}
+                  <LinearGradient
+                    colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.exploreButton}
+                  >
+                    <Text style={styles.exploreButtonText}>Explore Library</Text>
+                    <MaterialIcons name="arrow-forward" size={18} color="#ffffff" />
+                  </LinearGradient>
+                </Pressable>
+
+                <View style={styles.suggestionsSection}>
+                  <Text style={styles.suggestionsLabel}>Quick Suggestions</Text>
+                  {quickSuggestions === undefined ? (
+                    <View style={styles.suggestionsErrorRow}>
+                      <Text style={styles.suggestionsErrorText}>
+                        Couldn&apos;t load suggestions.
+                      </Text>
+                      <Pressable onPress={loadQuickSuggestions}>
+                        <Text style={styles.suggestionsRetryText}>Retry</Text>
+                      </Pressable>
+                    </View>
+                  ) : quickSuggestions === null ? (
+                    <ActivityIndicator size="small" color={colors.onSurfaceVariant} />
+                  ) : (
+                    <View style={styles.suggestionsRow}>
+                      {quickSuggestions.map((session) => (
+                        <Pressable
+                          key={session.id}
+                          onPress={() =>
+                            router.push(`/session-player?sessionId=${session.id}`)
+                          }
+                          style={styles.suggestionPill}
+                        >
+                          <MaterialIcons
+                            name={BADGE_ICON[session.badge]}
+                            size={15}
+                            color={colors.primary}
+                          />
+                          <Text style={styles.suggestionText}>{session.title}</Text>
+                          <Text style={styles.suggestionMeta}>
+                            · {formatDuration(session.durationSec)}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </GlassCard>
+
+              {currentStreak !== undefined && (
+                <GlassCard radius={radii.md} style={styles.statCard}>
+                  <View style={styles.statIconBadge}>
+                    <MaterialIcons name="whatshot" size={20} color="#fb923c" />
+                  </View>
+                  <View style={styles.statTextGroup}>
+                    <Text style={styles.statLabel}>Calm Streak</Text>
+                    {currentStreak === null ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.onSurfaceVariant}
+                        style={styles.statLoading}
+                      />
+                    ) : (
+                      <Text style={styles.statValue}>
+                        {currentStreak} {currentStreak === 1 ? 'Day' : 'Days'}
+                      </Text>
+                    )}
+                  </View>
+                </GlassCard>
+              )}
+            </>
           )}
         </ScrollView>
       </SafeAreaView>
@@ -144,7 +309,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
-    height: 64,
+    height: 56,
   },
   // Same padding-only Pressable-wrapper pattern already used by
   // session-player.tsx's settings icon.
@@ -168,35 +333,74 @@ const styles = StyleSheet.create({
     lineHeight: typography.headlineLgMobile.lineHeight,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingHorizontal: spacing.marginMobile,
-    // paddingBottom is set dynamically at render time from
-    // useBottomTabBarHeight() — see the ScrollView usage above.
-    justifyContent: 'center',
+    paddingTop: spacing.base * 0.5,
+    gap: spacing.base * 2,
   },
   redirectPlaceholder: {
     height: 1,
   },
-  card: {
-    padding: spacing.base * 4,
+  statusPill: {
+    alignSelf: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.base * 1.5,
+    gap: spacing.base * 0.75,
+    backgroundColor: `${colors.surfaceContainerHigh}99`,
+    paddingHorizontal: spacing.base * 1.75,
+    paddingVertical: spacing.base * 0.75,
+    borderRadius: radii.full,
   },
-  iconBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: `${colors.surfaceVariant}80`,
+  statusPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.tertiary,
+  },
+  statusPillText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    letterSpacing: typography.labelSm.letterSpacing,
+    color: colors.tertiary,
+    textTransform: 'uppercase',
+  },
+  heroCard: {
+    marginTop: spacing.base * 1.5,
+    padding: spacing.base * 3.5,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.base,
+    overflow: 'hidden',
+  },
+  glowBlob: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  glowBlobPrimary: {
+    top: -80,
+    right: -80,
+    width: 180,
+    height: 180,
+    backgroundColor: colors.primary,
+    opacity: 0.08,
+  },
+  glowBlobSecondary: {
+    bottom: -70,
+    left: -70,
+    width: 160,
+    height: 160,
+    backgroundColor: colors.secondary,
+    opacity: 0.08,
+  },
+  orbWrapper: {
+    marginBottom: spacing.base * 2,
   },
   title: {
     fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: typography.headlineLgMobile.fontSize,
+    fontWeight: typography.headlineLgMobile.fontWeight,
     color: colors.onSurface,
     textAlign: 'center',
+    marginBottom: spacing.base,
   },
   subtitle: {
     fontFamily: typography.bodyMd.fontFamily,
@@ -205,19 +409,115 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 280,
+    marginBottom: spacing.base * 3,
   },
-  startButton: {
-    marginTop: spacing.base,
+  exploreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.base,
     paddingHorizontal: spacing.base * 4,
     paddingVertical: spacing.base * 1.75,
     borderRadius: radii.full,
   },
-  startButtonText: {
+  exploreButtonText: {
     fontFamily: typography.labelSm.fontFamily,
     fontSize: typography.labelSm.fontSize,
     fontWeight: typography.labelSm.fontWeight,
-    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Start a Session
-    // LinearGradient comment above for the full before/after math.
+    // Same contrast fix as the gradient above — see comment there.
     color: '#ffffff',
+  },
+  suggestionsSection: {
+    width: '100%',
+    marginTop: spacing.base * 3,
+    paddingTop: spacing.base * 3,
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant,
+    alignItems: 'center',
+    gap: spacing.base * 1.25,
+  },
+  suggestionsLabel: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    letterSpacing: typography.labelSm.letterSpacing,
+    color: colors.outline,
+    textTransform: 'uppercase',
+  },
+  suggestionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.base,
+  },
+  suggestionsErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base,
+  },
+  suggestionsErrorText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.onSurfaceVariant,
+  },
+  suggestionsRetryText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.primary,
+  },
+  suggestionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base * 0.5,
+    backgroundColor: `${colors.surfaceContainerHigh}B3`,
+    paddingHorizontal: spacing.base * 1.5,
+    paddingVertical: spacing.base * 0.75,
+    borderRadius: radii.full,
+  },
+  suggestionText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onSurface,
+  },
+  suggestionMeta: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onSurfaceVariant,
+  },
+  statCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base * 1.5,
+    padding: spacing.base * 2,
+  },
+  statIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(251,146,60,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statTextGroup: {
+    gap: 2,
+  },
+  statLabel: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onSurfaceVariant,
+  },
+  statValue: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  statLoading: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
   },
 });

@@ -3509,3 +3509,85 @@ card `border-color: rgba(251, 146, 60, 0.2)`, label `color: rgba(254, 215,
 (adjacent, untouched) confirmed still plain/blue in the same check.
 Browser closed, isolated web server stopped, temp screenshot/snapshot
 files deleted afterward.
+
+## Fixed: FRONTEND-AUDIT-2.md's High finding — 4 screens now read live session data, not the local catalog (2026-09-26)
+`FRONTEND-AUDIT-2.md` (a full diagnostic audit, see its own entry) flagged
+that Home's Featured Session card, `app/session-player.tsx`, Library's
+Quick Start target, and Player's Quick Suggestions all still read session
+content from the local static `src/data/sessions.ts` catalog, never the
+live `GET /api/sessions` backend — even though Library's grid and Insights
+were already correctly wired. The concrete risk: if the backend catalog
+ever diverged from the local file, `session-player.tsx`'s
+`getSessionById(id) ?? featuredSession` fallback would silently substitute
+Deep Exhale for an unrecognized id and silently misattribute the
+resulting checkin to it.
+
+Fixed all four, reusing `fetchSessions()` (`src/api/client.ts`) — the
+same function Library's grid already used — rather than adding a new API
+function, since no single-session-by-id backend endpoint exists and
+adding one was out of scope (backend untouched):
+
+- **Home**: Featured Session card now has its own independent
+  `featuredSession`/`featuredError` fetch (parallel to, not merged into,
+  the existing Snapshot section's `insights` fetch), looking up a new
+  `FEATURED_SESSION_ID = 'deep-exhale'` constant in the live list rather
+  than assuming array order. Own loading spinner + error/Retry, reusing
+  the Snapshot section's existing style names. A genuinely empty live
+  catalog is treated as the error branch (friendly message) instead of a
+  permanently-stuck spinner.
+- **Library**: Quick Start now looks up `FEATURED_SESSION_ID` from the
+  `sessions` state this screen already fetches for its grid — no new
+  fetch needed. Guarded to no-op, not crash, on an empty catalog.
+- **Player**: Quick Suggestions now fetches live via its own effect,
+  with real loading/error+Retry UI — explicitly not the silent-omission
+  pattern the adjacent Calm Streak stat still uses (a separate, still-open
+  Low finding from the same audit, left alone per instruction).
+- **Session Player** — the significant one. Replaced the synchronous
+  local lookup entirely with a `sessions`/`fetchError` fetch (same shape
+  as Library's) and a derived `session`, gated behind **3 explicit
+  states, checked in order, before any phase UI renders**: fetch failed
+  (icon + real error text + Retry), still loading (spinner), or fetch
+  succeeded but no session matches the id — a **dedicated "Session not
+  found." state** (different icon/copy from the error state, a "Back to
+  Library" action), not a silent substitution. Every hook reading
+  `session.*` (`setActiveSessionId`, auto-advance-to-post-mood, the
+  breath sub-phase cycle) is now guarded with `if (!session) return;`.
+  Added a shared module-level `TopBar` component (mirroring
+  `insights.tsx`'s own existing pattern) so the X/settings buttons stay
+  functional across all 4 render states (loading/error/not-found/ready).
+
+**`src/data/sessions.ts` is now fully unused app-wide** — confirmed via
+`grep -rn "from '.*data/sessions'" app src`, zero matches. Not deleted,
+per instruction — flagged for a future cleanup pass, same treatment
+`src/data/insights.ts` already got.
+
+`npx tsc --noEmit`: clean throughout. `git diff --stat` confirmed only
+the 4 named screens changed, nothing else.
+
+**Verified interactively** (isolated Expo web server, port 8094; phone's
+8081 and the backend's own port 3000 left running/untouched throughout)
+via `playwright-cli`:
+- `playwright-cli requests` confirmed Home, Library, Player, and Session
+  Player each independently issue their own real `GET /api/sessions`
+  call and render the live response.
+- Home's Begin and Library's Quick Start both correctly resolved to
+  `sessionId=deep-exhale` from the live list and opened Session Player
+  with the correct live content.
+- **Simulated a full backend failure**
+  (`playwright-cli route "**/api/sessions*" --status=500`) and reloaded
+  all 4 screens: each showed a real error state (`GET /api/sessions
+  failed: 500` + Retry); removing the simulated failure and tapping
+  Retry correctly recovered real data on all 4 (screenshotted before/
+  after for each).
+- **Navigated directly to
+  `/session-player?sessionId=this-session-does-not-exist`**: confirmed
+  the dedicated "Session not found." state renders (distinct from the
+  error state), the top bar's X/settings remain functional, and "Back to
+  Library" correctly navigates there — no substitution of Deep Exhale or
+  any other session occurred.
+- Browser closed, isolated web server stopped, temp files deleted.
+
+`FRONTEND-AUDIT-2.md` updated to mark this High finding RESOLVED with
+the full before/after (its other findings, including the still-open
+"no fetch timeout" High finding, are untouched — out of scope for this
+fix). Not committed — left for the user's confirmation.

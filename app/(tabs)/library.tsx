@@ -20,13 +20,15 @@ import { fetchSessions } from '../../src/api/client';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { SessionThumbnail } from '../../src/components/SessionThumbnail';
-// featuredSession still comes from local dummy data — Quick Start just
-// needs a session id to route to, and Session Player (untouched this
-// phase, per instruction) still reads from this same file, so this stays
-// consistent until Session Player is wired to the real backend too.
-import { featuredSession } from '../../src/data/sessions';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
+
+// FRONTEND-AUDIT-2.md High finding: Quick Start's target used to be a local
+// static session id, never cross-checked against the live catalog this
+// screen already fetches. architecture.md's locked table designates
+// 'deep-exhale' as the Featured/Quick Start session — looked up from the
+// already-fetched `sessions` state below instead of a separate local import.
+const FEATURED_SESSION_ID = 'deep-exhale';
 
 // PRD.md names the tabs "For You/Calm/Recovery/Sleep" in its Core Screens
 // list, but its own category-count example ("Calm 2, Sleep 2, Energy 1,
@@ -93,11 +95,13 @@ export default function LibraryScreen() {
 
   const handleQuickStart = () => {
     // PRD.md: Quick Start immediately begins the current "For You"
-    // recommended session — skips Library browsing entirely, opens Session
-    // Player directly at the pre-mood phase. Same not-yet-built route
-    // Home's "Begin" points to (build order step 4) — expected to 404 for
-    // now.
-    router.push(`/session-player?sessionId=${featuredSession.id}`);
+    // recommended session. Looked up from the live `sessions` state (this
+    // screen's own already-fetched catalog) rather than a local import —
+    // no-ops safely if the catalog is empty or somehow lacks the featured
+    // id and has nothing else to fall back to (guarded, not a crash).
+    const target = sessions?.find((s) => s.id === FEATURED_SESSION_ID) ?? sessions?.[0];
+    if (!target) return;
+    router.push(`/session-player?sessionId=${target.id}`);
   };
 
   return (

@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,14 +15,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { postCheckin } from '../src/api/client';
+import { fetchSessions, postCheckin } from '../src/api/client';
 import { BreathingRing } from '../src/components/BreathingRing';
 import { GlassCard } from '../src/components/GlassCard';
 import { GradientText } from '../src/components/GradientText';
 import { MOOD_EMOJIS, MoodSelector } from '../src/components/MoodSelector';
-import { featuredSession, getSessionById } from '../src/data/sessions';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
+import type { Session } from '../src/types/models';
 import { getDeviceId } from '../src/utils/deviceId';
 
 // ============================================================================
@@ -77,11 +77,71 @@ function emojiForMood(mood: number) {
   return MOOD_EMOJIS[Math.min(Math.max(mood, 1), MOOD_EMOJIS.length) - 1];
 }
 
+// Shared across the loading/error/not-found/ready render branches below —
+// same reasoning as insights.tsx's own module-level TopBar component.
+// Takes its press handlers as props (rather than reading them from module
+// scope) since they close over this screen's own `phase`/`session` state.
+function TopBar({
+  onExitPress,
+  onSettingsPress,
+}: {
+  onExitPress: () => void;
+  onSettingsPress: () => void;
+}) {
+  return (
+    <View style={styles.topBar}>
+      <Pressable onPress={onExitPress} hitSlop={12} style={styles.topBarButton}>
+        <MaterialIcons name="close" size={24} color={colors.onSurfaceVariant} />
+      </Pressable>
+      <GradientText colors={[colors.primary, colors.tertiary]} style={styles.topBarTitle}>
+        Breathe
+      </GradientText>
+      <Pressable onPress={onSettingsPress} hitSlop={12} style={styles.topBarButton}>
+        <MaterialIcons name="settings" size={24} color={colors.primary} />
+      </Pressable>
+    </View>
+  );
+}
+
 export default function SessionPlayerScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
-  // Graceful fallback if sessionId is missing/invalid — Home/Library always
-  // pass a real id today, so this mainly guards a direct/malformed deep link.
-  const session = getSessionById(sessionId ?? '') ?? featuredSession;
+
+  // FRONTEND-AUDIT-2.md High finding (fixed 2026-09-26): this used to be
+  // `getSessionById(sessionId ?? '') ?? featuredSession` — a synchronous
+  // lookup into the local static catalog that silently substituted Deep
+  // Exhale for ANY unrecognized id, with no error, no warning, and (via
+  // handleDone below) the checkin would then be silently mis-attributed to
+  // the wrong session. Now fetches the live catalog via the same
+  // GET /api/sessions Library's grid already uses, and distinguishes three
+  // real states: still loading, the fetch itself failed (network/backend
+  // error — offers Retry), and the fetch succeeded but no session in the
+  // live list matches `sessionId` (a genuine "not found," not silently
+  // substituted — see the dedicated not-found branch further down).
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const loadSessions = useCallback(() => {
+    setFetchError(null);
+    setSessions(null);
+    fetchSessions()
+      .then(setSessions)
+      .catch((err) =>
+        setFetchError(err instanceof Error ? err.message : 'Failed to load session.')
+      );
+  }, []);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // Referentially stable across re-renders as long as `sessions` itself
+  // hasn't changed (Array.prototype.find on the same array reference
+  // returns the same element reference), so this is safe to use directly
+  // in effect dependency arrays below without causing extra re-runs.
+  // Once `sessions` has loaded and `fetchError` is clear, `session` being
+  // null unambiguously means "not found" (see the guard sequence before
+  // the main return below) — not a loading state.
+  const session = sessions?.find((s) => s.id === sessionId) ?? null;
 
   // AUDIT.md High finding (2026-09-19): router.push('/settings') from this
   // screen doesn't unmount it — it just loses focus while Settings sits on
@@ -94,12 +154,17 @@ export default function SessionPlayerScreen() {
   // Marks a session "in progress" for the Player tab (app/(tabs)/player.tsx)
   // for as long as this screen is mounted, in any phase — cleared on exit,
   // completion, or unmount. See architecture.md's "Bottom navigation —
-  // Player tab behavior".
+  // Player tab behavior". Only marks once a session has genuinely resolved
+  // from the live catalog — not during loading, and not for an id that
+  // turns out not to exist (previously this fired immediately for
+  // whatever the local-fallback session was, even for a malformed link —
+  // see the FRONTEND-AUDIT-2.md comment above).
   useEffect(() => {
+    if (!session) return;
     setActiveSessionId(session.id);
     return () => setActiveSessionId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.id]);
+  }, [session]);
 
   const [phase, setPhase] = useState<Phase>('pre-mood');
   const [preMood, setPreMood] = useState(3);
@@ -141,17 +206,18 @@ export default function SessionPlayerScreen() {
 
   // Auto-advance to post-mood once the session's full duration has elapsed.
   useEffect(() => {
+    if (!session) return;
     if (phase === 'active' && elapsedSec >= session.durationSec) {
       setPhase('post-mood');
     }
-  }, [elapsedSec, phase, session.durationSec]);
+  }, [elapsedSec, phase, session]);
 
   // Breathing sub-phase cycle (inhale -> hold -> exhale -> inhale...),
   // timed from the session's own phaseConfig. Self-scheduling chain since
   // each sub-phase has a different duration. Also paused while unfocused —
   // same reasoning as the elapsed-time timer above.
   useEffect(() => {
-    if (phase !== 'active' || paused || !isFocused) return;
+    if (phase !== 'active' || paused || !isFocused || !session) return;
     const durations: Record<BreathSubPhase, number> = {
       inhale: session.phaseConfig.inhale,
       hold: session.phaseConfig.hold,
@@ -168,7 +234,7 @@ export default function SessionPlayerScreen() {
       setBreathSubPhase((cur) => nextSubPhase[cur]);
     }, durations[breathSubPhase] * 1000);
     return () => clearTimeout(id);
-  }, [phase, paused, isFocused, breathSubPhase, session.phaseConfig]);
+  }, [phase, paused, isFocused, breathSubPhase, session]);
 
   const exitSession = () => {
     setActiveSessionId(null);
@@ -176,6 +242,18 @@ export default function SessionPlayerScreen() {
       router.back();
     } else {
       router.replace('/home');
+    }
+  };
+
+  // Used only by the "not found" state below — Library, not Home, is the
+  // more useful destination when the session the user tried to open
+  // doesn't exist (they were trying to view a specific session, so
+  // somewhere to pick a real one is more helpful than the dashboard).
+  const handleBackToLibrary = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/library');
     }
   };
 
@@ -224,6 +302,72 @@ export default function SessionPlayerScreen() {
   };
 
   const handlePauseToggle = () => setPaused((p) => !p);
+
+  // FRONTEND-AUDIT-2.md High finding: 3 real states, checked in order, all
+  // hooks above already unconditionally declared so this is safe. Beyond
+  // this point TypeScript narrows `session` to a real Session (not
+  // Session | null) for the rest of the render — the existing phase JSX
+  // below needed no changes to account for that, it's the same shape
+  // GET /api/sessions already returns as the local catalog used to.
+  if (fetchError) {
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
+          <View style={styles.centerState}>
+            <MaterialIcons name="error-outline" size={32} color={colors.onSurfaceVariant} />
+            <Text style={styles.centerStateText}>Couldn&apos;t load this session.</Text>
+            <Text style={styles.centerStateSubtext}>{fetchError}</Text>
+            <Pressable onPress={loadSessions} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (sessions === null) {
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
+          <View style={styles.centerState}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (!session) {
+    // sessions is loaded and fetchError is clear (both prior guards
+    // already returned otherwise) — a null session here unambiguously
+    // means the requested id genuinely doesn't exist in the live catalog.
+    // This is the exact case FRONTEND-AUDIT-2.md flagged: previously this
+    // silently substituted Deep Exhale with no indication anything was
+    // wrong; now it's a clear, dedicated state with no session
+    // substitution and nothing for handleDone to misattribute a checkin
+    // to.
+    return (
+      <View style={styles.root}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
+          <View style={styles.centerState}>
+            <MaterialIcons name="search-off" size={32} color={colors.onSurfaceVariant} />
+            <Text style={styles.centerStateText}>Session not found.</Text>
+            <Text style={styles.centerStateSubtext}>
+              This session may have been removed, or the link you followed is
+              invalid.
+            </Text>
+            <Pressable onPress={handleBackToLibrary} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>Back to Library</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   const handleDone = async () => {
     setSaving(true);
@@ -277,28 +421,7 @@ export default function SessionPlayerScreen() {
       <Stack.Screen options={{ gestureEnabled: phase !== 'active' }} />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={handleExitPress}
-            hitSlop={12}
-            style={styles.topBarButton}
-          >
-            <MaterialIcons name="close" size={24} color={colors.onSurfaceVariant} />
-          </Pressable>
-          <GradientText
-            colors={[colors.primary, colors.tertiary]}
-            style={styles.topBarTitle}
-          >
-            Breathe
-          </GradientText>
-          <Pressable
-            onPress={handleSettingsPress}
-            hitSlop={12}
-            style={styles.topBarButton}
-          >
-            <MaterialIcons name="settings" size={24} color={colors.primary} />
-          </Pressable>
-        </View>
+        <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -516,6 +639,40 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: spacing.marginMobile,
     paddingBottom: spacing.sectionGap,
+  },
+  // Loading/error/not-found states (FRONTEND-AUDIT-2.md fix) — same values
+  // as Library/Insights' equivalent centered states for visual consistency.
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.base,
+    paddingHorizontal: spacing.marginMobile,
+  },
+  centerStateText: {
+    fontFamily: typography.bodyLg.fontFamily,
+    fontSize: typography.bodyLg.fontSize,
+    fontWeight: '600',
+    color: colors.onSurface,
+  },
+  centerStateSubtext: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.base,
+    paddingHorizontal: spacing.base * 3,
+    paddingVertical: spacing.base * 1.25,
+    borderRadius: radii.full,
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    color: colors.onPrimary,
   },
   phaseContainer: {
     flex: 1,

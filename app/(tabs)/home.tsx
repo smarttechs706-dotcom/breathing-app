@@ -24,18 +24,29 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { fetchInsights, type InsightsResponse } from '../../src/api/client';
+import { fetchInsights, fetchSessions, type InsightsResponse } from '../../src/api/client';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MOOD_EMOJIS, MOOD_LABELS } from '../../src/components/MoodSelector';
-import { featuredSession } from '../../src/data/sessions';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
+import type { Session } from '../../src/types/models';
 import { getDeviceId } from '../../src/utils/deviceId';
 
 function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)} min`;
 }
+
+// FRONTEND-AUDIT-2.md High finding: this card used to read a local static
+// session unconditionally, never the live backend. Now fetched via the same
+// GET /api/sessions Library's grid already uses — architecture.md's locked
+// table designates 'deep-exhale' as the Featured Session (matches
+// home-code.html's mockup), so that's the id looked up in the live list,
+// not just "whichever session the query happens to return first" (Supabase
+// query here has no ORDER BY, so response order isn't guaranteed). Falls
+// back to the first live session only if 'deep-exhale' itself is somehow
+// absent from the backend, rather than showing nothing.
+const FEATURED_SESSION_ID = 'deep-exhale';
 
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
@@ -57,6 +68,40 @@ export default function HomeScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Independent of the insights fetch above — the Featured Session card and
+  // the Snapshot section are two unrelated pieces of data (matches this
+  // screen's existing per-section-gating pattern, now applied consistently
+  // to both sections instead of just one).
+  const [featuredSession, setFeaturedSession] = useState<Session | null>(null);
+  const [featuredError, setFeaturedError] = useState<string | null>(null);
+
+  const loadFeatured = useCallback(() => {
+    setFeaturedError(null);
+    setFeaturedSession(null);
+    fetchSessions()
+      .then((sessions) => {
+        const match = sessions.find((s) => s.id === FEATURED_SESSION_ID) ?? sessions[0];
+        // A genuinely empty catalog isn't a thrown error, but there's
+        // nothing to feature either — treat it as the error branch (below)
+        // rather than leaving featuredSession permanently null, which would
+        // otherwise render as a stuck loading spinner forever.
+        if (!match) {
+          setFeaturedError('No sessions are available right now.');
+          return;
+        }
+        setFeaturedSession(match);
+      })
+      .catch((err) =>
+        setFeaturedError(
+          err instanceof Error ? err.message : 'Failed to load featured session.'
+        )
+      );
+  }, []);
+
+  useEffect(() => {
+    loadFeatured();
+  }, [loadFeatured]);
 
   // "Current mood" isn't a field GET /api/insights returns — derived from
   // the most recent real checkin's postMood (checkins is newest-first).
@@ -110,49 +155,66 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <GlassCard radius={radii.lg} style={styles.heroCard}>
-              <View style={styles.heroContent}>
-                <BreathOrb size={160} />
-                <Text style={styles.heroTitle}>{featuredSession.title}</Text>
-                <Text style={styles.heroDescription} numberOfLines={3}>
-                  {featuredSession.description}
+            {featuredError ? (
+              <View style={styles.snapshotCenterState}>
+                <MaterialIcons name="error-outline" size={28} color={colors.onSurfaceVariant} />
+                <Text style={styles.snapshotCenterStateText}>
+                  Couldn&apos;t load your featured session.
                 </Text>
-                <View style={styles.heroFooter}>
-                  <View style={styles.durationPill}>
-                    <MaterialIcons name="schedule" size={16} color={colors.onSurface} />
-                    <Text style={styles.durationPillText}>
-                      {formatDuration(featuredSession.durationSec)}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => {
-                      // architecture.md: tapping Begin opens Session Player
-                      // directly at the pre-mood phase for this session.
-                      router.push(`/session-player?sessionId=${featuredSession.id}`);
-                    }}
-                  >
-                    {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding):
-                        the 2026-09-19 primaryContainer -> inversePrimary
-                        gradient with onPrimaryContainer text computed to only
-                        ~2.2:1 contrast at the gradient's darker end — below
-                        the 4.5:1 AA minimum. Swapped to inversePrimary ->
-                        onPrimaryFixedVariant (both stops dark enough that
-                        white text stays >=6.47:1 across the whole gradient —
-                        see AUDIT-2.md for the full before/after math) with
-                        white text, matching Library/Player's identical fix
-                        and Session Player's own Begin Journey button. */}
-                    <LinearGradient
-                      colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.beginButton}
-                    >
-                      <Text style={styles.beginButtonText}>Begin</Text>
-                    </LinearGradient>
-                  </Pressable>
-                </View>
+                <Text style={styles.snapshotCenterStateSubtext}>{featuredError}</Text>
+                <Pressable onPress={loadFeatured} style={styles.retryButton}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
               </View>
-            </GlassCard>
+            ) : featuredSession === null ? (
+              <View style={styles.snapshotCenterState}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : (
+              <GlassCard radius={radii.lg} style={styles.heroCard}>
+                <View style={styles.heroContent}>
+                  <BreathOrb size={160} />
+                  <Text style={styles.heroTitle}>{featuredSession.title}</Text>
+                  <Text style={styles.heroDescription} numberOfLines={3}>
+                    {featuredSession.description}
+                  </Text>
+                  <View style={styles.heroFooter}>
+                    <View style={styles.durationPill}>
+                      <MaterialIcons name="schedule" size={16} color={colors.onSurface} />
+                      <Text style={styles.durationPillText}>
+                        {formatDuration(featuredSession.durationSec)}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        // architecture.md: tapping Begin opens Session Player
+                        // directly at the pre-mood phase for this session.
+                        router.push(`/session-player?sessionId=${featuredSession.id}`);
+                      }}
+                    >
+                      {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding):
+                          the 2026-09-19 primaryContainer -> inversePrimary
+                          gradient with onPrimaryContainer text computed to only
+                          ~2.2:1 contrast at the gradient's darker end — below
+                          the 4.5:1 AA minimum. Swapped to inversePrimary ->
+                          onPrimaryFixedVariant (both stops dark enough that
+                          white text stays >=6.47:1 across the whole gradient —
+                          see AUDIT-2.md for the full before/after math) with
+                          white text, matching Library/Player's identical fix
+                          and Session Player's own Begin Journey button. */}
+                      <LinearGradient
+                        colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.beginButton}
+                      >
+                        <Text style={styles.beginButtonText}>Begin</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  </View>
+                </View>
+              </GlassCard>
+            )}
           </View>
 
           {/* Your Snapshot */}
