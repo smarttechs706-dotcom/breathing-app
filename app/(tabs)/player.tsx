@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
@@ -92,6 +92,17 @@ function formatDuration(durationSec: number) {
 export default function PlayerScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { activeSessionId } = useActiveSession();
+  // Guards the redirect below against firing while this tab is mounted but
+  // not the one on screen (e.g. session-player.tsx, pushed on top, sets
+  // activeSessionId once its own fetch resolves) — without this, that
+  // context update reaches this backgrounded effect too, which calls
+  // router.replace on the very session-player screen currently displayed,
+  // remounting it, whose cleanup clears activeSessionId back to null,
+  // which this effect also reacts to — an infinite replace/remount loop.
+  // Confirmed via reproduction: dozens of duplicate /api/sessions and
+  // /api/insights requests firing in a loop, screen stuck on its loading
+  // spinner indefinitely.
+  const isFocused = useIsFocused();
 
   // null = loading, undefined = failed (shown as a quiet omission, not a
   // blocking error — this is a supplementary stat, not the screen's
@@ -100,7 +111,7 @@ export default function PlayerScreen() {
   const [currentStreak, setCurrentStreak] = useState<number | null | undefined>(null);
 
   useEffect(() => {
-    if (activeSessionId) {
+    if (isFocused && activeSessionId) {
       router.replace(`/session-player?sessionId=${activeSessionId}`);
       return;
     }
@@ -116,7 +127,7 @@ export default function PlayerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, isFocused]);
 
   // null = loading, undefined = fetch failed (shows an explicit error +
   // Retry below, unlike the streak stat above — this is one of the 4
