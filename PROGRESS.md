@@ -3934,16 +3934,43 @@ assumption:
 - `logcat`: SystemUI logged the post for that key at 18:00:00.4 and played
   `WaterDropNotificationDay3.ogg`; no errors, no scheduling/permission
   failures.
-- Conclusion: scheduling and delivery work. The earlier "no notification
-  appeared" reports were a MIUI heads-up display issue (posted + sounded,
-  not surfaced as a banner), not a scheduling failure. Battery
-  optimisation/autostart were not blocking delivery. Caveat: the two
-  earlier test fires (~17:46, ~17:49) could not be individually
-  reconstructed from the noisy logcat.
+- Conclusion: scheduling and delivery work; battery optimisation/autostart
+  were not blocking delivery. **CORRECTED 2026-09-29 (later same day):**
+  this entry originally attributed the earlier "no notification appeared"
+  reports to a MIUI heads-up display issue. That was wrong. The real cause
+  was **foreground suppression with no notification handler set**: the app
+  had no `setNotificationHandler`, and `expo-notifications` does not present
+  a notification that arrives while the app is open. The two early no-shows
+  (~17:46, ~17:49) were very likely fired while the app was open during
+  testing; the one that worked (18:00) fired after the app was backgrounded.
+  Confirmed with a dedicated test at ~20:11: reminder set ~2 minutes out,
+  app kept open on Settings, screen on — the alarm fired (app alarm wakeups
+  5 -> 7 in `dumpsys alarm`) but no notification was posted (no app record
+  in `dumpsys notification`, and the user saw none). Backgrounded/killed-app
+  fires (18:00, and 19:42 with the app swiped away) posted normally. Fix:
+  `initNotificationHandler()` in `src/utils/reminders.ts`, called at startup
+  from `app/_layout.tsx` (JS-only). See "Foreground notification handler"
+  below for the re-test result.
 - **Known blind spot (documented, NOT fixed):** `applyReminderSchedule` in
   `src/utils/reminders.ts` has an empty-ish `catch {}` that swallows all
   errors silently; a failed schedule leaves no trace. Comment added at the
   catch site.
+
+**Foreground notification handler (fixed + re-test confirmed on-device):**
+`initNotificationHandler()` in `src/utils/reminders.ts` calls
+`Notifications.setNotificationHandler` with `shouldShowBanner: true`,
+`shouldShowList: true`, `shouldPlaySound: true`, `shouldSetBadge: false`,
+wired once at startup in `app/_layout.tsx` (same web / Expo Go guards as the
+other reminder functions). JS-only — reload, no EAS rebuild.
+- Before (no handler): reminder set ~2 min out, app open on Settings, screen
+  on -> alarm fired (app wakeups 5 -> 7) but nothing posted or shown.
+- After (handler): reloaded, same procedure (reminder ~2 min out, stayed on
+  Settings, app open, screen on) -> **the notification appeared**, per the
+  user's on-device observation. Not backed by an adb capture: the phone had
+  dropped off adb by the time this was recorded, so there is no
+  `dumpsys notification` record for the post-fix fire, unlike the earlier
+  18:00 / 19:42 / 20:11 entries above.
+- Closes PRODUCTION-READINESS-AUDIT.md finding S2.
 
 **Tab bar overlapped Android system nav buttons (fixed):**
 `app/(tabs)/_layout.tsx` set a fixed `tabBarStyle.height: 84`. expo-router's

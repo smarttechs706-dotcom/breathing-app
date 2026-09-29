@@ -12,7 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors } from '../src/theme/tokens';
-import { initNotificationChannel } from '../src/utils/reminders';
+import { initNotificationChannel, initNotificationHandler } from '../src/utils/reminders';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -22,6 +22,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    initNotificationHandler();
     initNotificationChannel();
   }, []);
 

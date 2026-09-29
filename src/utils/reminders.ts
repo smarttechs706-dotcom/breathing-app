@@ -88,6 +88,27 @@ export async function initNotificationChannel(): Promise<void> {
   }
 }
 
+// Without a handler, expo-notifications does NOT present a notification that
+// arrives while the app is in the foreground — confirmed on-device
+// 2026-09-29: a reminder that fired with Settings open was never posted,
+// while backgrounded/killed-app fires were. Same expo-go/web guards as
+// initNotificationChannel; call once at startup.
+export function initNotificationHandler(): void {
+  if (Platform.OS === 'web' || notificationsUnavailable) return;
+  try {
+    notifications().setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // Best-effort — matches this module's existing fail-open pattern.
+  }
+}
+
 // The single entry point both Settings and onboarding call after any
 // enable/disable/time change. Always cancels every scheduled notification
 // first, then schedules exactly one if enabled with a real time chosen —
