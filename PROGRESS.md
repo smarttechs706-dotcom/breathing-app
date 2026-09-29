@@ -3966,10 +3966,27 @@ other reminder functions). JS-only — reload, no EAS rebuild.
   on -> alarm fired (app wakeups 5 -> 7) but nothing posted or shown.
 - After (handler): reloaded, same procedure (reminder ~2 min out, stayed on
   Settings, app open, screen on) -> **the notification appeared**, per the
-  user's on-device observation. Not backed by an adb capture: the phone had
-  dropped off adb by the time this was recorded, so there is no
-  `dumpsys notification` record for the post-fix fire, unlike the earlier
-  18:00 / 19:42 / 20:11 entries above.
+  user's on-device observation. **Backed by logcat after the fact** (phone
+  reconnected to adb ~20:26; the first version of this note said no capture
+  existed — that was wrong, the log still had it): Breathe was the
+  foreground app continuously from 20:14:46 (fresh process after the reload)
+  to 20:22:34, per the `ProcessMonitor onForegroundInfoChanged` timeline,
+  and SystemUI's `InterruptionStateProvider` logged a post for the app's
+  notification key at **20:18:00.413** and again at **20:21:00.343** — i.e.
+  two reminder fires posted while the app was in the foreground. The pre-fix
+  ~20:11 fire in the same foreground situation produced no such line.
+  Alarm wakeups went 7 -> 10 (20:18, 20:21, 20:23). The third fire, 20:23:00,
+  is *not* a foreground case: the app process was not running
+  (`Start proc … for broadcast NotificationsService`) and the launcher was in
+  front. Explanation of the two foreground fires (20:18, 20:21), per the user: they
+  were two separate manual tests run close together, not a double-schedule
+  bug. Both fired correctly and the user saw the notification both times,
+  in the foreground and outside the app. (This is the user's account of
+  their own testing; the log is consistent with it but doesn't independently
+  prove it.) One caveat remains: the notification *sound* log line seen for
+  the 18:00 fire was not found for the 20:18/20:21 ones, so an audible alert
+  while foregrounded is unconfirmed — the banner appearing is the user's
+  observation.
 - Closes PRODUCTION-READINESS-AUDIT.md finding S2.
 
 **Tab bar overlapped Android system nav buttons (fixed):**
