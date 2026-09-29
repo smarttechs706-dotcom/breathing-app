@@ -1,18 +1,31 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '../src/components/GlassCard';
+import { TimePickerModal } from '../src/components/TimePickerModal';
+import {
+  applyReminderSchedule,
+  getReminderSettings,
+  requestNotificationPermission,
+  saveReminderSettings,
+  type ReminderSettings,
+} from '../src/utils/reminders';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
 
-// Dummy/placeholder per CLAUDE.md's build order — real expo-notifications
-// scheduling is build order step 10. Matches settings-code.html's static
-// "8:00 PM" + toggle-on default exactly; no persistence yet.
-const REMINDER_TIME_LABEL = '8:00 PM';
 const APP_VERSION = '1.0.0';
+
+// architecture.md's Notifications section: daily reminder time is always
+// user-chosen, never a fixed default — see src/utils/reminders.ts.
+function formatReminderTime(settings: ReminderSettings): string {
+  if (settings.hour === null || settings.minute === null) return 'Not set';
+  const period = settings.hour >= 12 ? 'PM' : 'AM';
+  const hour12 = settings.hour % 12 === 0 ? 12 : settings.hour % 12;
+  return `${hour12}:${settings.minute.toString().padStart(2, '0')} ${period}`;
+}
 
 // settings-code.html's toggle is a custom-styled switch (gradient track
 // when on, not a flat color), which RN's built-in Switch can't reproduce —
@@ -52,8 +65,51 @@ function ReminderToggle({
   );
 }
 
+const LOADING_SETTINGS: ReminderSettings = { enabled: false, hour: null, minute: null };
+
 export default function SettingsScreen() {
-  const [reminderEnabled, setReminderEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(LOADING_SETTINGS);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getReminderSettings().then(setReminderSettings);
+  }, []);
+
+  async function handleToggleChange(nextEnabled: boolean) {
+    if (!nextEnabled) {
+      const next = { ...reminderSettings, enabled: false };
+      await applyReminderSchedule(next);
+      await saveReminderSettings(next);
+      setReminderSettings(next);
+      setPermissionError(null);
+      return;
+    }
+
+    const result = await requestNotificationPermission();
+    if (result === 'unavailable') {
+      setPermissionError("Reminders need a development build and aren't available in Expo Go.");
+      return;
+    }
+    if (result === 'denied') {
+      setPermissionError(
+        "Reminders are off — notification permission was denied. You can allow it from your device's app settings."
+      );
+      return;
+    }
+    setPermissionError(null);
+    // Don't flip `enabled` until a time is actually chosen — this is the
+    // "never default to a fixed time" requirement in practice.
+    setPickerVisible(true);
+  }
+
+  async function handleConfirmTime(hour: number, minute: number) {
+    const next: ReminderSettings = { enabled: true, hour, minute };
+    await applyReminderSchedule(next);
+    await saveReminderSettings(next);
+    setReminderSettings(next);
+    setPickerVisible(false);
+  }
 
   return (
     <View style={styles.root}>
@@ -82,10 +138,17 @@ export default function SettingsScreen() {
             <View style={styles.reminderRow}>
               <View>
                 <Text style={styles.cardTitle}>Daily Reminder</Text>
-                <Text style={styles.reminderTime}>{REMINDER_TIME_LABEL}</Text>
+                <Pressable
+                  onPress={() => reminderSettings.enabled && setPickerVisible(true)}
+                  disabled={!reminderSettings.enabled}
+                  hitSlop={8}
+                >
+                  <Text style={styles.reminderTime}>{formatReminderTime(reminderSettings)}</Text>
+                </Pressable>
               </View>
-              <ReminderToggle value={reminderEnabled} onValueChange={setReminderEnabled} />
+              <ReminderToggle value={reminderSettings.enabled} onValueChange={handleToggleChange} />
             </View>
+            {permissionError && <Text style={styles.permissionErrorText}>{permissionError}</Text>}
           </GlassCard>
 
           <GlassCard radius={radii.lg} style={styles.card}>
@@ -96,6 +159,14 @@ export default function SettingsScreen() {
           </GlassCard>
         </View>
       </SafeAreaView>
+
+      <TimePickerModal
+        visible={pickerVisible}
+        initialHour={reminderSettings.hour}
+        initialMinute={reminderSettings.minute}
+        onConfirm={handleConfirmTime}
+        onCancel={() => setPickerVisible(false)}
+      />
     </View>
   );
 }
@@ -190,6 +261,12 @@ const styles = StyleSheet.create({
   },
   toggleThumbOn: {
     transform: [{ translateX: 20 }],
+  },
+  permissionErrorText: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.error,
+    marginTop: spacing.base * 1.5,
   },
   aboutRow: {
     flexDirection: 'row',

@@ -1,12 +1,18 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TimePickerModal } from '../../src/components/TimePickerModal';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
+import {
+  applyReminderSchedule,
+  requestNotificationPermission,
+  saveReminderSettings,
+} from '../../src/utils/reminders';
 
 // Screen 3/3 — matches assets/design-reference/onboarding-3-build-habit-code.html
 // + onboarding-3-build-habit-screenshot.png.
@@ -31,6 +37,7 @@ import { setOnboardingComplete } from '../../src/utils/onboarding';
 // notifications are build order step 10, not wired up here).
 export default function BuildHabitScreen() {
   const float = useRef(new Animated.Value(0)).current;
+  const [pickerVisible, setPickerVisible] = useState(false);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -60,18 +67,38 @@ export default function BuildHabitScreen() {
     router.replace('/home');
   }
 
-  function handleEnableReminders() {
-    // Dummy placeholder — no expo-notifications wiring yet (build order
-    // step 10). Simulates the OS permission prompt's shape so the flow
-    // feels complete without touching real push notifications.
-    Alert.alert(
-      'Enable Reminders',
-      'Breathe would like to send you daily reset reminders.',
-      [
-        { text: "Don't Allow", style: 'cancel', onPress: finishOnboarding },
-        { text: 'Allow', onPress: finishOnboarding },
-      ]
-    );
+  async function handleEnableReminders() {
+    const result = await requestNotificationPermission();
+    if (result === 'unavailable') {
+      Alert.alert(
+        'Reminders unavailable',
+        "Reminders need a development build and aren't available in Expo Go. You can enable them later from Settings once you're on a build that supports them.",
+        [{ text: 'OK', onPress: finishOnboarding }]
+      );
+      return;
+    }
+    if (result === 'denied') {
+      Alert.alert(
+        'Reminders are off',
+        "You can turn them on later from Settings if you change your mind.",
+        [{ text: 'OK', onPress: finishOnboarding }]
+      );
+      return;
+    }
+    setPickerVisible(true);
+  }
+
+  async function handleConfirmTime(hour: number, minute: number) {
+    const settings = { enabled: true, hour, minute };
+    await applyReminderSchedule(settings);
+    await saveReminderSettings(settings);
+    setPickerVisible(false);
+    await finishOnboarding();
+  }
+
+  async function handleCancelTime() {
+    setPickerVisible(false);
+    await finishOnboarding();
   }
 
   return (
@@ -132,6 +159,14 @@ export default function BuildHabitScreen() {
           </Pressable>
         </View>
       </SafeAreaView>
+
+      <TimePickerModal
+        visible={pickerVisible}
+        initialHour={null}
+        initialMinute={null}
+        onConfirm={handleConfirmTime}
+        onCancel={handleCancelTime}
+      />
     </View>
   );
 }

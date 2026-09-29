@@ -6,11 +6,13 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors } from '../src/theme/tokens';
+import { initNotificationChannel } from '../src/utils/reminders';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -18,6 +20,10 @@ export default function RootLayout() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
   });
+
+  useEffect(() => {
+    initNotificationChannel();
+  }, []);
 
   if (!fontsLoaded) {
     // Keep the same dark background so there's no flash of a different
