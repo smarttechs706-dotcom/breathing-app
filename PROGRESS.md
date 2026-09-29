@@ -3591,3 +3591,380 @@ via `playwright-cli`:
 the full before/after (its other findings, including the still-open
 "no fetch timeout" High finding, are untouched — out of scope for this
 fix). Not committed — left for the user's confirmation.
+
+## Phase 7: Daily Reminder notifications — implemented; VERIFIED on-device 2026-09-29 (see "Phase 7 verified" at the end of this file) (2026-09-26)
+Build order step 10, Daily Reminder half only (Weekly Recap is a separate,
+later phase, explicitly out of scope here). Decision confirmed by the user
+before starting: the reminder fires unconditionally regardless of whether a
+session was already completed that day — no checkin-awareness, no backend
+dependency, fully local via `expo-notifications`. Plan (time-picker UI +
+AsyncStorage shape) was presented and approved before any code was written.
+
+**New files:**
+- `src/utils/reminders.ts` — `ReminderSettings {enabled, hour, minute}`
+  (hour/minute nullable — literally enforces "never default to a fixed
+  time," nothing schedulable until the user has actually picked one),
+  persisted to AsyncStorage (`breathe_reminder_settings_v1`, same
+  namespaced-key/fail-open pattern as `deviceId.ts`/`onboarding.ts`).
+  `applyReminderSchedule()` is the single entry point both Settings and
+  onboarding call after any change: always
+  `cancelAllScheduledNotificationsAsync()` first, then schedules exactly
+  one `DAILY`-trigger notification if enabled — this cancel-then-reschedule
+  is the whole mechanism preventing a changed time from also leaving the
+  old time still firing, no per-notification-id bookkeeping needed since
+  this app only ever schedules this one thing.
+- `src/components/TimePickerModal.tsx` — a custom picker (Hour 1-12 /
+  Minute :00/:15/:30/:45 / AM-PM, 3 pill-rows), not
+  `@react-native-community/datetimepicker` or a new dependency: reuses this
+  app's own existing "row of selectable pills" idiom
+  (`MoodSelector.tsx`'s selected-bubble treatment, Library's category-tab
+  pill shape) built entirely from `colors`/`spacing`/`typography`/`radii`
+  tokens, which matches the dark glassmorphic system more precisely than a
+  native OS wheel widget would. 15-minute increments only — a deliberate,
+  flagged simplification, not a hidden default.
+
+**Wired (additive only, verified via `git diff --stat`):**
+- `app/settings.tsx` — Daily Reminder card now reads/writes real state via
+  `getReminderSettings()`/`saveReminderSettings()` instead of the old
+  hardcoded "8:00 PM" + local-only toggle. Toggle on → requests permission
+  → denied shows a real inline error message and the toggle stays honestly
+  off (never flips to "on" without a real schedule behind it); granted →
+  opens the time picker, nothing persists as enabled until a time is
+  actually confirmed. Toggle off → cancels the schedule, keeps the last-
+  picked time stored so re-enabling later pre-fills the picker with it
+  (a UI convenience, not a re-introduced fixed default). Tapping the time
+  text while enabled reopens the picker pre-filled with the current time to
+  reschedule. About card untouched.
+- `app/onboarding/build-habit.tsx` — `handleEnableReminders` replaced the
+  dummy `Alert.alert` placeholder with the real permission request; denied
+  shows a real (still simple) message then still finishes onboarding
+  (both buttons must end in Home, unchanged); granted opens the same
+  `TimePickerModal`, confirming schedules + persists then finishes
+  onboarding; cancelling the picker still finishes onboarding without
+  enabling anything. Screens 1-2, layout, copy, and Skip untouched.
+- `app/_layout.tsx` — one additive `useEffect` calling
+  `initNotificationChannel()` (Android-only, no-ops on iOS/web) once at
+  startup, alongside the existing font-loading setup.
+- `npx expo install expo-notifications` — no `app.json` plugin entry
+  needed; plugins only apply to a native prebuild/EAS build and this
+  project runs in Expo Go, which bundles its own copy. Flagged for later:
+  add the plugin (icon/color/sound config) if this app ever moves to a
+  standalone build.
+
+**Real bug found and fixed during web verification** (not just asserted —
+per this project's "show real diffs/state" convention): `expo-notifications`'
+scheduling functions (`cancelAllScheduledNotificationsAsync`/
+`scheduleNotificationAsync`) throw `UnavailabilityError` on web entirely
+(confirmed via the actual thrown error and stack trace, not inferred) —
+unlike the permission functions, which work fine there. `applyReminderSchedule`
+now no-ops on web (`Platform.OS === 'web'`); the preference itself still
+persists via AsyncStorage either way, only the OS-level scheduling call is
+skipped on a platform with no such OS-level scheduler.
+
+**Second real bug found and fixed**: `TimePickerModal` derived its picker
+state from props via a plain `useState` initializer, which only runs once.
+Since the modal component itself stays mounted across open/close cycles
+(the parent just toggles `visible`, doesn't unmount it), reopening the
+picker with a *different* `initialHour`/`initialMinute` (e.g. after
+toggling off then back on with a previously-picked time) left the pills
+showing the very first values forever. Found by checking each pill's
+actual computed `background-color` via `playwright-cli eval` after
+reopening — not just a screenshot glance. Fixed by re-deriving the
+internal state in a `useEffect` keyed on `[visible, initialHour,
+initialMinute]` instead of a one-time initializer; re-verified the same
+way afterward (all 3 pills showed `rgb(113, 137, 246)` =
+`colors.primaryContainer`, the selected color, on reopen).
+
+`npx tsc --noEmit`: clean throughout.
+
+**Verified interactively** on an isolated Expo web server (port 8095,
+phone's 8081 and the backend's port 3000 left running/untouched, same
+established pattern as every other web-based check in this file) via
+`playwright-cli`, granting/denying the browser's own Notification
+permission via `page.context().grantPermissions(...)` to exercise both
+paths:
+- Denied path: real inline error message rendered, toggle stayed off
+  (checked via the gradient-fill's actual presence/absence in the DOM, not
+  just a screenshot).
+- Granted path: toggle → picker opens → picked 9:30 PM → confirmed →
+  `localStorage` showed the exact correct persisted value
+  (`{"enabled":true,"hour":21,"minute":30}`) → reloaded → state (both the
+  toggle's visual on-state and the "9:30 PM" label) survived the reload
+  correctly, proving the persistence round-trip.
+- Toggle off → `{"enabled":false,"hour":21,"minute":30}` (time preserved,
+  toggle visually off).
+- Toggle back on → picker reopened correctly pre-filled at 9:30 PM (post
+  bug-fix) → changed to 6:00 AM → confirmed → `localStorage` showed
+  **only** `{"enabled":true,"hour":6,"minute":0}`, no trace of the old
+  21:30 value — confirms the cancel-then-reschedule design leaves exactly
+  one value, never two.
+- Onboarding's Enable Reminders → picker opened → confirmed → correctly
+  navigated to `/home` (`finishOnboarding()` ran), no console errors.
+- Browser closed, isolated web server + its process fully stopped
+  (`taskkill`, since `TaskStop` alone left the underlying node process
+  running — same lesson noted earlier this session), `.playwright-cli/`
+  temp files deleted.
+
+**Explicitly NOT verifiable this way, per the user's own CRITICAL
+instruction not to substitute a clean typecheck/web pass for real
+confirmation**: whether a scheduled local notification actually *fires* on
+a real device at the chosen time — `expo-notifications`' web scheduling
+path is entirely stubbed out (see the bug above), so web can only prove the
+state machine, persistence, and UI are correct, not the real OS-level
+notification delivery. This feature has zero dependency on the backend or
+LAN/tunnel connectivity (fully on-device), so it's unaffected by this
+session's earlier AP-isolation issue — but that doesn't substitute for an
+actual on-device test.
+
+**Status: implemented, not yet verified on-device.** Needs, on the user's
+physical phone:
+1. Enable reminders, pick a time ~2 minutes out, background the app, confirm
+   the notification actually fires at that time.
+2. Toggle off — confirm nothing fires afterward.
+3. Toggle back on with a different near-future time — confirm only the new
+   time fires (proves cancel+reschedule under real conditions, not just the
+   localStorage proxy check done on web).
+4. Optionally: deny permission once, confirm the message + honest toggle
+   state on-device too.
+
+Not committed. Note: `git status` at the time of this work also showed two
+unrelated, already-approved-but-uncommitted changes from earlier the same
+session (`app/(tabs)/player.tsx`'s infinite-loop fix, `metro.config.js`'s
+backend-proxy fix) — neither touched or included in this phase's diff.
+
+## Bug: stale "Current Streak" on Home/Insights (found + fixed, 2026-09-28)
+`current_streak` is only written by `record_checkin` (see the atomic RPC
+above), so a user who stops practicing sees their last real streak number
+forever — it never decays on its own. Reported as: streak showed 2 after
+2 idle days, when it should read 0 once the gap exceeds one day.
+
+**Read-only fix, scoped to `breathing-app-api/app/api/insights/route.ts`
+only** — `record_checkin`/`POST /api/checkin` untouched, no writes to the
+database from this route. After building the `streak` object (real row or
+the existing no-row fallback), added:
+```ts
+if (streak.lastSessionDate !== "" && streak.lastSessionDate < yesterdayISODate()) {
+  streak.currentStreak = 0;
+}
+```
+`yesterdayISODate()` is a new helper returning UTC `YYYY-MM-DD` for
+yesterday — matches `last_session_date`'s stored type (`date`, no time
+component) and the same UTC day-boundary `record_checkin` already uses
+(per BACKEND-AUDIT.md/this file's earlier streak-rule notes). String
+comparison works correctly here since both sides are ISO `YYYY-MM-DD`.
+`longestStreak` is left exactly as stored in every branch.
+
+**Verified live** (not just asserted) against the real dev server + a
+dedicated throwaway user (`test-user-stale-streak-verify`), backdating
+`streaks.last_session_date` via a temporary Node script using the
+service-role key (deleted after use, never committed) — all 4 required
+cases, raw `GET /api/insights` output:
+1. **Today** (`last_session_date` = today) →
+   `"streak":{"currentStreak":5,"longestStreak":8,"lastSessionDate":"2026-09-28"}`
+   — unchanged.
+2. **Yesterday** →
+   `"streak":{"currentStreak":5,"longestStreak":8,"lastSessionDate":"2026-09-27"}`
+   — unchanged.
+3. **2 days ago** →
+   `"streak":{"currentStreak":0,"longestStreak":8,"lastSessionDate":"2026-09-26"}`
+   — zeroed, `longestStreak` correctly preserved.
+4. **No `streaks` row** (deleted the test row) →
+   `"streak":{"currentStreak":0,"longestStreak":0,"lastSessionDate":""}`
+   — zero via the pre-existing fallback path, new check is a no-op on `""`.
+
+`npx tsc --noEmit` clean in both repos. Test row deleted and temp script
+removed afterward — confirmed via `git status` that only the real
+`route.ts` diff remains in the backend repo.
+
+**Also fixed**: `app/(tabs)/insights.tsx`'s consistency-calendar footer
+label read "N Week Streak" (a copy bug — the calendar is a daily grid, not
+weekly) regardless of `N`. Changed to "N Day Streak" / "N Days Streak"
+with correct singular for `currentStreak === 1`.
+
+Not committed — left for the user's confirmation, per instruction.
+
+## Bug: toggling Daily Reminder in Expo Go throws uncaught error (found + fixed, 2026-09-28)
+The earlier Expo-Go-crash fix (`initNotificationChannel` skipping in Expo
+Go — see the Phase 7 section above) only covered the one call site that
+runs unconditionally at app startup. `requestNotificationPermission` —
+called when the user actually taps the Daily Reminder toggle — still
+called straight into `require('expo-notifications')` with no Expo Go
+guard, so toggling it on in Expo Go on Android threw uncaught.
+
+**Fix, scoped to `src/utils/reminders.ts` + its two call sites:**
+- Added `notificationsUnavailable = isExpoGo && Platform.OS === 'android'`
+  (iOS/web Expo Go are unaffected, per the SDK 53 Android-only breakage).
+  Every exported function that touches `expo-notifications`
+  (`requestNotificationPermission`, `initNotificationChannel`,
+  `applyReminderSchedule`) now checks it first, and the `require()` calls
+  inside each are wrapped in try/catch as a second layer of defense.
+- `requestNotificationPermission`'s return type changed from `boolean` to
+  a new `NotificationPermissionResult = 'granted' | 'denied' |
+  'unavailable'` union, so callers can distinguish "the user said no" from
+  "this environment can't do it at all" — the two need different messages
+  and neither should read as the other.
+- `app/settings.tsx`'s `handleToggleChange` and
+  `app/onboarding/build-habit.tsx`'s `handleEnableReminders` both branch on
+  the 3-way result: `'unavailable'` shows "Reminders need a development
+  build and aren't available in Expo Go" (settings: inline error text,
+  same as the existing permission-denied message's placement; onboarding:
+  an `Alert`, matching its existing denied-path pattern) and returns before
+  ever touching `enabled`/showing the time picker — the toggle/onboarding
+  flow never appears to turn reminders on in an environment where they
+  can't actually work. `'denied'` keeps the prior wording/behavior
+  unchanged.
+
+`npx tsc --noEmit` clean in `breathing-app`. Not committed.
+
+**Phase 7 status unchanged: still "implemented, not yet verified
+on-device."** This fix makes the feature fail *gracefully* in Expo Go
+(the environment used for tunnel-mode testing all session); it doesn't
+touch — and isn't a substitute for — the real on-device dev-client
+confirmation that a scheduled notification actually fires, still pending
+per the Phase 7 section above.
+
+## TimePickerModal redesigned as a scrolling wheel picker (2026-09-28)
+Replaced the pill-row time picker with a scrolling wheel picker matching
+`assets/design-reference/time-picker-reference.png`: three columns (hour,
+minute, AM/PM), a highlighted band across the middle row, rows above/below
+fading and shrinking with distance from center. One intentional deviation
+from the reference, per instruction: every minute is shown (not the
+reference's 5-minute steps), via a single `MINUTE_STEP = 1` constant
+controlling the step. Minute wheel runs 00-59 (not 1-59) so on-the-hour
+times are selectable. JS-only — no new dependency, no native package (would
+have forced another EAS build): `ScrollView` + `snapToInterval` +
+`decelerationRate="fast"` + React Native's own `Animated` API (already used
+elsewhere in this app, e.g. `BreathingRing`). Props interface unchanged
+(`visible`, `initialHour`, `initialMinute`, `onConfirm`, `onCancel`).
+
+**Colors are 100% this app's own tokens, not the reference's** (explicit
+user clarification mid-task): the reference's green Confirm/Done button
+color was never used. The highlight band uses `colors.primaryContainer` at
+low opacity; Confirm reuses the exact `colors.inversePrimary` →
+`colors.onPrimaryFixedVariant` gradient already used by Session Player's
+Begin Journey / onboarding's Get Started button — only the reference's
+*shape/style* (band + fade/shrink wheel) was kept, never its palette.
+
+**Checked before touching anything outside this file**: grepped the whole
+app for 15/30/45-minute-step assumptions. Only one hit —
+`src/utils/reminders.ts`'s `ReminderSettings.minute` doc comment
+(`/** 0 | 15 | 30 | 45. ... */`). **Flagging it rather than editing it
+silently, per instruction**: that comment is now stale (minute can be any
+0-59 value) and should be updated to `/** 0-59. ... */` — left for the
+user's own pass since editing outside this task's scope wasn't asked for.
+`app/settings.tsx`/`app/onboarding/build-habit.tsx` just consume the
+component as-is; neither hardcodes a step assumption.
+
+**Two real bugs found and fixed while verifying on an isolated Expo web
+server (port 8097, phone/dev-client tunnel on 8081 untouched)** — the
+wheel opened but sat on the wrong row (e.g. "1/00/AM" instead of the
+intended "8/00/AM" default), a real functional bug, not a rendering
+nitpick:
+1. **Root cause**: the parent component declared `hourRef`/`minuteRef`/
+   `periodRef` but never actually attached them via `ref={...}` to the
+   `<WheelColumn>` elements — every imperative positioning call silently
+   no-op'd on a permanently-`null` ref via optional chaining. Isolated by
+   manually scrolling a wheel with the mouse first and confirming the
+   underlying mechanism (snap-to-row, fade/scale interpolation, the
+   highlight band) all worked perfectly — proved the bug was specifically
+   in the *positioning call*, not the wheel itself.
+2. Switching the fix to a declarative `contentOffset` prop (avoiding
+   imperative refs for initial positioning entirely) *also* did nothing —
+   reading `node_modules/react-native-web/dist/exports/ScrollView`'s
+   source directly confirmed `contentOffset` isn't implemented there at
+   all; it's silently dropped. **Final fix, both together**: `contentOffset`
+   is kept for native (avoids an initial-frame flash there), plus an
+   explicit `scrollRef.current.scrollTo({x:0, y, animated:false})` inside
+   a mount-only `useLayoutEffect` in `WheelColumn` itself, which is what
+   actually positions it on web. Each wheel remounts fresh on every modal
+   open (parent `key` tied to an incrementing token), so this mount-only
+   effect re-runs with the correct value every time — satisfying "on every
+   open, scroll to the saved value with no animation" without relying on
+   the broken imperative-from-parent approach at all.
+   - Also fixed in passing: a `props.pointerEvents is deprecated` console
+     warning the highlight band's `<View pointerEvents="none">` caused —
+     moved into `style.pointerEvents` per RN's current API.
+
+**"If Confirm is pressed while a wheel is still coasting, use the value it
+settles on"**: each wheel's `onScroll` listener writes the live offset into
+a plain ref (`offsetRef`, not React state) on every scroll event;
+`getCurrentValue()` (called at Confirm) reads that ref directly and rounds
+to the nearest `ITEM_HEIGHT` row — always resolves to whichever row
+`snapToInterval` is currently carrying the wheel toward, independent of
+whether `onMomentumScrollEnd` has actually fired yet. Not verified against
+a real momentum fling (Playwright can't easily simulate native momentum
+scrolling), but the mechanism doesn't depend on timing — reads the same
+live ref regardless of scroll state.
+
+**Verified interactively** (not just asserted) via `playwright-cli` at an
+iPhone 15 viewport, after both bugs above were fixed:
+- Opening with no saved time centers exactly on the 8:00 AM default, rows
+  5/6/7 and 9/10/11 correctly fading/shrinking around it.
+- Tapping a row (hour "6") animates the wheel to center it.
+- Tapped hour 6, minute 45, PM, then Confirm — Settings' Daily Reminder
+  row updated to exactly "6:45 PM" (proves `getCurrentValue()` reads all
+  three wheels correctly).
+- Reopening the picker after that centers on the *saved* 6/45/PM, not the
+  8:00 AM default — the actual "on every open, scroll to saved value"
+  requirement, not just the first-open case.
+- Console: 0 errors, only the 2 pre-existing unrelated warnings
+  (`shadow*` deprecation, expo-notifications' web push-token warning) —
+  no new warnings after the pointerEvents fix.
+- Isolated server (port 8097) and browser fully stopped afterward;
+  screenshots and `.playwright-cli/` temp files deleted — confirmed via
+  `git status` that only the real source file remains untracked.
+
+`npx tsc --noEmit`: clean. **This is a JS-only change — no native
+rebuild needed, just reload the app** (works in both Expo Go and the EAS
+dev-client build once either picks up the new bundle). Not committed.
+
+## Phase 7 verified on-device + tab-bar inset fix + picker backdrop (2026-09-29)
+First real native build (EAS dev client "Breathe", Xiaomi/MIUI 22095RA98C,
+Android 12), tested over tunnel-mode Metro + Metro's `/api/*` proxy.
+
+**Phase 7 (Daily Reminder) — VERIFIED on-device**, via adb (USB), not
+assumption:
+- `dumpsys alarm`: `RTC_WAKEUP` alarm for `com.smarttech1.breathingapp`,
+  tag `expo.modules.notifications.NOTIFICATION_EVENT`, next fire
+  `2026-09-30 18:00:00` — the DAILY trigger re-armed itself after today's
+  fire. App alarm stats: 3 wakeups, last ~5 min before the dump (18:00).
+- `dumpsys notification`: "Time to breathe" posted on channel `default`
+  ("Daily reminder", importance 3), created 2026-09-29 18:00:00.102,
+  interruptive; `POST_NOTIFICATION` allowed; DND off.
+- `logcat`: SystemUI logged the post for that key at 18:00:00.4 and played
+  `WaterDropNotificationDay3.ogg`; no errors, no scheduling/permission
+  failures.
+- Conclusion: scheduling and delivery work. The earlier "no notification
+  appeared" reports were a MIUI heads-up display issue (posted + sounded,
+  not surfaced as a banner), not a scheduling failure. Battery
+  optimisation/autostart were not blocking delivery. Caveat: the two
+  earlier test fires (~17:46, ~17:49) could not be individually
+  reconstructed from the noisy logcat.
+- **Known blind spot (documented, NOT fixed):** `applyReminderSchedule` in
+  `src/utils/reminders.ts` has an empty-ish `catch {}` that swallows all
+  errors silently; a failed schedule leaves no trace. Comment added at the
+  catch site.
+
+**Tab bar overlapped Android system nav buttons (fixed):**
+`app/(tabs)/_layout.tsx` set a fixed `tabBarStyle.height: 84`. expo-router's
+`getTabBarHeight()` returns a numeric custom height unchanged (skipping
+`insets.bottom`), while `BottomTabBar` still applies `paddingBottom:
+insets.bottom` inside it — so the bar never grew above the system bar.
+Now `height = TAB_BAR_CONTENT_HEIGHT (84) + useSafeAreaInsets().bottom`.
+Screens use `useBottomTabBarHeight()`, so scroll padding follows. JS-only.
+Not yet confirmed visually on-device.
+
+**Streak label:** Insights' stat card now reads "N Day(s) Streak" instead
+of "N Week Streak" (`app/(tabs)/insights.tsx`).
+
+**TimePickerModal backdrop:** the modal already had a 0.6 dim, but on
+edge-to-edge Android the system-bar strips weren't covered and the
+GlassCard (translucent tint, weak Android blur) let the Settings "About"
+card show through. Added `statusBarTranslucent` + `navigationBarTranslucent`,
+raised the dim to 0.75, and gave the card a solid
+`colors.surfaceContainerHigh` base. JS-only — reload, no rebuild. Not yet
+confirmed on-device.
+
+**Verified (not changed):** the wheel's minute column has all 60 values
+0-59 (Node replay of the real constants/logic: 60/60 round-trip, max scroll
+= 59 x 40).
