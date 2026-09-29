@@ -271,7 +271,8 @@ export default function InsightsScreen() {
               </View>
               <View style={styles.calendarFooter}>
                 <Text style={styles.calendarFooterStrong}>
-                  {insights.streak.currentStreak} Week Streak
+                  {insights.streak.currentStreak}{' '}
+                  {insights.streak.currentStreak === 1 ? 'Day' : 'Days'} Streak
                 </Text>
                 <Text style={styles.calendarFooterMuted}>Keep going</Text>
               </View>
