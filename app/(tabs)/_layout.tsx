@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, typography } from '../../src/theme/tokens';
 
@@ -50,6 +51,9 @@ import { colors, typography } from '../../src/theme/tokens';
 // from this project's npm-installed copy, so a name that exists in the
 // installed glyphmap can still fail to render on-device. Needs on-device
 // confirmation, not just a web check.
+// Height of the bar's own content, excluding the bottom safe-area inset.
+const TAB_BAR_CONTENT_HEIGHT = 84;
+
 type TabIconName = keyof typeof Ionicons.glyphMap;
 
 // tabBarButton (not tabBarIcon/tabBarLabel) replaces the whole tab button
@@ -107,6 +111,11 @@ function TabButton({
 }
 
 export default function TabsLayout() {
+  // A numeric `height` in tabBarStyle makes expo-router's getTabBarHeight() skip
+  // adding insets.bottom, yet BottomTabBar still applies insets.bottom as
+  // paddingBottom — so with a fixed 84 the system nav bar (edge-to-edge) ate
+  // into the bar instead of the bar sitting above it. Add the inset ourselves.
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -114,7 +123,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: `${colors.onSurfaceVariant}B3`,
         tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { height: TAB_BAR_CONTENT_HEIGHT + insets.bottom }],
         tabBarBackground: () => (
           <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
         ),
@@ -202,7 +211,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderTopWidth: 0,
     backgroundColor: 'transparent',
-    height: 84,
     paddingTop: 8,
   },
   tabItem: {
