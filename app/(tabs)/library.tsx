@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchSessions } from '../../src/api/client';
-import { setCachedSessions } from '../../src/state/sessionsCache';
+import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { SessionThumbnail } from '../../src/components/SessionThumbnail';
@@ -56,7 +56,13 @@ export default function LibraryScreen() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('For You');
   const [query, setQuery] = useState('');
   // null = still loading (first fetch, or a retry in flight).
-  const [sessions, setSessions] = useState<Session[] | null>(null);
+  // Starts from the shared cache when it holds a non-empty list (P4, same
+  // pattern as session-player.tsx) so the grid renders with no spinner; an
+  // empty cached list is not treated as a hit.
+  const [sessions, setSessions] = useState<Session[] | null>(() => {
+    const cached = getCachedSessions();
+    return cached && cached.length > 0 ? cached : null;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -73,7 +79,21 @@ export default function LibraryScreen() {
   }, []);
 
   useEffect(() => {
+    if (sessions) {
+      // Cache hit: already showing data. Refresh in the background and swap
+      // in the result; a failed refresh is silent (keeps the cached grid) —
+      // only the blocking path below shows the error + Retry state.
+      fetchSessions()
+        .then((fresh) => {
+          setCachedSessions(fresh);
+          setSessions(fresh);
+        })
+        .catch(() => {});
+      return;
+    }
     load();
+    // Mount-only: `sessions` here is the initial (cache-derived) value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   // Real counts from the live fetched catalog — NOT library-code.html's

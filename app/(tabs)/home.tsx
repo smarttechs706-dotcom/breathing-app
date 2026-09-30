@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchInsights, fetchSessions, type InsightsResponse } from '../../src/api/client';
+import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
@@ -47,6 +48,10 @@ function formatDuration(durationSec: number) {
 // back to the first live session only if 'deep-exhale' itself is somehow
 // absent from the backend, rather than showing nothing.
 const FEATURED_SESSION_ID = 'deep-exhale';
+
+function pickFeatured(sessions: Session[]): Session | null {
+  return sessions.find((s) => s.id === FEATURED_SESSION_ID) ?? sessions[0] ?? null;
+}
 
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
@@ -73,7 +78,15 @@ export default function HomeScreen() {
   // the Snapshot section are two unrelated pieces of data (matches this
   // screen's existing per-section-gating pattern, now applied consistently
   // to both sections instead of just one).
-  const [featuredSession, setFeaturedSession] = useState<Session | null>(null);
+  //
+  // P4: starts from the shared sessions cache when it holds a non-empty list
+  // (same pattern as session-player.tsx / library.tsx) so the card renders
+  // with no spinner; every successful fetch also writes the cache, which is
+  // what lets Library and Session Player hit it after a cold launch.
+  const [featuredSession, setFeaturedSession] = useState<Session | null>(() => {
+    const cached = getCachedSessions();
+    return cached && cached.length > 0 ? pickFeatured(cached) : null;
+  });
   const [featuredError, setFeaturedError] = useState<string | null>(null);
 
   const loadFeatured = useCallback(() => {
@@ -81,7 +94,8 @@ export default function HomeScreen() {
     setFeaturedSession(null);
     fetchSessions()
       .then((sessions) => {
-        const match = sessions.find((s) => s.id === FEATURED_SESSION_ID) ?? sessions[0];
+        setCachedSessions(sessions);
+        const match = pickFeatured(sessions);
         // A genuinely empty catalog isn't a thrown error, but there's
         // nothing to feature either — treat it as the error branch (below)
         // rather than leaving featuredSession permanently null, which would
@@ -100,7 +114,22 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    if (featuredSession) {
+      // Cache hit: already showing the card. Refresh in the background; a
+      // failed refresh is silent (keeps what's shown) — only the blocking
+      // path in loadFeatured shows the error + Retry state.
+      fetchSessions()
+        .then((fresh) => {
+          setCachedSessions(fresh);
+          const match = pickFeatured(fresh);
+          if (match) setFeaturedSession(match);
+        })
+        .catch(() => {});
+      return;
+    }
     loadFeatured();
+    // Mount-only: `featuredSession` here is the initial (cache-derived) value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFeatured]);
 
   // "Current mood" isn't a field GET /api/insights returns — derived from

@@ -20,6 +20,7 @@ import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { useActiveSession } from '../../src/state/ActiveSessionContext';
+import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
 import { getDeviceId } from '../../src/utils/deviceId';
@@ -85,6 +86,12 @@ const BADGE_ICON: Record<Session['badge'], keyof typeof MaterialIcons.glyphMap> 
 // Same two sessions the mockup names, by their real catalog ids.
 const QUICK_SUGGESTION_IDS = ['box-breathing', 'deep-exhale'] as const;
 
+function matchSuggestions(sessions: Session[]): Session[] {
+  return QUICK_SUGGESTION_IDS.map((id) => sessions.find((s) => s.id === id)).filter(
+    (s): s is Session => s !== undefined
+  );
+}
+
 function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)}m`;
 }
@@ -142,8 +149,19 @@ export default function PlayerScreen() {
   // screens FRONTEND-AUDIT-2.md's High finding named explicitly, so it
   // gets the same real error/retry pattern Library/Home use, not the
   // silent-omission pattern that finding also flagged separately).
+  //
+  // P4: starts from the shared sessions cache when it yields at least one
+  // suggestion (same pattern as session-player.tsx / library.tsx / home.tsx),
+  // so the pills render with no spinner; every successful fetch also writes
+  // the cache. Once loaded, later runs (e.g. a session ends and
+  // activeSessionId returns to null) refresh in the background instead of
+  // resetting to the spinner.
   const [quickSuggestions, setQuickSuggestions] = useState<Session[] | null | undefined>(
-    null
+    () => {
+      const cached = getCachedSessions();
+      const matched = cached ? matchSuggestions(cached) : [];
+      return matched.length > 0 ? matched : null;
+    }
   );
 
   const loadQuickSuggestions = useCallback(() => {
@@ -151,16 +169,30 @@ export default function PlayerScreen() {
     setQuickSuggestions(null);
     fetchSessions()
       .then((sessions) => {
-        const matched = QUICK_SUGGESTION_IDS.map((id) =>
-          sessions.find((s) => s.id === id)
-        ).filter((s): s is Session => s !== undefined);
-        setQuickSuggestions(matched);
+        setCachedSessions(sessions);
+        setQuickSuggestions(matchSuggestions(sessions));
       })
       .catch(() => setQuickSuggestions(undefined));
   }, [activeSessionId]);
 
   useEffect(() => {
+    if (activeSessionId) return;
+    if (Array.isArray(quickSuggestions)) {
+      // Already showing suggestions: refresh in the background; a failed
+      // refresh is silent — only the blocking path (loadQuickSuggestions,
+      // also used by Retry) shows the error state.
+      fetchSessions()
+        .then((fresh) => {
+          setCachedSessions(fresh);
+          setQuickSuggestions(matchSuggestions(fresh));
+        })
+        .catch(() => {});
+      return;
+    }
     loadQuickSuggestions();
+    // Deliberately not depending on `quickSuggestions`: this must re-run on
+    // activeSessionId changes only, not on its own state updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadQuickSuggestions]);
 
   return (
