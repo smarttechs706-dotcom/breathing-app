@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchSessions, postCheckin } from '../src/api/client';
+import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
 import { BreathingRing } from '../src/components/BreathingRing';
 import { GlassCard } from '../src/components/GlassCard';
 import { GradientText } from '../src/components/GradientText';
@@ -117,21 +118,41 @@ export default function SessionPlayerScreen() {
   // error — offers Retry), and the fetch succeeded but no session in the
   // live list matches `sessionId` (a genuine "not found," not silently
   // substituted — see the dedicated not-found branch further down).
-  const [sessions, setSessions] = useState<Session[] | null>(null);
+  //
+  // P4 (2026-09-30): if Library/Player tab already fetched the list and it
+  // contains this id, start from that (no spinner, no blocking request) and
+  // only refresh the shared cache in the background — deliberately NOT
+  // setting state from that refresh, so `session` keeps a stable reference
+  // and the timer/phase effects below never restart mid-session. A cache
+  // miss (cold start, deep link, unknown id) falls through to the original
+  // blocking fetch, so loading/error/not-found behave exactly as before.
+  const [sessions, setSessions] = useState<Session[] | null>(() => {
+    const cachedSessions = getCachedSessions();
+    return cachedSessions?.some((s) => s.id === sessionId) ? cachedSessions : null;
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const loadSessions = useCallback(() => {
     setFetchError(null);
     setSessions(null);
     fetchSessions()
-      .then(setSessions)
+      .then((fresh) => {
+        setCachedSessions(fresh);
+        setSessions(fresh);
+      })
       .catch((err) =>
         setFetchError(err instanceof Error ? err.message : 'Failed to load session.')
       );
   }, []);
 
   useEffect(() => {
+    if (sessions) {
+      fetchSessions().then(setCachedSessions).catch(() => {});
+      return;
+    }
     loadSessions();
+    // Mount-only: `sessions` here is the initial (cache-derived) value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSessions]);
 
   // Referentially stable across re-renders as long as `sessions` itself

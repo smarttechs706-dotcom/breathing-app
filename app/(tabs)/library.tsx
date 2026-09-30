@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchSessions } from '../../src/api/client';
+import { setCachedSessions } from '../../src/state/sessionsCache';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { SessionThumbnail } from '../../src/components/SessionThumbnail';
@@ -62,7 +63,10 @@ export default function LibraryScreen() {
     setError(null);
     setSessions(null);
     fetchSessions()
-      .then(setSessions)
+      .then((fresh) => {
+        setCachedSessions(fresh);
+        setSessions(fresh);
+      })
       .catch((err) =>
         setError(err instanceof Error ? err.message : 'Failed to load sessions.')
       );
