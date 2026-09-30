@@ -113,8 +113,16 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (isFocused && activeSessionId) {
       router.replace(`/session-player?sessionId=${activeSessionId}`);
-      return;
     }
+  }, [activeSessionId, isFocused]);
+
+  // P5 (2026-09-30): split out of the redirect effect above so it no longer
+  // depends on `isFocused` — previously every focus/blur of this tab (e.g.
+  // tapping Player, then tapping away) refetched /api/insights. Now runs on
+  // mount and again only when `activeSessionId` changes (e.g. a session
+  // ends and it returns to null), not on plain tab switches.
+  useEffect(() => {
+    if (activeSessionId) return;
     let cancelled = false;
     getDeviceId()
       .then(fetchInsights)
@@ -127,7 +135,7 @@ export default function PlayerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [activeSessionId, isFocused]);
+  }, [activeSessionId]);
 
   // null = loading, undefined = fetch failed (shows an explicit error +
   // Retry below, unlike the streak stat above — this is one of the 4
