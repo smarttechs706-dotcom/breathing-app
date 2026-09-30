@@ -3996,7 +3996,8 @@ other reminder functions). JS-only — reload, no EAS rebuild.
 insets.bottom` inside it — so the bar never grew above the system bar.
 Now `height = TAB_BAR_CONTENT_HEIGHT (84) + useSafeAreaInsets().bottom`.
 Screens use `useBottomTabBarHeight()`, so scroll padding follows. JS-only.
-Not yet confirmed visually on-device.
+**Confirmed visually on-device by the user (reported 2026-09-30)** — commit
+`efdc329`; code verified unchanged since (no later commits touch the file).
 
 **Streak label:** Insights' stat card now reads "N Day(s) Streak" instead
 of "N Week Streak" (`app/(tabs)/insights.tsx`).
@@ -4148,3 +4149,46 @@ Library grid loaded first, 6 different sessions opened:
   Alert (active phase), so it isn't a single tap; tap pairing from logcat
   alone was unreliable, which is why in-app `[PERF]` logs were used.
 - All temporary logging removed. `tsc` clean. Not committed.
+
+### P4 extended to Home, Library and Player tab (2026-09-30, verified on-device, not committed)
+Same pattern as Session Player, one screen at a time, `tsc` clean after each:
+- `home.tsx`: Featured Session card reads the cache for initial state
+  (non-empty list only; `pickFeatured` keeps the `deep-exhale` ->
+  first-session fallback), writes it after every fetch, refreshes in the
+  background on a hit.
+- `library.tsx`: now also READS the cache (it previously only wrote).
+- `player.tsx`: Quick Suggestions read the cache (hit = at least one of
+  its two ids), write it, and refresh in the background instead of
+  resetting to the spinner when a session ends. Retry/blocking path
+  unchanged.
+- A failed background refresh is silent on all three (keeps cached data);
+  only the blocking path shows error + Retry.
+- **Evidence (temporary `[CACHE]`/`[FETCH]` logs, since removed):** cold
+  launch -> Home MISS + 1 fetch (20:31:51); Library tap 20:32:47 HIT(6);
+  Session Player 20:33:17 HIT(6); Player tab 20:33:58 HIT(6); no spinner on
+  any. Request count unchanged (4 `sessions` calls) — only Home's is
+  blocking now. The 3 background refreshes took 6.5 s, 7.5 s and 2.8 s on
+  the backend and were invisible to the user.
+- **Not tested:** failed background refresh keeping cached data; cold
+  deep-link into a session (cache-miss path); request de-duplication was
+  deliberately not added.
+
+### Backend latency check (2026-09-30, read-only; corrects the "one-off" note above)
+30 interleaved samples each from the dev machine (`next dev`, Supabase
+project reached over the internet), **tunnel NOT included — see below**:
+- local `/api/sessions`: min 217 / p50 265 / p90 951 / max 2008 ms
+- local `/api/insights`: min 556 / p50 1223 / p90 1614 / max 4088 ms
+  (baseline is high by design: 5 DB round trips, audit P6)
+- unauthenticated round trip to the Supabase REST host: p50 145 / p90 222 /
+  max **3086 ms**
+- Spikes of 2-4 s appear with NO tunnel involved, so the intermittent
+  slowness (including the earlier 27 s stall) is not only the tunnel; the
+  backend <-> Supabase path spikes on its own. Caveat: `next dev`, one
+  machine, ~2 min of samples, so this shows the pattern exists, not its
+  cause or frequency in production.
+- **The tunnel sample is invalid:** Metro logged "Tunnel connection has been
+  closed" and `/api/sessions` via the tunnel returned 404 for all 30
+  requests (~110 ms, an error page). Metro must be restarted and the phone
+  reconnected before any further on-device test; the tunnel dropping may
+  itself explain some earlier slow responses but that is not shown.
+- Raw samples: scratchpad `latency.csv` (not in the repo).
