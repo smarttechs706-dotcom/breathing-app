@@ -10,11 +10,19 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { getApiBaseUrl } from '../src/api/client';
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors } from '../src/theme/tokens';
 import { initNotificationChannel, initNotificationHandler } from '../src/utils/reminders';
 
+// Shows the thrown message (e.g. a missing/placeholder API URL in a release
+// build) on screen instead of the app just closing.
+export { ErrorBoundary } from 'expo-router';
+
 export default function RootLayout() {
+  // Fail fast and visibly on a misconfigured release build; a no-op in dev.
+  getApiBaseUrl();
+
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_600SemiBold,

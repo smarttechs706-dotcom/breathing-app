@@ -1,3 +1,5 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+
 import type { Checkin, Session, Streak } from '../types/models';
 
 // The Next.js API (breathing-app-api) base URL. Per architecture.md, this
@@ -10,10 +12,37 @@ import type { Checkin, Session, Streak } from '../types/models';
 // dev machine's LAN IP (e.g. http://192.168.1.23:3000) for on-device
 // testing. Vercel deployment (architecture.md build order step 8) will
 // replace this default with the deployed URL.
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+//
+// Release builds (not Metro/dev client, not Expo Go) refuse to run without a
+// real https:// URL instead of silently falling back to localhost, which on
+// a phone is the phone itself (PRODUCTION-READINESS-AUDIT.md S1). EAS sets
+// this per build profile (see eas.json / `eas env:list`); the preview and
+// production placeholders end in `.invalid` on purpose so an unconfigured
+// build fails loudly here.
+const isReleaseBuild =
+  !__DEV__ && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+
+const RAW_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+export function getApiBaseUrl(): string {
+  if (!isReleaseBuild) return RAW_API_BASE_URL ?? 'http://localhost:3000';
+
+  if (!RAW_API_BASE_URL || !RAW_API_BASE_URL.startsWith('https://')) {
+    throw new Error(
+      `API base URL is missing or not https:// (got: ${RAW_API_BASE_URL ?? 'undefined'}). ` +
+        'Set EXPO_PUBLIC_API_BASE_URL for this EAS build profile.'
+    );
+  }
+  if (new URL(RAW_API_BASE_URL).hostname.endsWith('.invalid')) {
+    throw new Error(
+      'API base URL is still the placeholder (.invalid). Set the real API URL for this build profile.'
+    );
+  }
+  return RAW_API_BASE_URL;
+}
 
 export async function fetchSessions(category?: Session['category']): Promise<Session[]> {
-  const url = new URL('/api/sessions', API_BASE_URL);
+  const url = new URL('/api/sessions', getApiBaseUrl());
   if (category) {
     url.searchParams.set('category', category);
   }
@@ -33,7 +62,7 @@ export async function postCheckin(payload: {
   preMood: number;
   postMood: number;
 }): Promise<Streak> {
-  const url = new URL('/api/checkin', API_BASE_URL);
+  const url = new URL('/api/checkin', getApiBaseUrl());
 
   const response = await fetch(url.toString(), {
     method: 'POST',
@@ -59,7 +88,7 @@ export interface InsightsResponse {
 }
 
 export async function fetchInsights(userId: string): Promise<InsightsResponse> {
-  const url = new URL('/api/insights', API_BASE_URL);
+  const url = new URL('/api/insights', getApiBaseUrl());
   url.searchParams.set('user_id', userId);
 
   const response = await fetch(url.toString());
