@@ -4012,3 +4012,139 @@ confirmed on-device.
 **Verified (not changed):** the wheel's minute column has all 60 values
 0-59 (Node replay of the real constants/logic: 60/60 round-trip, max scroll
 = 59 x 40).
+
+## Release-build API URL guard (PRODUCTION-READINESS-AUDIT.md S1) (2026-09-29)
+`src/api/client.ts` no longer silently falls back to `http://localhost:3000`
+in release builds. New `getApiBaseUrl()`: in a release build (`!__DEV__` and
+not Expo Go) it throws a clear error if `EXPO_PUBLIC_API_BASE_URL` is
+missing, doesn't start with `https://`, or has a hostname ending `.invalid`
+(the EAS preview/production placeholder). Dev client and Expo Go keep the
+old localhost fallback. All three fetch functions call it per request;
+`app/_layout.tsx` also calls it once at startup and exports expo-router's
+`ErrorBoundary` so a misconfigured release build shows the message on
+screen instead of closing. JS-only; no effect in the current dev client.
+Verified by running the real function under 7 simulated conditions plus
+`tsc`; the on-screen ErrorBoundary is unverified until a preview/production
+EAS build. Not yet committed.
+
+## Session Player open delay investigation (2026-09-29/30) — logged 2026-09-30
+Logged from the user's account of the prior session (that session wrote
+nothing down); numbers below are as reported, not re-measured here.
+
+**Symptom:** tapping any session in Library (e.g. Box Breathing, Calm and
+Focus) takes 2-4 s before Session Player's Begin Journey button appears and
+is usable. Consistent across every session, not a one-off.
+
+**Method:** 32 full cycles of Library -> tap session -> Begin Journey,
+using timestamped screen recordings + touch events + the tunnel's request
+log.
+
+**Findings:**
+- Tap to Begin Journey: median 2.6 s (range 0.8-3.9 s).
+- The `/api/sessions` request itself: median 0.34 s — too fast to explain
+  the delay alone.
+- Breakdown: ~0.6-0.9 s pre-spinner screen-opening cost (cause not fully
+  isolated) + ~1 s network wait for a NEW fetch Session Player makes on
+  every open + 0.4 s fade-in after data arrives.
+- **Root cause 1 (confirmed):** before commit 27e888c (2026-09-26) Session
+  Player read a local session list (instant, no network). Since
+  backend-wiring it fetches `/api/sessions` fresh on every open, even though
+  Library fetched the identical 6-session list seconds earlier. This is
+  PRODUCTION-READINESS-AUDIT.md finding P4.
+- **Related (real, not proven as a cause):** every Session Player open also
+  makes the hidden Player tab refetch `/api/insights` AND `/api/sessions`,
+  because its data-loading effect depends on the shared `activeSessionId`.
+  Close to audit finding P5. Adds JSON parsing/state updates during mount
+  and competes for tunnel bandwidth.
+- **Ruled out:** the 2026-09-29 `getApiBaseUrl()`/ErrorBoundary changes in
+  `client.ts`/`_layout.tsx` — confirmed by reading the code; they no-op in
+  dev-client builds.
+- **Deployment impact:** deploying the backend would remove ~1 s of
+  tunnel-relay overhead (0.72-0.77 s for the tunnel hop alone) and cut DB
+  latency if hosted in Supabase's region. The redundant fetch (root cause 1)
+  would remain on a fast server — it's a code inefficiency, not a network
+  speed problem.
+- **Control test (INCOMPLETE):** compare Session Player's pre-spinner delay
+  with opening Settings (zero network calls) to isolate pure screen-open
+  cost. A rough first pass suggested Settings ~0.4 s median vs ~1.4 s for
+  Session Player's pre-spinner stage, but it had tap/transition pairing
+  errors and was "suggestive, not conclusive." Corrected numbers were never
+  obtained.
+
+**Agreed next step:** fix root cause 1 first — Session Player should reuse
+the session data Library already fetched instead of re-fetching — rather
+than chase the smaller pre-spinner delay. Control test deliberately skipped
+(can't change the fix); re-time after the fix and revisit only if needed.
+
+### Fix applied 2026-09-30: root cause 1 / audit P4 (implemented, NOT yet timed on-device, not committed)
+- New `src/state/sessionsCache.ts`: in-memory `getCachedSessions()` /
+  `setCachedSessions()` (module state, empty on cold start).
+- `app/(tabs)/library.tsx`: writes each successful `fetchSessions()` result
+  into the cache (otherwise unchanged).
+- `app/session-player.tsx`: `sessions` initial state comes from the cache
+  when it contains the requested `sessionId` -> no spinner, no blocking
+  request. In that case a background `fetchSessions()` only refreshes the
+  cache and deliberately does NOT set state, so `session` stays
+  referentially stable and timer/phase effects never restart mid-session.
+  Cache miss (cold start, deep link, unknown id) falls through to the
+  original blocking fetch, so loading / error+Retry / not-found behave as
+  before; not-found never substitutes a session.
+- **P5 intentionally not touched** (Player tab's refetch on
+  `activeSessionId` change) — separate change so the two can be timed
+  independently.
+- `npx tsc --noEmit` clean. JS-only: reload, no rebuild.
+- **To verify:** re-run the Library -> tap -> Begin Journey timing
+  (baseline median 2.6 s, range 0.8-3.9 s); test cold-open with empty
+  cache and an invalid id. **Timing now done — see "P4 verified" below.**
+  Cold-path (cache-miss) and invalid-id cases are still untested
+  on-device; deliberately skipped 2026-09-30.
+
+### Request-count investigation + P5 fix (2026-09-30, verified on-device)
+Recorded logcat (adb, USB serial) + backend log + a temporary
+`traceFetch()` in `client.ts` (since removed).
+- **Idle Home:** exactly 1 `sessions` + 1 `insights` at startup, nothing for
+  ~90 s. No polling, no loop.
+- **Rapid tab switching earlier produced 34 `insights` calls** — not a loop.
+  Cause: `app/(tabs)/player.tsx`'s streak-fetch effect depended on
+  `[activeSessionId, isFocused]`, so every enter/leave of the Player tab
+  refetched `/api/insights` (and Insights' first mount fired a second one).
+  Confirmed with a scripted 9-step run: 9 requests where 6 were needed.
+- **Fix (P5):** split that effect in `player.tsx` — redirect effect keeps
+  `[activeSessionId, isFocused]`; the streak fetch now depends only on
+  `[activeSessionId]` and skips while a session is active. Player's streak
+  no longer refreshes on plain tab switches, only on mount / when a session
+  ends. Re-ran the script: the clean launch made exactly the expected 6
+  requests (Home 2, Library 1, Player 2, Insights 1); leaving/re-entering
+  Player fetched nothing. Caveat: that run included a second relaunch and
+  extra taps, so not every tap was mapped to a tab.
+- Backend cost per call (application-code, mostly Supabase): insights
+  ~0.5-1.6 s, sessions ~0.2-1.5 s.
+- Temporary logging removed. `tsc` clean. Not committed.
+
+### P4 verified on-device (2026-09-30)
+Measured with a temporary `[PERF]` log in `session-player.tsx` (mount and
+"first phase ready" timestamps, since removed) plus logcat touch events,
+Library grid loaded first, 6 different sessions opened:
+- **All 6 opens logged `cacheHit=true` — no spinner, no blocking request.**
+- Tap -> mount 0.23-0.27 s; mount -> ready 78-104 ms; **tap -> ready
+  ~0.31-0.36 s**, vs the 2.6 s median baseline (0.8-3.9 s). Not measured:
+  the 0.4 s phase fade-in; estimated tap -> fully visible ~0.65-0.75 s
+  (inference from the code, not a measurement). Touch-down timestamp
+  includes finger-contact time before the press fires.
+- Backend log: exactly one `/api/sessions` per open (the background cache
+  refresh), as designed. That count can't distinguish hit from miss — the
+  `cacheHit` log did.
+- The earlier "0.6-0.9 s pre-spinner cost" was mostly network/fetch time
+  inside that measurement; screen-open cost is only ~0.25 s. **The
+  Settings control test is no longer needed** and was never run.
+- **Still untested on-device:** cache-miss path (cold launch straight into
+  a session, e.g. Home's Begin) and the invalid-id "Session not found"
+  path. Code paths are unchanged from before the fix; skipped by choice.
+- **Watch item:** one `/api/insights` request at 19:18 launch took **27.1 s**
+  (backend `application-code`; normal is 0.5-1.6 s). Unexplained one-off —
+  could be Supabase or the tunnel. Not reproduced; check again if it
+  recurs (would leave Home's Snapshot on its loading state that long).
+- **Process note:** in a timing run, X after Begin Journey shows the exit
+  Alert (active phase), so it isn't a single tap; tap pairing from logcat
+  alone was unreliable, which is why in-app `[PERF]` logs were used.
+- All temporary logging removed. `tsc` clean. Not committed.
