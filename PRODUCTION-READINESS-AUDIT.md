@@ -37,8 +37,8 @@
 | P1 | `/api/insights` all-time query is unbounded **and silently truncates at 1,000 rows** | `insights/route.ts:79-83, 124-130` | **High** (wrong data + O(n) cost) |
 | P2 | Time-picker wheel drives ~120 animated nodes per column from the JS thread | `TimePickerModal.tsx:130-190` | Medium |
 | P3 | Session timer counts ticks, not wall-clock, and the screen can sleep mid-session | `session-player.tsx:199-205` | Medium |
-| P4 | Static catalog is fetched 4+ times per app use, never cached, no HTTP caching headers | `home:82`, `library:64`, `player:144`, `session-player:126`, `sessions/route.ts` | Medium |
-| P5 | Player tab refetches insights on every focus **and** blur | `app/(tabs)/player.tsx:113-130` | Medium |
+| P4 | Static catalog is fetched 4+ times per app use, never cached, no HTTP caching headers | `home:82`, `library:64`, `player:144`, `session-player:126`, `sessions/route.ts` | Medium — **PARTLY RESOLVED 2026-09-30** (Session Player reuses Library's list, commit `1c3410c`; Home/Player-tab fetches and HTTP caching still open) |
+| P5 | Player tab refetches insights on every focus **and** blur | `app/(tabs)/player.tsx:113-130` | Medium — ✅ **RESOLVED 2026-09-30** (commit `ac93be1`, verified on-device) |
 | P6 | `/api/insights` makes 5 separate round trips to the DB per request | `insights/route.ts:66-96` | Medium |
 | P7 | No fetch timeout/abort anywhere in the client | `src/api/client.ts:21,38,65` | Medium |
 | P8 | Whole Session Player re-renders every second, including blur/glass subtrees | `session-player.tsx:172, 199-205` | Low-Medium |
@@ -164,11 +164,13 @@
 **Fix (described only):** derive elapsed from a start timestamp (`Date.now()`) so it self-corrects, and hold a keep-awake lock while `phase === 'active'` (released on pause/exit).
 
 ### P4 — The static 6-row catalog is refetched from four places and never cached (Medium)
+**Status 2026-09-30 — PARTLY RESOLVED (commit `1c3410c`).** Done: new in-memory `src/state/sessionsCache.ts`, filled by Library; Session Player starts from it when it holds the requested id (no spinner, no blocking request) and only refreshes the cache in the background. Measured on-device with a temporary `[PERF]` log (since removed): 6 of 6 opens `cacheHit=true`, tap-to-ready ~0.31-0.36 s vs a 2.6 s median before (fade-in not measured). **Still open:** Home (`home.tsx:82`) and the Player tab (`player.tsx:144`) still fetch on their own and don't write to or read from the cache; `/api/sessions` still sends no `Cache-Control`; the cache is in-memory only (empty on cold start, so a deep link into a session still does the blocking fetch — that path is unchanged and untested on-device). The original findings follow.
 **Where:** `fetchSessions()` at `home.tsx:82`, `library.tsx:64`, `player.tsx:144`, `session-player.tsx:126`; `sessions/route.ts` returns no `Cache-Control`; the handler reads `searchParams`, so Next treats it as dynamic.
 **What/why:** every screen mount, every retry, and every entry to the Session Player triggers a full request + a Supabase query for data that changes only on a deploy. At scale this is the highest-volume endpoint doing the least useful work (function invocation + DB round trip per call), and on poor networks it adds a spinner before each session starts.
 **Fix (described only):** add `Cache-Control: public, s-maxage=…, stale-while-revalidate` on `/api/sessions`; add a small in-memory (optionally AsyncStorage-persisted) cache in the client so screens share one fetch.
 
 ### P5 — The Player tab refetches insights on every focus *and* blur (Medium)
+**Status 2026-09-30 — ✅ RESOLVED (commit `ac93be1`).** The streak fetch is now its own effect in `player.tsx` depending only on `[activeSessionId]` (skipped while a session is active); the redirect effect keeps `[activeSessionId, isFocused]`. Note this differs from the fix suggested below ("fetch only when focused"): the fetch no longer depends on focus at all, so the tab's streak refreshes on mount and when a session ends, not on plain tab switches. Verified on-device with a scripted tab test: 9 requests before, 6 after (leaving/re-entering Player fetched nothing). The original findings follow.
 **Where:** `app/(tabs)/player.tsx:113-130` — the effect depends on `[activeSessionId, isFocused]` and only `return`s early when `isFocused && activeSessionId`; otherwise it always calls `fetchInsights`.
 **What/why:** the effect re-runs when the tab gains focus and again when it loses focus, so one visit to the tab = two `/api/insights` calls, and `/api/insights` is the most expensive endpoint (P1, P6). It is a leftover of the earlier redirect-loop fix (documented in the file's own comment) rather than an intended refresh policy.
 **Fix (described only):** fetch only when focused (and ideally reuse a shared insights cache with a short TTL).
