@@ -4192,3 +4192,105 @@ project reached over the internet), **tunnel NOT included — see below**:
   reconnected before any further on-device test; the tunnel dropping may
   itself explain some earlier slow responses but that is not shown.
 - Raw samples: scratchpad `latency.csv` (not in the repo).
+
+## Home greeting: local, user-entered name replaces the hardcoded "Alex" (2026-10-01) — TEMPORARY
+Home's top bar used to hardcode "GOOD EVENING" / "Alex". Now: a time-based
+greeting from the phone's local hour (morning 05:00-11:59, afternoon
+12:00-16:59, evening 17:00-04:59 — late night counts as evening) followed by
+either the saved name or a tappable "Tap to add your name". **Temporary by
+design:** the name lives only in AsyncStorage on this device, is never sent to
+the backend, and is meant to be replaced when real accounts/auth exist.
+
+**Files (nothing else touched — backend, API client, notifications, Session
+Player, Library, Insights, sessions cache, onboarding and the Daily Reminder
+code are unchanged):**
+- NEW `src/utils/userName.ts` — key `breathe_user_name_v1`; `getUserName()`
+  (fails safe to null, re-normalizes on read), `setUserName(raw)`,
+  `normalizeUserName()` (trim, reject empty/whitespace-only, line breaks ->
+  space, cap 30 chars), `MAX_USER_NAME_LENGTH = 30`.
+- NEW `src/components/UserNameModal.tsx` — same shell as `TimePickerModal`
+  (transparent fade Modal, GlassCard on a solid base, Cancel + gradient Save),
+  input styled like Library's search field, `maxLength` 30, inline "Please
+  enter a name." on empty input (nothing saved, dialog stays open). Shared by
+  Home and Settings.
+- `app/(tabs)/home.tsx` — greeting block only. Name is re-read with
+  `useFocusEffect` (Home stays mounted under Settings, so a mount-only read
+  would go stale); that reads storage only, no network, so the insights and
+  sessions fetches are untouched. `undefined` = still loading (renders
+  nothing, so a saved name never flashes the prompt). Tapping the name on
+  Home does nothing once set; editing is via Settings.
+- `app/settings.tsx` — new separate "Name" card (tap to edit, same modal),
+  placed after Daily Reminder; reminder code untouched.
+- `src/components/GradientText.tsx` + `.web.tsx` — new OPTIONAL
+  `numberOfLines` pass-through (needed because the 30-char cap doesn't fit on
+  one line next to the avatar and gear, ~14-15 average chars of room). Omitted
+  = identical behavior, so the 7 existing callers are unaffected.
+  `topBarLeft` got `flexShrink: 1` so a long name truncates instead of pushing
+  the gear off-screen.
+
+**Verified:**
+- `npx tsc --noEmit` clean.
+- Storage logic, 17/17 (stubbed AsyncStorage): trim, empty/whitespace/`\n`
+  rejected with the stored value unchanged, 45 chars -> 30, no trailing space
+  after the cut, emoji kept, bad stored value normalized on read, read/write
+  failures return null without throwing.
+- Real browser (Expo web, Chrome via Playwright), from empty storage, 57
+  checks: prompt + greeting, modal focus, empty/whitespace rejected, typing
+  past 30 stops at 30, `"  Sam  "` saves as `Sam` and survives reload with no
+  prompt flash, Settings edit shows on Home with no reload, all 12 greeting
+  boundary times (04:59/05:00/11:59/12:00/16:59/17:00 and others), a 30x`W`
+  name and a 26-char name stay on one line with an ellipsis at 390 and 360 px
+  with no overflow, Home's other sections and Settings' reminder card
+  unchanged, no console errors. (One failure on the first run was a wrong
+  expectation in the test — RN-web Text defaults to `white-space: pre-wrap`;
+  re-checked on Insights/Library/Player: the gradient text computes
+  identically to a plain Text.)
+- **On-device (Android dev client, 2026-10-01 ~8:40-8:55 PM):** no-name state
+  (label + prompt, top bar intact); a saved name renders in the gradient on one
+  line; the modal sits fully above the keyboard; empty Save shows the error and
+  saves nothing (Name card unchanged behind it); typing past 30 stops at 30
+  (`Wofeschlegelsteinhausenbergerd`... the field held exactly 30); **truncation
+  works through MaskedView — `Wofeschlegelstei…` on one line, gear on screen and
+  clear of the name** (so the Option B fallback was not needed).
+
+**Not verified / known limits:**
+- The 30-char cap counts UTF-16 units (both `maxLength` and `slice`), so an
+  emoji landing exactly on the boundary could be split.
+- adb touch injection is blocked on this MIUI phone (`INJECT_EVENTS`), so the
+  on-device pass was screenshots read by the assistant with taps done by hand.
+- Not exercised on-device: `Cancel`/back-button dismissal of the modal, iOS.
+- The dev client's floating gear overlaps edges of some screens in dev builds
+  only (e.g. the Name value in Settings); not part of this change.
+
+**Not committed.**
+
+### Greeting vs. a mid-session time-zone change — KNOWN LIMITATION, deliberately not fixed (2026-10-01)
+Checked on-device by changing the phone's time zone (Asia/Dubai -> a US zone;
+automatic time left on, only the zone changed). **Result:** with the app still
+running, Home kept saying "GOOD EVENING" even after navigating Library -> Home
+(which re-runs the focus effect that re-reads `new Date().getHours()`). Only
+after fully closing and reopening the app did it show "GOOD MORNING".
+- **Interpretation (inferred, not instrumented):** the effect did re-read the
+  hour; the JS engine kept answering with the time zone it had cached for the
+  life of the process. So re-reading "more aggressively" in app code cannot fix
+  it — the staleness is below the app.
+- **Decision:** document, don't fix. Someone changing time zone while the same
+  app process stays alive is rare (travel, usually with the app restarted by the
+  OS or the user), and the worst case is a wrong greeting word until the app is
+  next restarted. Not worth extra code.
+- **Separate, more realistic gap (also not fixed):** Home only recomputes the
+  greeting when it gains navigation focus, not on app resume (foreground) —
+  leave the app on Home across 05:00 / 12:00 / 17:00 and the label stays until
+  you navigate. Fixable with an `AppState` "active" listener if it ever matters;
+  judged not worth it for a temporary greeting.
+- The browser test (fixed clock, 12 boundary times) is unaffected: each case
+  was a fresh page load, i.e. a fresh process.
+
+**On-device greeting-by-hour result (2026-10-01):** with only the time zone changed
+(automatic time left on, so the real clock stayed correct) and the app fully
+restarted after each change: Los Angeles (10:27 AM) -> "GOOD MORNING"; New York
+(1:30 PM) -> "GOOD AFTERNOON"; Asia/Dubai (9:43 PM) -> "GOOD EVENING". The
+phone's settings were restored and checked against the values read before the
+test (time zone Asia/Dubai, auto time and auto time zone both on, phone clock
+identical to the PC's to the second). A restart was needed each time — see the
+limitation above.

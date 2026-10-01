@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 // Deep import, not a documented public path: expo-router vendors its own
 // react-navigation/bottom-tabs copy (there's no separate
 // @react-navigation/bottom-tabs dependency), and this hook isn't
@@ -30,9 +30,11 @@ import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MOOD_EMOJIS, MOOD_LABELS } from '../../src/components/MoodSelector';
+import { UserNameModal } from '../../src/components/UserNameModal';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
 import { getDeviceId } from '../../src/utils/deviceId';
+import { getUserName } from '../../src/utils/userName';
 
 function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)} min`;
@@ -53,8 +55,39 @@ function pickFeatured(sessions: Session[]): Session | null {
   return sessions.find((s) => s.id === FEATURED_SESSION_ID) ?? sessions[0] ?? null;
 }
 
+// Greeting label from the phone's local hour: morning 05:00-11:59,
+// afternoon 12:00-16:59, evening 17:00-04:59 (late night reads as "evening"
+// rather than a "Good morning" at 2 a.m.).
+function greetingForHour(hour: number): string {
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
+  // TEMPORARY local display name (src/utils/userName.ts) — undefined = still
+  // reading storage (shows nothing, so a saved name never flashes the
+  // "Tap to add your name" prompt), null = none saved.
+  const [userName, setUserNameState] = useState<string | null | undefined>(undefined);
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [hour, setHour] = useState(() => new Date().getHours());
+
+  // Home stays mounted underneath Settings, so a mount-only read would go
+  // stale after editing the name there. Reads local storage only — no network
+  // call, so this doesn't touch the insights/sessions fetches below.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setHour(new Date().getHours());
+      getUserName().then((name) => {
+        if (active) setUserNameState(name);
+      });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
   // null = still loading (first fetch, or a retry in flight).
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -149,14 +182,30 @@ export default function HomeScreen() {
             <View style={styles.avatar}>
               <MaterialIcons name="person" size={20} color={colors.onSurfaceVariant} />
             </View>
-            <View>
-              <Text style={styles.greetingLabel}>GOOD EVENING</Text>
-              <GradientText
-                colors={[colors.primary, colors.tertiary]}
-                style={styles.greetingName}
-              >
-                Alex
-              </GradientText>
+            <View style={styles.greetingColumn}>
+              <Text style={styles.greetingLabel}>{greetingForHour(hour)}</Text>
+              {/* Fixed-height slot so the bar doesn't shift between the
+                  loading, "Tap to add your name" and name states. */}
+              <View style={styles.greetingNameSlot}>
+                {userName === undefined ? null : userName === null ? (
+                  <Pressable
+                    onPress={() => setNameModalVisible(true)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add your name"
+                  >
+                    <Text style={styles.addNamePrompt}>Tap to add your name</Text>
+                  </Pressable>
+                ) : (
+                  <GradientText
+                    colors={[colors.primary, colors.tertiary]}
+                    style={styles.greetingName}
+                    numberOfLines={1}
+                  >
+                    {userName}
+                  </GradientText>
+                )}
+              </View>
             </View>
           </View>
           <Pressable
@@ -322,6 +371,16 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <UserNameModal
+        visible={nameModalVisible}
+        initialName={userName ?? null}
+        onSaved={(name) => {
+          setUserNameState(name);
+          setNameModalVisible(false);
+        }}
+        onCancel={() => setNameModalVisible(false)}
+      />
     </View>
   );
 }
@@ -366,6 +425,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.base,
+    // Lets a long name shrink (and truncate) instead of pushing the settings
+    // icon off-screen. No effect on short names — it only shrinks, never grows.
+    flexShrink: 1,
+  },
+  greetingColumn: {
+    flexShrink: 1,
+  },
+  greetingNameSlot: {
+    minHeight: typography.headlineLgMobile.lineHeight,
+    justifyContent: 'center',
+  },
+  // TEMPORARY prompt shown until a name is saved — a quieter line than the
+  // gradient name, in the accent color so it reads as tappable.
+  addNamePrompt: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    fontWeight: '600',
+    color: colors.primary,
   },
   avatar: {
     width: 40,

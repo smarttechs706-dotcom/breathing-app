@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '../src/components/GlassCard';
 import { TimePickerModal } from '../src/components/TimePickerModal';
+import { UserNameModal } from '../src/components/UserNameModal';
+import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
   getReminderSettings,
@@ -74,6 +76,15 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     getReminderSettings().then(setReminderSettings);
+  }, []);
+
+  // TEMPORARY local display name (src/utils/userName.ts), edited here via the
+  // same modal Home uses for its first-time prompt. Home re-reads it on focus.
+  const [userName, setUserNameState] = useState<string | null>(null);
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+
+  useEffect(() => {
+    getUserName().then(setUserNameState);
   }, []);
 
   async function handleToggleChange(nextEnabled: boolean) {
@@ -152,6 +163,20 @@ export default function SettingsScreen() {
           </GlassCard>
 
           <GlassCard radius={radii.lg} style={styles.card}>
+            <Pressable
+              onPress={() => setNameModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit your name"
+              style={styles.aboutRow}
+            >
+              <Text style={styles.cardTitle}>Name</Text>
+              <Text style={styles.nameValue} numberOfLines={1}>
+                {userName ?? 'Not set'}
+              </Text>
+            </Pressable>
+          </GlassCard>
+
+          <GlassCard radius={radii.lg} style={styles.card}>
             <View style={styles.aboutRow}>
               <Text style={styles.cardTitle}>About</Text>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
@@ -166,6 +191,16 @@ export default function SettingsScreen() {
         initialMinute={reminderSettings.minute}
         onConfirm={handleConfirmTime}
         onCancel={() => setPickerVisible(false)}
+      />
+
+      <UserNameModal
+        visible={nameModalVisible}
+        initialName={userName}
+        onSaved={(name) => {
+          setUserNameState(name);
+          setNameModalVisible(false);
+        }}
+        onCancel={() => setNameModalVisible(false)}
       />
     </View>
   );
@@ -272,6 +307,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  // Name card's value — shrinks and truncates so a 30-char name can't push
+  // the "Name" label off the row.
+  nameValue: {
+    flexShrink: 1,
+    marginLeft: spacing.base * 2,
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    lineHeight: typography.bodyMd.lineHeight,
+    fontWeight: '600',
+    color: colors.primary,
   },
   versionText: {
     fontFamily: typography.bodyMd.fontFamily,

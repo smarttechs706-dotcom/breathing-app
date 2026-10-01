@@ -4,6 +4,8 @@ import { Text, type StyleProp, type TextStyle } from 'react-native';
 interface GradientTextProps extends PropsWithChildren {
   colors: [string, string, ...string[]];
   style?: StyleProp<TextStyle>;
+  // Optional, same contract as GradientText.tsx. Undefined = unchanged.
+  numberOfLines?: number;
 }
 
 // Web-only override (Metro resolves *.web.tsx over the platform-agnostic
@@ -15,7 +17,7 @@ interface GradientTextProps extends PropsWithChildren {
 // CSS background-clip: text is the real web equivalent; every evergreen
 // browser supports it, and RN Web forwards unrecognized camelCase style
 // keys straight through to CSS.
-export function GradientText({ colors, style, children }: GradientTextProps) {
+export function GradientText({ colors, style, numberOfLines, children }: GradientTextProps) {
   const backgroundImage = `linear-gradient(90deg, ${colors.join(', ')})`;
   // web-only CSS properties (background-clip/-webkit-background-clip),
   // not part of RN's TextStyle typings.
@@ -26,5 +28,9 @@ export function GradientText({ colors, style, children }: GradientTextProps) {
     color: 'transparent',
   } as unknown as TextStyle;
 
-  return <Text style={[style, webGradientStyle]}>{children}</Text>;
+  return (
+    <Text style={[style, webGradientStyle]} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
 }
