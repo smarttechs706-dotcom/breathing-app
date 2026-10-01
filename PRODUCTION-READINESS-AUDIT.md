@@ -22,7 +22,7 @@
 | S4 | Identifier is sent in the URL query string on a read endpoint | `src/api/client.ts:63`, `insights/route.ts:56` | Medium |
 | S5 | Dev tunnel publishes the dev machine's Metro **and** the DB-backed API to the internet | `metro.config.js:20-47` | Medium (testing period only) |
 | S6 | Tracked `.mcp.json` grants a write-capable Supabase MCP on the only (production) project | `breathing-app-api/.mcp.json` | Medium |
-| S7 | Database schema/functions exist only in Supabase; nothing in either repo can recreate them | `breathing-app-api/` (no migrations) | Medium |
+| S7 | Database schema/functions exist only in Supabase; nothing in either repo can recreate them | `breathing-app-api/` (no migrations) | Medium — ⚠️ **STILL OPEN** (7 migrations now untracked; see entry) |
 | S8 | Backend fix + audit are uncommitted; no CI, no tests, no deploy config in either repo | both repos | Medium |
 | S9 | Mood history is health-adjacent personal data with no deletion path or privacy surface | whole system | Medium (compliance) |
 | S10 | Double Confirm could in theory schedule two daily reminders (code-reading only; never observed) | `settings.tsx:106-112`, `reminders.ts:104-131` | Low |
@@ -34,12 +34,12 @@
 | S16 | Reminder text is visible in the notification shade/lock screen for a wellbeing app | `reminders.ts:116-119` | Low |
 | S17 | Custom-scheme deep links expose every route; scheme is unverified | `app.json:5` | Low |
 | S18 | Repo hygiene: stale UTF-16 dump, dev-only `npm audit` advisories, no security headers | various | Low / Info |
-| P1 | `/api/insights` all-time query is unbounded **and silently truncates at 1,000 rows** | `insights/route.ts:79-83, 124-130` | **High** (wrong data + O(n) cost) |
+| P1 | `/api/insights` all-time query is unbounded **and silently truncates at 1,000 rows** | `insights/route.ts:79-83, 124-130` | **High** (wrong data + O(n) cost) — ✅ **RESOLVED 2026-10-01** (`get_insights` RPC; backend commit `203cf4c`) |
 | P2 | Time-picker wheel drives ~120 animated nodes per column from the JS thread | `TimePickerModal.tsx:130-190` | Medium |
 | P3 | Session timer counts ticks, not wall-clock, and the screen can sleep mid-session | `session-player.tsx:199-205` | Medium |
 | P4 | Static catalog is fetched 4+ times per app use, never cached, no HTTP caching headers | `home:82`, `library:64`, `player:144`, `session-player:126`, `sessions/route.ts` | Medium — **PARTLY RESOLVED 2026-09-30** (Session Player `1c3410c`; Home, Library and Player tab now also share the cache; HTTP caching, cold-start path and request de-duplication still open) |
 | P5 | Player tab refetches insights on every focus **and** blur | `app/(tabs)/player.tsx:113-130` | Medium — ✅ **RESOLVED 2026-09-30** (commit `ac93be1`, verified on-device) |
-| P6 | `/api/insights` makes 5 separate round trips to the DB per request | `insights/route.ts:66-96` | Medium |
+| P6 | `/api/insights` makes 5 separate round trips to the DB per request | `insights/route.ts:66-96` | Medium — ✅ **RESOLVED 2026-10-01** (same fix as P1; backend commit `203cf4c`) |
 | P7 | No fetch timeout/abort anywhere in the client | `src/api/client.ts:21,38,65` | Medium |
 | P8 | Whole Session Player re-renders every second, including blur/glass subtrees | `session-player.tsx:172, 199-205` | Low-Medium |
 | P9 | Infinite animations keep running off-screen | `BreathOrb.tsx`, `BreathingRing.tsx:44-63` | Low |
@@ -83,7 +83,8 @@
 **Fix (described only):** split dev and prod Supabase projects; make the tracked config `read_only=true` and scoped to the dev project; keep write-capable access as an untracked local override.
 
 ### S7 — The schema, RLS state, and `record_checkin` function exist only in Supabase (Medium)
-**Where:** `breathing-app-api/` has no `supabase/migrations/` (or any SQL file); `PROGRESS.md` references migrations `add_record_checkin_atomic_rpc` and `fix_record_checkin_variable_conflict` applied through the MCP.
+**Update 2026-10-01 — still open, now larger:** two more migrations were applied through the MCP and, like all the others, exist only in Supabase (no `supabase/migrations/` folder was created; nothing was exported). Supabase's `list_migrations` confirmed on 2026-10-01 that the live project has exactly these 7, in order: `create_sessions_checkins_streaks`, `seed_sessions_catalog`, `enable_rls_deny_all_anon`, `add_record_checkin_atomic_rpc`, `fix_record_checkin_variable_conflict`, `add_get_insights_rpc`, `revoke_record_checkin_anon_authenticated`. The last one is itself an example of this entry's risk: `record_checkin` had been executable by `anon`/`authenticated` since 2026-09-26 (the earlier `revoke … from public` didn't remove those explicit grants) and nobody could see it in the repo — found and fixed 2026-10-01, details in `breathing-app-api/BACKEND-AUDIT.md`, "Update 2026-10-01". Note this also corrects the "Not done" caveat above: the `record_checkin` grants were relied on from `BACKEND-AUDIT.md` and were in fact wrong at the time of this audit.
+**Where (original):** `breathing-app-api/` has no `supabase/migrations/` (or any SQL file); `PROGRESS.md` references migrations `add_record_checkin_atomic_rpc` and `fix_record_checkin_variable_conflict` applied through the MCP.
 **What/why:** the DB cannot be recreated, reviewed in a PR, diffed between environments, or restored to a known state from the repo. The security posture that `BACKEND-AUDIT.md` relies on (RLS deny-all, `revoke … from public`, `grant execute … to service_role`) is invisible to code review and can drift silently. It also blocks S6's fix (a separate dev project needs the schema to be reproducible).
 **Fix (described only):** export current schema and functions into versioned migration files (Supabase CLI) and commit them; apply changes only through those files.
 
@@ -148,7 +149,8 @@
 
 ## Performance
 
-### P1 — `/api/insights` all-time query is unbounded and silently truncates at 1,000 rows (High)
+### P1 — `/api/insights` all-time query is unbounded and silently truncates at 1,000 rows (High) — ✅ RESOLVED 2026-10-01
+**Resolution:** fixed together with P6 by migration `add_get_insights_rpc` (a Postgres function that aggregates in the database) and a rewritten `breathing-app-api/app/api/insights/route.ts` (one RPC call). Full evidence is in `breathing-app-api/BACKEND-AUDIT.md`, section "Update 2026-10-01". Headline result: with a seeded 1,250-check-in user, the old route returned `totalSessions: 1000` / `mindfulMinutes: 12835`; the new one returns `1250` / `16044`, matching SQL ground truth exactly. Responses for the 3 real users, a 900-check-in user and an empty user were byte-identical old vs new. Committed in `breathing-app-api` as `203cf4c` (the migration `add_get_insights_rpc` itself exists only in Supabase, not in the repo — see S7). The original finding follows unchanged.
 **Where:** `insights/route.ts:79-83` (`.select("sessions(duration_sec)").eq("user_id", userId)`, no limit) and `:124-130` (`totalSessions = allTimeRows.length`, minutes summed client-side).
 **What/why:** this pulls one joined row per check-in the user has ever made just to count and sum them. Cost grows linearly with usage on every Home/Insights/Player load. Worse, PostgREST/Supabase caps responses at its `max-rows` setting (default 1,000): a user past 1,000 check-ins gets `totalSessions` stuck at 1,000 and `mindfulMinutes` under-counted, with **no error** — the same "silently wrong" failure mode as `BACKEND-AUDIT.md` #6 but a different mechanism (and 1,000 is reachable within a couple of years of daily use or by a scripted client, given no rate limit). The 1,000 default is Supabase's documented behavior; the project's own setting was not checked.
 **Fix (described only):** compute `count` and `sum(duration_sec)` in the database (one RPC or a view, or a maintained summary column) instead of fetching rows; return only aggregates.
@@ -175,7 +177,8 @@
 **What/why:** the effect re-runs when the tab gains focus and again when it loses focus, so one visit to the tab = two `/api/insights` calls, and `/api/insights` is the most expensive endpoint (P1, P6). It is a leftover of the earlier redirect-loop fix (documented in the file's own comment) rather than an intended refresh policy.
 **Fix (described only):** fetch only when focused (and ideally reuse a shared insights cache with a short TTL).
 
-### P6 — `/api/insights` makes five separate database round trips per request (Medium)
+### P6 — `/api/insights` makes five separate database round trips per request (Medium) — ✅ RESOLVED 2026-10-01
+**Resolution:** same fix as P1 — `/api/insights` now makes a single `supabase.rpc("get_insights", …)` call (migration `add_get_insights_rpc`; see `breathing-app-api/BACKEND-AUDIT.md`, "Update 2026-10-01"). Measured on the dev server (not production): ~15% faster for small users, no change for a 900-row user, payload-bound for large ones. Not done from this finding's fix text: the "short-TTL cache per user". Committed in `breathing-app-api` as `203cf4c` (the migration `add_get_insights_rpc` itself exists only in Supabase, not in the repo — see S7). The original finding follows unchanged.
 **Where:** `insights/route.ts:66-96` (five queries in one `Promise.all`).
 **What/why:** parallelism hides latency but not cost: five HTTP calls to PostgREST per request from a serverless function, each with its own connection/TLS overhead and per-request Supabase accounting. The load multiplies with P4/P5 and the lack of rate limiting (`BACKEND-AUDIT.md` #4). Fine for ten users, expensive for ten thousand.
 **Fix (described only):** consolidate into one SQL function returning the whole insights payload in a single call (also resolves P1); short-TTL cache per user.
@@ -209,6 +212,6 @@
 
 ## Suggested order of work
 
-1. **Before any broader testing:** S1 (URL/env per build profile + startup guard), S2 (notification handler — and correct the PROGRESS.md attribution), P3 (keep-awake + wall-clock timer), P1 (aggregate in SQL), S8 (commit backend work).
+1. **Before any broader testing:** S1 (URL/env per build profile + startup guard), S2 (notification handler — and correct the PROGRESS.md attribution), P3 (keep-awake + wall-clock timer), ~~P1 (aggregate in SQL)~~ (done 2026-10-01), S8 (commit backend work).
 2. **Before public release:** S3/S4 (real random id, header not query), S9 (deletion + privacy), S7 (migrations in repo), S6 (split dev/prod Supabase), S12 (server-side logging), S13 (production profile), existing BACKEND-AUDIT items #3, #4 and #7 (rate limit, length caps).
 3. **Scale/polish:** P4-P7, then P2, P8-P11, S10-S11, S14-S18.
