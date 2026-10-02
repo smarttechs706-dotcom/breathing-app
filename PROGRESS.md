@@ -4341,3 +4341,43 @@ current 2 / longest 2 / last session 2026-09-30 (inferred pre-test value).
 DB re-queried: 9 check-ins remain, matching the pre-test count. Temporary test code
 (`TEMP-5S` session cap, `TEMP-MOUNTLOG` mount counter) was removed and
 grepped clean.
+
+## Next session: D-05 + D-06 only (Supabase lock-down) — brief written 2026-10-02
+**Scope — fix D-05 and D-06 from DEEP-AUDIT-2.md, nothing else.** Both live in
+Supabase, not in this repo; migrations belong in `breathing-app-api` (see S7 —
+the 7 existing migrations are written down there, add these as the 8th/9th).
+Read PROGRESS.md, CLAUDE.md and DEEP-AUDIT-2.md first, then **show a plan and
+wait for approval before changing anything.** The plan must include, for each
+fix, how it will be proven closed.
+- **D-05:** `anon` and `authenticated` hold every table privilege (incl.
+  DELETE/TRUNCATE) on `checkins`, `sessions`, `streaks`, and `pg_default_acl` in
+  `public` (owners `postgres` and `supabase_admin`) re-grants them on every
+  future table/function/sequence. Today only RLS-with-zero-policies stands in
+  the way. Lock down the existing grants **and the default ACLs** so it can't
+  silently recur — the same class of problem as the `record_checkin` grant fix
+  (migration `revoke_record_checkin_anon_authenticated`).
+- **D-06:** Supabase Auth public sign-up is open (`disable_signup: false`) though
+  the app has no accounts. Disable it (and unused providers).
+- **Verification standard = real attempted requests, not just settings.** As
+  for `record_checkin` (BACKEND-AUDIT.md, "Verification"): catalog check
+  (`aclexplode` / `role_table_grants` / `pg_default_acl`) **plus** an outsider
+  call with the public anon key that is actually rejected (expect 401 /
+  `42501 permission denied`), and a real `POST /api/checkin` +
+  `GET /api/insights` through the backend (service_role path) still working
+  afterwards. For D-06: `GET /auth/v1/settings` shows sign-up disabled **and** a
+  real sign-up attempt is rejected, with `auth.users` still at 0 rows. Also
+  prove nothing legitimate broke (mobile app flow works). Use throwaway data
+  only and delete it by exact id after, showing it first.
+- **Things to remember:** the backend is the only Supabase client (mobile never
+  touches Supabase). Future tables/functions must not inherit anon access.
+  Add the migrations to the repo, record them in the API repo's PROGRESS.md.
+  Tell the user anything outside D-05/D-06 that turns up rather than fixing it.
+
+**State at the end of this session (2026-10-02):** mobile repo clean at
+`09f0800` (D-02/D-03 fix `84abff8`); no git remote (D-07). Live DB holds exactly
+9 check-ins and 3 streak rows (the pre-test baseline) — compare against this
+after any probe. The 8081/8082/3000 dev servers were stopped.
+
+**Still open from DEEP-AUDIT-2 (not for next session):** D-01, D-04, D-07 to
+D-20; Back during an in-flight save, launching a session from the Player tab,
+iOS, and the Insights refresh on web were not exercised for D-02/D-03.
