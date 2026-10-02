@@ -4294,3 +4294,47 @@ phone's settings were restored and checked against the values read before the
 test (time zone Asia/Dubai, auto time and auto time zone both on, phone clock
 identical to the PC's to the second). A restart was needed each time — see the
 limitation above.
+
+## D-02 + D-03 fixed: Session Player stack growth and discarded check-in (2026-10-02)
+Fixes for DEEP-AUDIT-2.md D-02 and D-03. Verified on web (D-02) and on the
+real phone (both). Not committed.
+
+**D-02 — completing a session stacked a duplicate `(tabs)` tree.**
+`handleDone` used `router.replace('/home')`, which swapped the player for a
+*new* tab navigator and left the old one mounted. Now `router.dismissTo('/home')`
+(pops to the existing tabs; falls back to replace if `/home` isn't in history,
+e.g. a deep link).
+- Side effect found during on-device testing: the old bug was accidentally
+  refreshing Home/Insights by remounting them. With the fix their one-shot
+  mount fetch went stale (Home still showed the pre-session count). New
+  `src/state/checkinSignal.ts` (`markCheckinSaved()` + `useRefreshOnNewCheckin`)
+  — the player bumps it after a successful save; Home and Insights refresh
+  silently on next focus. The Player tab already refreshed on its own.
+- Web, 3 sessions (API mocked): Home instances 1/1/1 (baseline 2/3/4),
+  `/api/sessions` calls 4 (baseline 7), Home "sessions" 1/2/3.
+- Phone: logcat showed a single tab-tree mount through 3+ sessions (temporary
+  counter, removed); one Back press from Home left the app; Home count
+  6 -> 7 -> 8; each save followed by exactly one `GET /api/insights`.
+
+**D-03 — X / hardware Back at "How do you feel now?" silently discarded the
+check-in.** Now at `post-mood` they show "Save your session?" with Cancel /
+Don't save / Save. Save posts then exits (back to where the user came from);
+a failed save stays on screen with the existing error + Try Again; exit is
+ignored while a save is in flight. `handleDone` and the prompt share one
+`saveCheckin()`. The hardware-Back listener's dependency list now includes
+the values it reads (moods, saving, session) so it can't save stale moods.
+- Phone: Cancel stays (no POST); Don't save leaves (no POST); X -> Save and
+  hardware Back -> Save each sent exactly one POST; save with the API down
+  showed the error and kept the screen, and Try Again after the API came
+  back saved and reached Home. Insights Total Sessions +1 after a save.
+- Library-launched session + hardware Back -> Save returned to Library and
+  Home's count rose.
+
+**Not verified:** the post-mood alert on web (react-native-web `Alert` is a
+no-op); Back during an in-flight save; launching from the Player tab; iOS;
+the Insights refresh on web.
+
+**Test data:** testing wrote 9 real check-ins to the live database from this
+phone's device id (plus none from the mocked web runs). Temporary test code
+(`TEMP-5S` session cap, `TEMP-MOUNTLOG` mount counter) was removed and
+grepped clean.

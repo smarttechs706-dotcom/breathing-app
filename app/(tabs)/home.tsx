@@ -25,6 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchInsights, fetchSessions, type InsightsResponse } from '../../src/api/client';
+import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
@@ -106,6 +107,17 @@ export default function HomeScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // D-02: Home now survives a completed session (see checkinSignal.ts), so
+  // refresh the snapshot silently — old numbers stay on screen, and a failed
+  // refresh leaves them as they were.
+  const refreshAfterCheckin = useCallback(() => {
+    getDeviceId()
+      .then(fetchInsights)
+      .then(setInsights)
+      .catch(() => {});
+  }, []);
+  useRefreshOnNewCheckin(refreshAfterCheckin);
 
   // Independent of the insights fetch above — the Featured Session card and
   // the Snapshot section are two unrelated pieces of data (matches this

@@ -18,6 +18,7 @@ import { fetchInsights, type InsightsResponse } from '../../src/api/client';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MoodTrendChart } from '../../src/components/MoodTrendChart';
+import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import type { MoodPoint } from '../../src/data/insights';
 import type { Checkin } from '../../src/types/models';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
@@ -130,6 +131,16 @@ export default function InsightsScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // D-02: this tab now survives a completed session (see checkinSignal.ts);
+  // refresh silently so the numbers/chart include it.
+  const refreshAfterCheckin = useCallback(() => {
+    getDeviceId()
+      .then(fetchInsights)
+      .then(setInsights)
+      .catch(() => {});
+  }, []);
+  useRefreshOnNewCheckin(refreshAfterCheckin);
 
   if (error) {
     return (

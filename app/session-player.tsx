@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchSessions, postCheckin } from '../src/api/client';
+import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
 import { BreathingRing } from '../src/components/BreathingRing';
 import { GlassCard } from '../src/components/GlassCard';
@@ -294,7 +295,46 @@ export default function SessionPlayerScreen() {
     }
   };
 
-  const handleExitPress = () => confirmIfActive(exitSession);
+  // Posts the check-in. Shared by Done and by "Save" in the exit prompt
+  // below. Resolves true only on success; on failure it leaves saveError set
+  // (moods stay in state) so the user can retry instead of losing the session.
+  const saveCheckin = async (): Promise<boolean> => {
+    if (!session) return false;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const userId = await getDeviceId();
+      await postCheckin({ userId, sessionId: session.id, preMood, postMood });
+      markCheckinSaved();
+      return true;
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save your session.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // D-03: at post-mood the session is complete but the check-in is only
+  // saved by Done, so X / hardware Back used to discard it silently. Now they
+  // ask first. Cancel keeps the user here (an accidental exit costs nothing).
+  const handleExitPress = () => {
+    if (saving) return; // a save is already in flight
+    if (phase === 'post-mood') {
+      Alert.alert('Save your session?', "Your check-in hasn't been saved yet.", [
+        { text: 'Cancel', style: 'cancel' },
+        { text: "Don't save", style: 'destructive', onPress: exitSession },
+        {
+          text: 'Save',
+          onPress: async () => {
+            if (await saveCheckin()) exitSession();
+          },
+        },
+      ]);
+      return;
+    }
+    confirmIfActive(exitSession);
+  };
   const handleSettingsPress = () => confirmIfActive(() => router.push('/settings'));
 
   // Android hardware back button — same rule as the X button, but only
@@ -314,7 +354,7 @@ export default function SessionPlayerScreen() {
     });
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, isFocused]);
+  }, [phase, isFocused, saving, preMood, postMood, session]);
 
   const handleBeginJourney = () => {
     setElapsedSec(0);
@@ -391,21 +431,16 @@ export default function SessionPlayerScreen() {
   }
 
   const handleDone = async () => {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const userId = await getDeviceId();
-      await postCheckin({ userId, sessionId: session.id, preMood, postMood });
-      setActiveSessionId(null);
-      router.replace('/home');
-    } catch (err) {
-      // Stay on this screen — preMood/postMood are still in state, so
-      // Retry (below) can resend the exact same completed session data
-      // rather than losing it.
-      setSaveError(err instanceof Error ? err.message : 'Failed to save your session.');
-    } finally {
-      setSaving(false);
-    }
+    // On failure saveCheckin leaves saveError set and we stay on this screen —
+    // preMood/postMood are still in state, so Try Again resends the exact same
+    // completed session data rather than losing it.
+    if (!(await saveCheckin())) return;
+    setActiveSessionId(null);
+    // D-02: pop back to the (tabs) already underneath instead of
+    // replace()-ing onto a second copy of it (one extra tab tree per
+    // completed session). dismissTo falls back to replace when '/home'
+    // isn't in history (deep link), where there's nothing to duplicate.
+    router.dismissTo('/home');
   };
 
   const progressPercent = Math.min(
