@@ -4335,6 +4335,9 @@ no-op); Back during an in-flight save; launching from the Player tab; iOS;
 the Insights refresh on web.
 
 **Test data:** testing wrote 9 real check-ins to the live database from this
-phone's device id (plus none from the mocked web runs). Temporary test code
+phone's device id (none from the mocked web runs) — **deleted afterward by
+exact id** (2026-10-02), and that device's streak row restored to
+current 2 / longest 2 / last session 2026-09-30 (inferred pre-test value).
+DB re-queried: 9 check-ins remain, matching the pre-test count. Temporary test code
 (`TEMP-5S` session cap, `TEMP-MOUNTLOG` mount counter) was removed and
 grepped clean.
