@@ -22,11 +22,12 @@ export function MoodSelector({
   onChange,
   style,
 }: {
-  value: number; // 1-5
+  value: number | null; // 1-5, or null = nothing chosen yet (D-10)
   onChange: (value: number) => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  const filledPercent = ((value - 1) / (MOOD_EMOJIS.length - 1)) * 100;
+  const filledPercent =
+    value === null ? 0 : ((value - 1) / (MOOD_EMOJIS.length - 1)) * 100;
 
   return (
     <View style={style}>

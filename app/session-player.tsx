@@ -75,7 +75,9 @@ function formatTime(totalSec: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function emojiForMood(mood: number) {
+// D-10: a mood is null until the user picks one, so this must tolerate null.
+function emojiForMood(mood: number | null) {
+  if (mood === null) return '–';
   return MOOD_EMOJIS[Math.min(Math.max(mood, 1), MOOD_EMOJIS.length) - 1];
 }
 
@@ -189,8 +191,10 @@ export default function SessionPlayerScreen() {
   }, [session]);
 
   const [phase, setPhase] = useState<Phase>('pre-mood');
-  const [preMood, setPreMood] = useState(3);
-  const [postMood, setPostMood] = useState(3);
+  // D-10: no default — null until the user actually picks a mood, so an
+  // untouched selector can never submit a fabricated value.
+  const [preMood, setPreMood] = useState<number | null>(null);
+  const [postMood, setPostMood] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [paused, setPaused] = useState(false);
   const [breathSubPhase, setBreathSubPhase] = useState<BreathSubPhase>('inhale');
@@ -300,6 +304,8 @@ export default function SessionPlayerScreen() {
   // (moods stay in state) so the user can retry instead of losing the session.
   const saveCheckin = async (): Promise<boolean> => {
     if (!session) return false;
+    // D-10: never send a null mood to the API.
+    if (preMood === null || postMood === null) return false;
     setSaving(true);
     setSaveError(null);
     try {
@@ -320,6 +326,14 @@ export default function SessionPlayerScreen() {
   // ask first. Cancel keeps the user here (an accidental exit costs nothing).
   const handleExitPress = () => {
     if (saving) return; // a save is already in flight
+    if (phase === 'post-mood' && (preMood === null || postMood === null)) {
+      // D-10: nothing valid to save yet, so don't offer Save.
+      Alert.alert('Exit without saving?', "You haven't chosen how you feel yet, so this session won't be saved.", [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Exit', style: 'destructive', onPress: exitSession },
+      ]);
+      return;
+    }
     if (phase === 'post-mood') {
       Alert.alert('Save your session?', "Your check-in hasn't been saved yet.", [
         { text: 'Cancel', style: 'cancel' },
@@ -521,7 +535,15 @@ export default function SessionPlayerScreen() {
                     onChange={setPreMood}
                     style={styles.moodSelector}
                   />
-                  <Pressable onPress={handleBeginJourney}>
+                  {preMood === null && (
+                    <Text style={styles.moodHint}>Pick how you&apos;re feeling to begin</Text>
+                  )}
+                  <Pressable
+                    onPress={handleBeginJourney}
+                    disabled={preMood === null}
+                    accessibilityState={{ disabled: preMood === null }}
+                    style={preMood === null && styles.buttonDisabled}
+                  >
                     <LinearGradient
                       colors={[colors.inversePrimary, colors.primaryContainer]}
                       start={{ x: 0, y: 0 }}
@@ -645,10 +667,20 @@ export default function SessionPlayerScreen() {
                   </View>
                 )}
 
+                {postMood === null && (
+                  <Text style={[styles.moodHint, styles.moodHintPost]}>
+                    Pick how you feel now to finish
+                  </Text>
+                )}
                 <Pressable
                   onPress={handleDone}
-                  disabled={saving}
-                  style={[styles.doneButton, saving && styles.doneButtonDisabled]}
+                  disabled={saving || postMood === null}
+                  accessibilityState={{ disabled: saving || postMood === null }}
+                  style={[
+                    styles.doneButton,
+                    saving && styles.doneButtonDisabled,
+                    postMood === null && styles.buttonDisabled,
+                  ]}
                 >
                   {saving ? (
                     <ActivityIndicator color={colors.onSurface} />
@@ -780,6 +812,20 @@ const styles = StyleSheet.create({
     fontSize: typography.bodyMd.fontSize,
     color: colors.onSurface,
     textAlign: 'center',
+  },
+  moodHint: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginBottom: spacing.base,
+  },
+  moodHintPost: {
+    marginTop: spacing.sectionGap,
+    marginBottom: 0,
+  },
+  buttonDisabled: {
+    opacity: 0.4,
   },
   moodSelector: {
     maxWidth: 360,
