@@ -10,6 +10,7 @@ import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
 import {
   applyReminderSchedule,
+  REMINDER_TIP,
   requestNotificationPermission,
   saveReminderSettings,
 } from '../../src/utils/reminders';
@@ -90,9 +91,17 @@ export default function BuildHabitScreen() {
 
   async function handleConfirmTime(hour: number, minute: number) {
     const settings = { enabled: true, hour, minute };
-    await applyReminderSchedule(settings);
-    await saveReminderSettings(settings);
+    const result = await applyReminderSchedule(settings);
     setPickerVisible(false);
+    if (!result.ok) {
+      // Nothing saved; stay here so the user can retry or skip.
+      Alert.alert(
+        "Couldn't schedule the reminder",
+        'Please try again, or set it up later from Settings.'
+      );
+      return;
+    }
+    await saveReminderSettings(settings);
     await finishOnboarding();
   }
 
@@ -127,6 +136,7 @@ export default function BuildHabitScreen() {
               We'll remind you at the moments you actually need it — not a
               bedtime ritual you'll forget.
             </Text>
+            <Text style={styles.tip}>{REMINDER_TIP}</Text>
           </View>
         </View>
 
@@ -253,6 +263,13 @@ const styles = StyleSheet.create({
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
     lineHeight: typography.bodyMd.lineHeight,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  tip: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,

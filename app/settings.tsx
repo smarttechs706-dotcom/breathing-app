@@ -11,6 +11,7 @@ import { UserNameModal } from '../src/components/UserNameModal';
 import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
+  REMINDER_TIP,
   getReminderSettings,
   requestNotificationPermission,
   saveReminderSettings,
@@ -87,10 +88,16 @@ export default function SettingsScreen() {
     getUserName().then(setUserNameState);
   }, []);
 
+  const REMINDER_SCHEDULE_ERROR = "Couldn't schedule the reminder. Please try again.";
+
   async function handleToggleChange(nextEnabled: boolean) {
     if (!nextEnabled) {
       const next = { ...reminderSettings, enabled: false };
-      await applyReminderSchedule(next);
+      const result = await applyReminderSchedule(next);
+      if (!result.ok) {
+        setPermissionError(REMINDER_SCHEDULE_ERROR);
+        return;
+      }
       await saveReminderSettings(next);
       setReminderSettings(next);
       setPermissionError(null);
@@ -116,10 +123,16 @@ export default function SettingsScreen() {
 
   async function handleConfirmTime(hour: number, minute: number) {
     const next: ReminderSettings = { enabled: true, hour, minute };
-    await applyReminderSchedule(next);
+    const result = await applyReminderSchedule(next);
+    setPickerVisible(false);
+    if (!result.ok) {
+      // Nothing was saved, so the card keeps showing what is really scheduled.
+      setPermissionError(REMINDER_SCHEDULE_ERROR);
+      return;
+    }
+    setPermissionError(null);
     await saveReminderSettings(next);
     setReminderSettings(next);
-    setPickerVisible(false);
   }
 
   return (
@@ -160,6 +173,7 @@ export default function SettingsScreen() {
               <ReminderToggle value={reminderSettings.enabled} onValueChange={handleToggleChange} />
             </View>
             {permissionError && <Text style={styles.permissionErrorText}>{permissionError}</Text>}
+            <Text style={styles.reminderTip}>{REMINDER_TIP}</Text>
           </GlassCard>
 
           <GlassCard radius={radii.lg} style={styles.card}>
@@ -296,6 +310,12 @@ const styles = StyleSheet.create({
   },
   toggleThumbOn: {
     transform: [{ translateX: 20 }],
+  },
+  reminderTip: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    color: colors.onSurfaceVariant,
+    marginTop: spacing.base * 1.5,
   },
   permissionErrorText: {
     fontFamily: typography.labelSm.fontFamily,

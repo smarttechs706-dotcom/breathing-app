@@ -23,6 +23,17 @@ const notificationsUnavailable = isExpoGo && Platform.OS === 'android';
 // fail-open on error).
 const REMINDER_SETTINGS_KEY = 'breathe_reminder_settings_v1';
 
+// Android channel settings (sound/importance/vibration) can't be changed in
+// code once a channel exists on a device, so the original 'default' channel
+// (importance 3, no vibration) is left alone and reminders use this new one.
+const REMINDER_CHANNEL_ID = 'reminder-v2';
+
+/** Shown on the Settings reminder card and the onboarding reminder screen. */
+export const REMINDER_TIP =
+  'For on-time reminders, set Battery to No restrictions for Breathe and keep notification volume on.';
+
+export type ApplyReminderResult = { ok: true } | { ok: false; error: string };
+
 export interface ReminderSettings {
   enabled: boolean;
   /** 0-23. null = no time has ever been chosen yet — never a fixed default. */
@@ -79,13 +90,21 @@ export async function initNotificationChannel(): Promise<void> {
   if (Platform.OS !== 'android' || notificationsUnavailable) return;
   try {
     const Notifications = notifications();
-    await Notifications.setNotificationChannelAsync('default', {
+    await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
       name: 'Daily reminder',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
     });
-  } catch {
-    // Best-effort — matches this module's existing fail-open pattern.
+  } catch (err) {
+    console.warn('[reminders] channel setup failed', err);
+    return;
   }
+  // Installs that scheduled a reminder before this channel existed still have
+  // a DAILY trigger pointing at the old 'default' channel. Re-applying the
+  // saved schedule moves it to the new channel. applyReminderSchedule cancels
+  // everything first, so this can never leave two reminders scheduled.
+  const saved = await getReminderSettings();
+  if (saved.enabled) await applyReminderSchedule(saved);
 }
 
 // Without a handler, expo-notifications does NOT present a notification that
@@ -122,15 +141,17 @@ export function initNotificationHandler(): void {
 // via the isolated web verification server (see PROGRESS.md). The
 // preference itself still persists via AsyncStorage either way; only the
 // OS-level scheduling call is skipped on a platform with no such OS.
-export async function applyReminderSchedule(settings: ReminderSettings): Promise<void> {
-  if (Platform.OS === 'web' || notificationsUnavailable) return;
+export async function applyReminderSchedule(
+  settings: ReminderSettings
+): Promise<ApplyReminderResult> {
+  if (Platform.OS === 'web' || notificationsUnavailable) return { ok: true };
   try {
     const Notifications = notifications();
 
     await Notifications.cancelAllScheduledNotificationsAsync();
 
     if (!settings.enabled || settings.hour === null || settings.minute === null) {
-      return;
+      return { ok: true };
     }
 
     await Notifications.scheduleNotificationAsync({
@@ -142,17 +163,17 @@ export async function applyReminderSchedule(settings: ReminderSettings): Promise
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: settings.hour,
         minute: settings.minute,
-        channelId: 'default',
+        channelId: REMINDER_CHANNEL_ID,
       },
     });
-  } catch {
-    // Best-effort — the preference itself already persisted via
-    // AsyncStorage separately; only the OS-level scheduling call can throw.
-    //
-    // KNOWN BLIND SPOT (not fixed, documented 2026-09-29): this swallows every
-    // error silently — a failed cancel/schedule leaves no log, no UI signal,
-    // and no return value, so "enabled" in Settings can diverge from what is
-    // actually scheduled. Diagnose with `adb shell dumpsys alarm` (look for
-    // expo.modules.notifications.NOTIFICATION_EVENT) until this logs.
+    return { ok: true };
+  } catch (err) {
+    // Callers only save the preference / show the new time when this is ok,
+    // so "enabled" in Settings can't diverge from what is actually scheduled.
+    console.warn('[reminders] schedule failed', err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Failed to schedule the reminder.',
+    };
   }
 }
