@@ -32,3 +32,7 @@ export async function setOnboardingComplete(): Promise<void> {
     // Best-effort — if this fails, onboarding just shows again next launch.
   }
 }
+
+export async function clearOnboardingComplete(): Promise<void> {
+  await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+}

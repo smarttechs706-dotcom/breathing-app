@@ -56,3 +56,7 @@ export async function setUserName(raw: string): Promise<string | null> {
     return null;
   }
 }
+
+export async function clearUserName(): Promise<void> {
+  await AsyncStorage.removeItem(USER_NAME_KEY);
+}

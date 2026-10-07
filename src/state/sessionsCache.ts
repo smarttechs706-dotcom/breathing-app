@@ -15,3 +15,7 @@ export function getCachedSessions(): Session[] | null {
 export function setCachedSessions(sessions: Session[]): void {
   cached = sessions;
 }
+
+export function clearCachedSessions(): void {
+  cached = null;
+}

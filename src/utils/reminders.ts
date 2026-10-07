@@ -177,3 +177,7 @@ export async function applyReminderSchedule(
     };
   }
 }
+
+export async function clearReminderSettings(): Promise<void> {
+  await AsyncStorage.removeItem(REMINDER_SETTINGS_KEY);
+}

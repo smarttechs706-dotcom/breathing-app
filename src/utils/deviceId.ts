@@ -44,3 +44,11 @@ export async function getDeviceId(): Promise<string> {
     return cachedDeviceId;
   }
 }
+
+// "Delete my data": forget this device's id so the next getDeviceId() mints a
+// fresh one. Throws if the stored key can't be removed, so the caller doesn't
+// report a reset that left the old id behind.
+export async function clearDeviceId(): Promise<void> {
+  await AsyncStorage.removeItem(DEVICE_ID_KEY);
+  cachedDeviceId = null;
+}

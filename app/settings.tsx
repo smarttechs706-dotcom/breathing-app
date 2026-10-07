@@ -2,12 +2,18 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '../src/components/GlassCard';
 import { TimePickerModal } from '../src/components/TimePickerModal';
 import { UserNameModal } from '../src/components/UserNameModal';
+import {
+  confirmDelete,
+  DELETE_FAILURE,
+  deleteMyData,
+  showDeleted,
+} from '../src/utils/deleteMyData';
 import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
@@ -87,6 +93,29 @@ export default function SettingsScreen() {
   useEffect(() => {
     getUserName().then(setUserNameState);
   }, []);
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteData() {
+    if (deleting) return;
+    if (!(await confirmDelete())) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const ok = await deleteMyData();
+    if (!ok) {
+      setDeleting(false);
+      setDeleteError(DELETE_FAILURE);
+      return;
+    }
+    // Local data is gone, so land on onboarding (first-launch state). Pop the
+    // whole stack first so the old Home/Insights/Player never show stale data;
+    // the root index route then redirects to onboarding.
+    showDeleted(() => {
+      router.dismissAll();
+      router.replace('/');
+    });
+  }
 
   const REMINDER_SCHEDULE_ERROR = "Couldn't schedule the reminder. Please try again.";
 
@@ -188,6 +217,25 @@ export default function SettingsScreen() {
                 {userName ?? 'Not set'}
               </Text>
             </Pressable>
+          </GlassCard>
+
+          <GlassCard radius={radii.lg} style={styles.card}>
+            <Pressable
+              onPress={handleDeleteData}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Delete my data"
+              accessibilityState={{ disabled: deleting }}
+              style={styles.aboutRow}
+            >
+              <Text style={styles.cardTitle}>Delete my data</Text>
+              {deleting ? (
+                <ActivityIndicator color={colors.error} />
+              ) : (
+                <MaterialIcons name="delete-outline" size={24} color={colors.error} />
+              )}
+            </Pressable>
+            {deleteError && <Text style={styles.permissionErrorText}>{deleteError}</Text>}
           </GlassCard>
 
           <GlassCard radius={radii.lg} style={styles.card}>

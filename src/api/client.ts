@@ -99,3 +99,17 @@ export async function fetchInsights(userId: string): Promise<InsightsResponse> {
 
   return response.json();
 }
+
+// DELETE /api/user — removes this device's check-ins and streak from the
+// server. Success is any 2xx; the body ({deleted:{checkins,streaks}}) is not
+// relied on (D-04: don't trust response shapes). Limits: 5/min per id.
+export async function deleteUserData(userId: string): Promise<void> {
+  const url = new URL('/api/user', getApiBaseUrl());
+  url.searchParams.set('user_id', userId);
+
+  const response = await fetch(url.toString(), { method: 'DELETE' });
+
+  if (!response.ok) {
+    throw new Error(`DELETE /api/user failed: ${response.status}`);
+  }
+}
