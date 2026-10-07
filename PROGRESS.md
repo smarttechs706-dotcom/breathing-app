@@ -4381,3 +4381,33 @@ after any probe. The 8081/8082/3000 dev servers were stopped.
 **Still open from DEEP-AUDIT-2 (not for next session):** D-01, D-04, D-07 to
 D-20; Back during an in-flight save, launching a session from the Player tab,
 iOS, and the Insights refresh on web were not exercised for D-02/D-03.
+
+## "Delete my data" in Settings (2026-10-07) — built, web-tested with mocks, NOT yet on a device
+New Settings card **Delete my data** (below Name). Flow: confirm dialog (title
+"Delete all your data?", Cancel / "Delete everything" destructive) ->
+`DELETE /api/user?user_id=<device id>` via `src/api/client.ts` (`deleteUserData`,
+base URL from `getApiBaseUrl()`; any non-2xx = failure, response body not
+relied on) -> **only if that succeeded**: cancel the scheduled reminder, clear
+reminder settings, name, device id (incl. the in-memory cache), onboarding flag
+and the sessions cache -> "Your data has been deleted." -> `router.dismissAll()`
++ `router.replace('/')`, which lands on onboarding (first-launch state). On any
+failure (500, 429, network): "Couldn't delete your data. Check your connection
+and try again. Nothing was removed." shown on the card, nothing local touched.
+- Orchestration lives in `src/utils/deleteMyData.ts`; one small `clear…()` was
+  added to `deviceId.ts`, `userName.ts`, `onboarding.ts`, `reminders.ts`,
+  `sessionsCache.ts`. No change to the API, DB, or the committed mood/reminder logic.
+- Web has no working `Alert.alert`, so `deleteMyData.ts` falls back to
+  `window.confirm`/`window.alert` on `Platform.OS === 'web'` (native uses Alert).
+- **Verified on web only, all API calls mocked** (Playwright, Expo web pointed at
+  a dead localhost URL; every `/api/*` request intercepted, zero requests to
+  vercel): success clears all 4 `breathe_*` keys, one DELETE with the stored id,
+  lands on onboarding, no Home left in the DOM (reached via Home -> settings icon
+  so Home was genuinely mounted underneath), next load mints a new device id and
+  insights uses it; 500 / 429 / network-abort leave all 4 keys intact and show the
+  failure text; Cancel sends nothing. Typecheck clean.
+- **Not verified:** native `Alert` dialogs, `dismissAll` on Android, the OS-level
+  reminder actually being cancelled, a real DELETE against the live API. On the
+  phone this deletes the REAL data for that device id (limits: 5/min per id,
+  20/min per IP). Do it last; check `adb shell dumpsys alarm` for the reminder.
+- **Not built (awaiting decision):** showing the device id in Settings (privacy
+  page promises it). Parked by the user for now.
