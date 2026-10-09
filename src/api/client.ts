@@ -68,6 +68,92 @@ async function timedFetch<T>(
   }
 }
 
+// F-08 / D-04 (DEEP-AUDIT-2/3): the client used to trust whatever JSON a 200
+// carried, so a wrong-shaped body (bad deploy, captive portal, version skew)
+// crashed a screen at render time -- and, via the sessions cache, kept
+// crashing later screens until the app was restarted. Responses are now
+// checked here, before anything is returned or cached. A bad body becomes an
+// ordinary Error, which every screen already shows as error + Retry.
+const CATEGORIES: readonly string[] = ['Calm', 'Sleep', 'Energy', 'Recovery'];
+const BADGES: readonly string[] = ['Leaf', 'Moon', 'Zap', 'Heart'];
+const PATTERNS: readonly string[] = ['rings', 'wave', 'starburst', 'dot-grid', 'spiral', 'bloom'];
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isStr = (v: unknown): v is string => typeof v === 'string';
+const isMood = (v: unknown) => isNum(v) && Number.isInteger(v) && v >= 1 && v <= 5;
+
+function isSession(v: unknown): v is Session {
+  if (!isObj(v)) return false;
+  const pc = v.phaseConfig;
+  if (!isObj(pc)) return false;
+  const phases = [pc.inhale, pc.hold, pc.exhale, pc.rest];
+  return (
+    isStr(v.id) &&
+    isStr(v.title) &&
+    isStr(v.description) &&
+    isStr(v.category) && CATEGORIES.includes(v.category) &&
+    isStr(v.badge) && BADGES.includes(v.badge) &&
+    isStr(v.pattern) && PATTERNS.includes(v.pattern) &&
+    isNum(v.durationSec) && v.durationSec > 0 &&
+    // All four must be real numbers and not all zero (a 0 ms breath loop).
+    phases.every((n) => isNum(n) && n >= 0) &&
+    phases.some((n) => (n as number) > 0)
+  );
+}
+
+function isCheckin(v: unknown): v is Checkin {
+  return (
+    isObj(v) &&
+    isStr(v.id) &&
+    isStr(v.sessionId) &&
+    isMood(v.preMood) &&
+    isMood(v.postMood) &&
+    isStr(v.createdAt) &&
+    !Number.isNaN(Date.parse(v.createdAt))
+  );
+}
+
+export function parseSessions(data: unknown): Session[] {
+  const fail = () => new Error('GET /api/sessions returned an unexpected response');
+  if (!Array.isArray(data)) throw fail();
+  const valid = data.filter(isSession);
+  // Drop individual bad rows, but an all-bad list is a bad response.
+  if (data.length > 0 && valid.length === 0) throw fail();
+  return valid;
+}
+
+export function parseInsights(data: unknown): InsightsResponse {
+  const fail = () => new Error('GET /api/insights returned an unexpected response');
+  if (!isObj(data) || !Array.isArray(data.checkins) || !isObj(data.streak)) throw fail();
+  const st = data.streak;
+  if (
+    !isNum(st.currentStreak) ||
+    !isNum(st.longestStreak) ||
+    !isNum(data.totalSessions) ||
+    !isNum(data.sessionsThisWeek) ||
+    !isNum(data.mindfulMinutes) ||
+    !isNum(data.monthOverMonthDelta)
+  ) {
+    throw fail();
+  }
+  return {
+    checkins: data.checkins.filter(isCheckin),
+    streak: {
+      userId: isStr(st.userId) ? st.userId : '',
+      currentStreak: st.currentStreak,
+      longestStreak: st.longestStreak,
+      // '' is a legitimate value for a user with no streak row yet.
+      lastSessionDate: isStr(st.lastSessionDate) ? st.lastSessionDate : '',
+    },
+    totalSessions: data.totalSessions,
+    sessionsThisWeek: data.sessionsThisWeek,
+    mindfulMinutes: data.mindfulMinutes,
+    monthOverMonthDelta: data.monthOverMonthDelta,
+  };
+}
+
 export async function fetchSessions(category?: Session['category']): Promise<Session[]> {
   const url = new URL('/api/sessions', getApiBaseUrl());
   if (category) {
@@ -78,7 +164,7 @@ export async function fetchSessions(category?: Session['category']): Promise<Ses
     if (!response.ok) {
       throw new Error(`GET /api/sessions failed: ${response.status}`);
     }
-    return response.json();
+    return parseSessions(await response.json());
   });
 }
 
@@ -122,7 +208,7 @@ export async function fetchInsights(userId: string): Promise<InsightsResponse> {
     if (!response.ok) {
       throw new Error(`GET /api/insights failed: ${response.status}`);
     }
-    return response.json();
+    return parseInsights(await response.json());
   });
 }
 
