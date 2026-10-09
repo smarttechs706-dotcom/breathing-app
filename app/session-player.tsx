@@ -290,12 +290,36 @@ export default function SessionPlayerScreen() {
   // silently skip the confirmation the others already show.
   const confirmIfActive = (action: () => void) => {
     if (phase === 'active') {
-      Alert.alert('Exit session?', "Your progress won't be saved", [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Exit', style: 'destructive', onPress: action },
-      ]);
+      // F-04 (DEEP-AUDIT-3): says exactly what is lost — leaving mid-session
+      // posts nothing, so the whole session is discarded, not "progress".
+      Alert.alert(
+        'End this session?',
+        "You're partway through. If you leave now, this session won't be counted and no check-in will be saved.",
+        [
+          { text: 'Keep going', style: 'cancel' },
+          { text: 'End session', style: 'destructive', onPress: action },
+        ]
+      );
     } else {
       action();
+    }
+  };
+
+  // F-04: the settings gear does not end the session — the player stays
+  // mounted, pauses while unfocused, and resumes on Back — so it must not
+  // reuse the destructive "End this session?" dialog above.
+  const openSettings = () => {
+    if (phase === 'active') {
+      Alert.alert(
+        'Open Settings?',
+        'Your session will pause and you can pick up where you left off.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => router.push('/settings') },
+        ]
+      );
+    } else {
+      router.push('/settings');
     }
   };
 
@@ -349,7 +373,7 @@ export default function SessionPlayerScreen() {
     }
     confirmIfActive(exitSession);
   };
-  const handleSettingsPress = () => confirmIfActive(() => router.push('/settings'));
+  const handleSettingsPress = openSettings;
 
   // Android hardware back button — same rule as the X button, but only
   // while this screen is actually the focused one. Without the isFocused
