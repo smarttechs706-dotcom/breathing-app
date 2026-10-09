@@ -101,10 +101,35 @@ export async function initNotificationChannel(): Promise<void> {
   }
   // Installs that scheduled a reminder before this channel existed still have
   // a DAILY trigger pointing at the old 'default' channel. Re-applying the
-  // saved schedule moves it to the new channel. applyReminderSchedule cancels
-  // everything first, so this can never leave two reminders scheduled.
+  // saved schedule moves it to the new channel. F-05 (DEEP-AUDIT-3): this runs
+  // on every cold start, so it must never be able to lose a working reminder
+  // -- it does nothing when the right reminder is already scheduled, and
+  // applyReminderSchedule only removes old reminders after the new one exists.
   const saved = await getReminderSettings();
-  if (saved.enabled) await applyReminderSchedule(saved);
+  if (saved.enabled && !(await isReminderAlreadyScheduled(saved))) {
+    await applyReminderSchedule(saved);
+  }
+}
+
+// True only when exactly one scheduled notification exists and it is the daily
+// reminder at the saved time on the current channel. Any doubt (read failure,
+// unexpected shape, duplicates) returns false so the caller re-applies.
+async function isReminderAlreadyScheduled(settings: ReminderSettings): Promise<boolean> {
+  try {
+    const scheduled = await notifications().getAllScheduledNotificationsAsync();
+    if (scheduled.length !== 1) return false;
+    const trigger = scheduled[0].trigger as
+      | { type?: string; hour?: number; minute?: number; channelId?: string | null }
+      | null;
+    return (
+      trigger?.type === 'daily' &&
+      trigger.hour === settings.hour &&
+      trigger.minute === settings.minute &&
+      trigger.channelId === REMINDER_CHANNEL_ID
+    );
+  } catch {
+    return false;
+  }
 }
 
 // Without a handler, expo-notifications does NOT present a notification that
@@ -148,13 +173,14 @@ export async function applyReminderSchedule(
   try {
     const Notifications = notifications();
 
-    await Notifications.cancelAllScheduledNotificationsAsync();
-
     if (!settings.enabled || settings.hour === null || settings.minute === null) {
+      await Notifications.cancelAllScheduledNotificationsAsync();
       return { ok: true };
     }
 
-    await Notifications.scheduleNotificationAsync({
+    // F-05 (DEEP-AUDIT-3): schedule the new reminder FIRST. If this throws,
+    // nothing has been cancelled, so a working reminder is never lost.
+    const newId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Time to breathe',
         body: 'Take a mindful pause with Breathe.',
@@ -166,6 +192,26 @@ export async function applyReminderSchedule(
         channelId: REMINDER_CHANNEL_ID,
       },
     });
+
+    // Only now remove everything else (this app only ever schedules this one
+    // reminder, so anything other than newId is an old copy). If an old one
+    // cannot be cancelled, roll back the new one rather than leave two
+    // reminders firing, and report failure.
+    try {
+      const all = await Notifications.getAllScheduledNotificationsAsync();
+      for (const request of all) {
+        if (request.identifier !== newId) {
+          await Notifications.cancelScheduledNotificationAsync(request.identifier);
+        }
+      }
+    } catch (cleanupErr) {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(newId);
+      } catch {
+        // Best-effort rollback; the original error below is what the caller sees.
+      }
+      throw cleanupErr;
+    }
     return { ok: true };
   } catch (err) {
     // Callers only save the preference / show the new time when this is ok,
