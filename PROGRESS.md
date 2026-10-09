@@ -4437,5 +4437,65 @@ it until the next build (or a dev-client + Metro session).
   versionCode is 1, so the next preview build is 2).
 - **Held for approval:** remove the inert "···" next to "Your Snapshot"
   (`home.tsx:314`). No gear icon exists in the onboarding screens.
-- **Next:** Phase 2 (F-02 keep-awake + wall-clock timer, F-08/D-04 validation,
-  F-05, F-06, F-11) after the user says "go".
+- **Phase 1 addendum:** `bab695d` removed the inert "···" next to "Your Snapshot".
+  Build c4fa56b4 (versionCode 2, from bab695d) was installed with `adb install -r`;
+  aapt2 on the installed APK: versionCode 2, allowBackup=false, SYSTEM_ALERT_WINDOW /
+  READ_ / WRITE_EXTERNAL_STORAGE gone. "After" tab-bar screenshot taken: bar solid,
+  labels readable, last card clears it.
+
+## DEEP-AUDIT-3-FRONTEND.md fixes — Phase 2 (2026-10-09), same branch
+Not merged, not pushed, no EAS build. Every commit: tsc clean, files staged by
+name. None of this is on the phone until the next build.
+- **F-02** `ab99535` real-time session clock + keep-awake. New
+  `src/utils/sessionClock.ts` (pure, timestamp-based: accumulates only while
+  "running"). `session-player.tsx`: `running` = active phase && !paused &&
+  screen focused && app in foreground (AppState); backgrounding PAUSES the
+  clock and it resumes on return; the Settings gear detour pauses it as before.
+  500 ms interval only refreshes the display; `expo-keep-awake` held while
+  running only. Adds `expo-keep-awake@~57.0.2` to package.json (the native module
+  was already compiled into the installed APK, so no native change). `BreathingRing`
+  still restarts from inhale after a pause (old open item, not touched).
+  Tested: 11 fake-clock checks pass (stalled timer, resume, background, 600 s of
+  running with pauses); web run with mocked API: clock held at 00:01 while the
+  page was hidden for 3 s, resumed, reached Session Complete, wake-lock
+  requested on start and re-requested on return.
+- **F-08 + D-04** `59737c8` `parseSessions` / `parseInsights` in `client.ts`
+  validate before returning, so a bad body throws "GET /api/… returned an
+  unexpected response" (existing error + Retry UI) and can never be cached.
+  Bad rows are dropped; an all-bad list, non-array, `streak:null`, missing
+  totals are errors; a phaseConfig that is all zero is rejected (D-15). Tested
+  against the LIVE `/api/sessions` (6 rows, none dropped) and live zero-state
+  `/api/insights` (fake id), plus every D-04 bad shape; web: Library, Insights,
+  Home and Session Player show error + Retry instead of the crash screen.
+- **F-05** `9309804` `applyReminderSchedule` now schedules the new reminder
+  FIRST, then cancels the others (rolls the new one back if an old one can't be
+  cancelled, so no duplicates). Startup re-apply does nothing when exactly one
+  daily reminder at the saved time on `reminder-v2` already exists, otherwise
+  re-applies (also migrates the old `default` channel). Tested with a fake
+  expo-notifications: 13 checks pass; the same tests FAIL 6 checks on the old code
+  (schedule failure erased the reminder).
+- **F-06** `5b4be36` `deleteMyData()` returns `'deleted' | 'failed' |
+  'reminder-not-cancelled'`. If the reminder cancel fails after the server delete,
+  the stored reminder setting is KEPT, everything else is cleared, and Settings
+  stays open with "…we couldn't turn off your daily reminder. Switch it off under
+  Daily Reminder above." (Home/Insights are told to refetch.) Tested with all
+  dependencies stubbed (DELETE mocked, only `MOCK-ID`); web with `/api/user`
+  intercepted: 500 keeps data + shows failure, 200 clears and lands on onboarding.
+  The failed-cancel branch can't be hit on web (reminders no-op there).
+- **F-11** `daddfba` accessibilityLabel + role on the four tab-screen gears, the
+  player's close/settings/pause (label follows paused state); Done has
+  `accessibilityHint="Pick how you feel now to finish"` while no mood is chosen
+  (tap behaviour unchanged); mood bubbles labelled "Stressed, 1 of 5" … "Calm, 5 of 5",
+  `radiogroup` container, `hitSlop` 4 (40 -> 48 dp). Web accessibility tree
+  checked; `accessibilityHint` is not rendered by react-native-web, so the hint
+  and the larger targets need TalkBack / a finger on the phone. Begin Journey has
+  no equivalent hint (not requested).
+- **Needs the phone after the next build:** screen stays on for a whole session;
+  power-button/background pause then resume without the clock jumping (compare a
+  stopwatch); Settings detour; reminder survives a relaunch
+  (`adb shell dumpsys alarm | findstr breathingapp` before/after); TalkBack reads the
+  new labels and the Done hint; the alerts and 10 s timeout from Phase 1.
+- **Still open from the audit:** F-10 (failed post-check-in refresh not retried),
+  F-12 (delete reports success if local clears partly fail / fallback id), F-13
+  (pre-D-10 fabricated moods), F-15 (hard-coded APP_VERSION), F-17 (large-font
+  check), reduce-motion / live-region announcements.
