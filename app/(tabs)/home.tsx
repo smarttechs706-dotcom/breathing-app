@@ -311,7 +311,6 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Your Snapshot</Text>
-              <MaterialIcons name="more-horiz" size={22} color={colors.onSurfaceVariant} />
             </View>
 
             {error ? (
