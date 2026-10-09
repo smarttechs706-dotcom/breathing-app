@@ -41,19 +41,45 @@ export function getApiBaseUrl(): string {
   return RAW_API_BASE_URL;
 }
 
+// F-09 / F-03 (DEEP-AUDIT-3): every request is bounded. A stalled connection
+// used to leave spinners (and the Session Player's `saving` state) running
+// forever. The abort covers reading the body too, and turns into an ordinary
+// Error, so each screen's existing error + Retry UI handles it.
+export const REQUEST_TIMEOUT_MS = 10_000;
+
+async function timedFetch<T>(
+  label: string,
+  url: URL,
+  init: RequestInit | undefined,
+  handle: (response: Response) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url.toString(), { ...init, signal: controller.signal });
+    return await handle(response);
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS / 1000} s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchSessions(category?: Session['category']): Promise<Session[]> {
   const url = new URL('/api/sessions', getApiBaseUrl());
   if (category) {
     url.searchParams.set('category', category);
   }
 
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    throw new Error(`GET /api/sessions failed: ${response.status}`);
-  }
-
-  return response.json();
+  return timedFetch('GET /api/sessions', url, undefined, async (response) => {
+    if (!response.ok) {
+      throw new Error(`GET /api/sessions failed: ${response.status}`);
+    }
+    return response.json();
+  });
 }
 
 export async function postCheckin(payload: {
@@ -64,17 +90,18 @@ export async function postCheckin(payload: {
 }): Promise<Streak> {
   const url = new URL('/api/checkin', getApiBaseUrl());
 
-  const response = await fetch(url.toString(), {
+  const init = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  };
+
+  return timedFetch('POST /api/checkin', url, init, async (response) => {
+    if (!response.ok) {
+      throw new Error(`POST /api/checkin failed: ${response.status}`);
+    }
+    return response.json();
   });
-
-  if (!response.ok) {
-    throw new Error(`POST /api/checkin failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 // Matches architecture.md's GET /api/insights response shape exactly.
@@ -91,13 +118,12 @@ export async function fetchInsights(userId: string): Promise<InsightsResponse> {
   const url = new URL('/api/insights', getApiBaseUrl());
   url.searchParams.set('user_id', userId);
 
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    throw new Error(`GET /api/insights failed: ${response.status}`);
-  }
-
-  return response.json();
+  return timedFetch('GET /api/insights', url, undefined, async (response) => {
+    if (!response.ok) {
+      throw new Error(`GET /api/insights failed: ${response.status}`);
+    }
+    return response.json();
+  });
 }
 
 // DELETE /api/user — removes this device's check-ins and streak from the
@@ -107,9 +133,9 @@ export async function deleteUserData(userId: string): Promise<void> {
   const url = new URL('/api/user', getApiBaseUrl());
   url.searchParams.set('user_id', userId);
 
-  const response = await fetch(url.toString(), { method: 'DELETE' });
-
-  if (!response.ok) {
-    throw new Error(`DELETE /api/user failed: ${response.status}`);
-  }
+  await timedFetch('DELETE /api/user', url, { method: 'DELETE' }, async (response) => {
+    if (!response.ok) {
+      throw new Error(`DELETE /api/user failed: ${response.status}`);
+    }
+  });
 }
