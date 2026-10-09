@@ -104,13 +104,25 @@ function TopBar({
 }) {
   return (
     <View style={styles.topBar}>
-      <Pressable onPress={onExitPress} hitSlop={12} style={styles.topBarButton}>
+      <Pressable
+        onPress={onExitPress}
+        hitSlop={12}
+        style={styles.topBarButton}
+        accessibilityRole="button"
+        accessibilityLabel="Close session"
+      >
         <MaterialIcons name="close" size={24} color={colors.onSurfaceVariant} />
       </Pressable>
       <GradientText colors={[colors.primary, colors.tertiary]} style={styles.topBarTitle}>
         Breathe
       </GradientText>
-      <Pressable onPress={onSettingsPress} hitSlop={12} style={styles.topBarButton}>
+      <Pressable
+        onPress={onSettingsPress}
+        hitSlop={12}
+        style={styles.topBarButton}
+        accessibilityRole="button"
+        accessibilityLabel="Settings"
+      >
         <MaterialIcons name="settings" size={24} color={colors.primary} />
       </Pressable>
     </View>
@@ -666,7 +678,13 @@ export default function SessionPlayerScreen() {
                         style={[styles.progressFill, { width: `${progressPercent}%` }]}
                       />
                     </View>
-                    <Pressable onPress={handlePauseToggle} style={styles.pauseButton}>
+                    <Pressable
+                      onPress={handlePauseToggle}
+                      style={styles.pauseButton}
+                      hitSlop={4}
+                      accessibilityRole="button"
+                      accessibilityLabel={paused ? 'Resume session' : 'Pause session'}
+                    >
                       <MaterialIcons
                         name={paused ? 'play-arrow' : 'pause'}
                         size={24}
@@ -742,7 +760,9 @@ export default function SessionPlayerScreen() {
                 <Pressable
                   onPress={handleDone}
                   disabled={saving || postMood === null}
+                  accessibilityRole="button"
                   accessibilityState={{ disabled: saving || postMood === null }}
+                  accessibilityHint={postMood === null ? 'Pick how you feel now to finish' : undefined}
                   style={[
                     styles.doneButton,
                     saving && styles.doneButtonDisabled,

@@ -31,7 +31,7 @@ export function MoodSelector({
 
   return (
     <View style={style}>
-      <View style={styles.track}>
+      <View style={styles.track} accessibilityRole="radiogroup">
         <View style={styles.trackBase} />
         <LinearGradient
           colors={[colors.primary, colors.tertiary]}
@@ -48,9 +48,11 @@ export function MoodSelector({
                 key={moodValue}
                 onPress={() => onChange(moodValue)}
                 style={[styles.bubble, selected && styles.bubbleSelected]}
+                // F-11: 40 dp bubble + 4 dp each side = 48 dp touch target.
+                hitSlop={4}
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`Mood ${moodValue} of ${MOOD_EMOJIS.length}`}
+                accessibilityLabel={`${MOOD_LABELS[index]}, ${moodValue} of ${MOOD_EMOJIS.length}`}
               >
                 <Text style={styles.emoji}>{emoji}</Text>
               </Pressable>

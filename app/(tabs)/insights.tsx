@@ -104,6 +104,8 @@ function TopBar() {
         onPress={() => router.push('/settings')}
         hitSlop={12}
         style={styles.settingsButton}
+        accessibilityRole="button"
+        accessibilityLabel="Settings"
       >
         <MaterialIcons name="settings" size={24} color={colors.primary} />
       </Pressable>
