@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -124,9 +123,11 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: `${colors.onSurfaceVariant}B3`,
         tabBarShowLabel: false,
         tabBarStyle: [styles.tabBar, { height: TAB_BAR_CONTENT_HEIGHT + insets.bottom }],
-        tabBarBackground: () => (
-          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-        ),
+        // F-01 (DEEP-AUDIT-3): on Android expo-blur defaults to blurMethod
+        // 'none', which paints only a ~27% dark tint, so content scrolling
+        // under the bar showed through the labels. A near-opaque (95%) theme
+        // surface + hairline top border keeps a hint of depth and stays legible.
+        tabBarBackground: () => <View style={styles.tabBarBackground} />,
         tabBarItemStyle: styles.tabItem,
       }}
     >
@@ -212,6 +213,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     backgroundColor: 'transparent',
     paddingTop: 8,
+  },
+  tabBarBackground: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: `${colors.background}F2`, // F2 = 95% alpha
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   tabItem: {
     paddingTop: 4,
