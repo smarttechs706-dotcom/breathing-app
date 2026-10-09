@@ -4411,3 +4411,31 @@ and try again. Nothing was removed." shown on the card, nothing local touched.
   20/min per IP). Do it last; check `adb shell dumpsys alarm` for the reminder.
 - **Not built (awaiting decision):** showing the device id in Settings (privacy
   page promises it). Parked by the user for now.
+
+## DEEP-AUDIT-3-FRONTEND.md fixes — Phase 1 (2026-10-09), branch `fix/audit-3-frontend`
+Branch only: not merged, not pushed, no EAS build. One finding per commit.
+Phone: the installed preview APK embeds its JS, so none of this is visible on
+it until the next build (or a dev-client + Metro session).
+- **F-01** `665c2b4` tab bar: `BlurView` (flat ~27% tint on Android) replaced by a
+  95% `colors.background` fill + hairline top border; scroll padding unchanged.
+  "Before" adb screenshot taken (THIS WEEK text collides with the Home label);
+  "after" pending a build. JS-only.
+- **F-04** `8484eee` exit alert now "End this session?" / "You're partway through…
+  won't be counted and no check-in will be saved" (Keep going / End session);
+  the gear has its own "Open Settings?" (Stay / Open Settings). JS-only; native
+  `Alert` needs the phone.
+- **F-09 + F-03** `0b42061` `timedFetch` in `src/api/client.ts`: 10 s
+  `AbortController` on all four calls (covers the body read), rejects with
+  "<METHOD path> timed out after 10 s". `saving` already resets in a `finally`,
+  so Done/Try Again/X/Back work after a timeout. Tested against the real file
+  with a mocked fetch (hang, body hang, 500, ok; DELETE mocked, no network).
+- **F-07** `ae45981` `android.allowBackup: false` in app.json. **Needs a build.**
+- **F-16** `b1edee8` `android.blockedPermissions`: SYSTEM_ALERT_WINDOW,
+  READ/WRITE_EXTERNAL_STORAGE (come from Expo's default manifest template, no
+  plugin/code uses them). **Needs a build**; verify with `aapt2 dump permissions`.
+- **F-14** `7ef6dab` `autoIncrement: true` on the preview profile (remote
+  versionCode is 1, so the next preview build is 2).
+- **Held for approval:** remove the inert "···" next to "Your Snapshot"
+  (`home.tsx:314`). No gear icon exists in the onboarding screens.
+- **Next:** Phase 2 (F-02 keep-awake + wall-clock timer, F-08/D-04 validation,
+  F-05, F-06, F-11) after the user says "go".
