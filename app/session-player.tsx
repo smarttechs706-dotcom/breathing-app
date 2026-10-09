@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -6,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  AppState,
   BackHandler,
   Pressable,
   ScrollView,
@@ -26,6 +28,14 @@ import { useActiveSession } from '../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
 import type { Session } from '../src/types/models';
 import { getDeviceId } from '../src/utils/deviceId';
+import {
+  INITIAL_CLOCK,
+  elapsedSeconds,
+  setRunning as setClockRunning,
+  type ClockState,
+} from '../src/utils/sessionClock';
+
+const KEEP_AWAKE_TAG = 'breathe-session';
 
 // ============================================================================
 // FLAGGED CONFLICT (per instruction: flag rather than silently pick one)
@@ -222,13 +232,45 @@ export default function SessionPlayerScreen() {
   // paused, and not while this screen has lost focus (e.g. Settings was
   // pushed on top) — otherwise a long-enough visit to Settings mid-session
   // could silently auto-complete it in the background.
+  //
+  // F-02 (DEEP-AUDIT-3): elapsed time now comes from a timestamp-based clock
+  // (src/utils/sessionClock.ts), not from counting interval ticks, so a
+  // throttled timer can only make the display late, never stretch the
+  // session. The clock only runs while the session is `running`: active
+  // phase, not paused, this screen focused (Settings pauses it) and the app
+  // in the foreground (backgrounding pauses it; it resumes on return).
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
-    if (phase !== 'active' || paused || !isFocused) return;
+    const sub = AppState.addEventListener('change', (s) => setAppActive(s === 'active'));
+    return () => sub.remove();
+  }, []);
+
+  const running = phase === 'active' && !paused && isFocused && appActive;
+  const clockRef = useRef<ClockState>(INITIAL_CLOCK);
+
+  useEffect(() => {
+    clockRef.current = setClockRunning(clockRef.current, running, Date.now());
+    if (!running) {
+      // Show the exact value the clock stopped at.
+      setElapsedSec(elapsedSeconds(clockRef.current, Date.now()));
+      return;
+    }
     const id = setInterval(() => {
-      setElapsedSec((s) => s + 1);
-    }, 1000);
+      setElapsedSec(elapsedSeconds(clockRef.current, Date.now()));
+    }, 500);
     return () => clearInterval(id);
-  }, [phase, paused, isFocused]);
+  }, [running]);
+
+  // Keep the display awake only while the session is actually running (and
+  // release on pause / exit / finish / unmount), so a screen timeout can't
+  // interrupt a session the user is breathing through with eyes closed.
+  useEffect(() => {
+    if (!running) return;
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [running]);
 
   // Auto-advance to post-mood once the session's full duration has elapsed.
   useEffect(() => {
@@ -243,7 +285,7 @@ export default function SessionPlayerScreen() {
   // each sub-phase has a different duration. Also paused while unfocused —
   // same reasoning as the elapsed-time timer above.
   useEffect(() => {
-    if (phase !== 'active' || paused || !isFocused || !session) return;
+    if (!running || !session) return;
     const durations: Record<BreathSubPhase, number> = {
       inhale: session.phaseConfig.inhale,
       hold: session.phaseConfig.hold,
@@ -260,7 +302,7 @@ export default function SessionPlayerScreen() {
       setBreathSubPhase((cur) => nextSubPhase[cur]);
     }, durations[breathSubPhase] * 1000);
     return () => clearTimeout(id);
-  }, [phase, paused, isFocused, breathSubPhase, session]);
+  }, [running, breathSubPhase, session]);
 
   const exitSession = () => {
     setActiveSessionId(null);
@@ -395,6 +437,7 @@ export default function SessionPlayerScreen() {
   }, [phase, isFocused, saving, preMood, postMood, session]);
 
   const handleBeginJourney = () => {
+    clockRef.current = INITIAL_CLOCK;
     setElapsedSec(0);
     setBreathSubPhase('inhale');
     setPhase('active');
