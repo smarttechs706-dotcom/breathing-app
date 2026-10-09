@@ -11,9 +11,11 @@ import { UserNameModal } from '../src/components/UserNameModal';
 import {
   confirmDelete,
   DELETE_FAILURE,
+  DELETE_REMINDER_NOT_CANCELLED,
   deleteMyData,
   showDeleted,
 } from '../src/utils/deleteMyData';
+import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
@@ -102,10 +104,20 @@ export default function SettingsScreen() {
     if (!(await confirmDelete())) return;
     setDeleting(true);
     setDeleteError(null);
-    const ok = await deleteMyData();
-    if (!ok) {
+    const result = await deleteMyData();
+    if (result === 'failed') {
       setDeleting(false);
       setDeleteError(DELETE_FAILURE);
+      return;
+    }
+    if (result === 'reminder-not-cancelled') {
+      // F-06: everything else is deleted, but the OS reminder is still
+      // scheduled. Stay here so the user can switch it off; make Home/Insights
+      // refetch (with the new device id) the next time they are shown instead
+      // of keeping the deleted data on screen.
+      markCheckinSaved();
+      setDeleting(false);
+      setDeleteError(DELETE_REMINDER_NOT_CANCELLED);
       return;
     }
     // Local data is gone, so land on onboarding (first-launch state). Pop the

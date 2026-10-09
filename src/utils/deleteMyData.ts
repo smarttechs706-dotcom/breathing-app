@@ -45,22 +45,46 @@ export function showDeleted(onOk: () => void): void {
 }
 
 /**
+ * 'deleted'                 everything is gone (server + this phone).
+ * 'failed'                  the server delete failed; nothing local was touched.
+ * 'reminder-not-cancelled'  server data and local data are gone, BUT the OS
+ *                           daily reminder could not be cancelled, so its
+ *                           stored setting was kept so the user can switch it
+ *                           off in Settings (F-06, DEEP-AUDIT-3).
+ */
+export type DeleteResult = 'deleted' | 'failed' | 'reminder-not-cancelled';
+
+export const DELETE_REMINDER_NOT_CANCELLED =
+  "Your data was deleted, but we couldn't turn off your daily reminder. Switch it off under Daily Reminder above.";
+
+/**
  * Deletes this device's server data, and ONLY if that succeeded clears the
- * local data. Returns false (nothing local touched) if the server delete
- * failed. Local clears are best-effort individually so one failing key
+ * local data. Local clears are best-effort individually so one failing key
  * can't stop the rest, and the server data is already gone by then.
  */
-export async function deleteMyData(): Promise<boolean> {
+export async function deleteMyData(): Promise<DeleteResult> {
   try {
     await deleteUserData(await getDeviceId());
   } catch {
-    return false;
+    return 'failed';
   }
 
-  // Cancel the scheduled reminder first, then forget everything else.
+  // Cancel the scheduled reminder first. applyReminderSchedule never throws --
+  // it returns { ok: false } -- so the result must be checked, otherwise a
+  // failed cancel would leave the OS firing "Time to breathe" after the app
+  // reports everything deleted.
+  let reminderCancelled = false;
+  try {
+    const result = await applyReminderSchedule({ enabled: false, hour: null, minute: null });
+    reminderCancelled = result.ok;
+  } catch {
+    reminderCancelled = false;
+  }
+
   const clears: (() => Promise<unknown> | unknown)[] = [
-    () => applyReminderSchedule({ enabled: false, hour: null, minute: null }),
-    clearReminderSettings,
+    // Keep the stored reminder setting if the reminder is still scheduled, so
+    // Settings keeps showing it as on and the user can turn it off.
+    ...(reminderCancelled ? [clearReminderSettings] : []),
     clearUserName,
     clearDeviceId,
     clearOnboardingComplete,
@@ -73,5 +97,5 @@ export async function deleteMyData(): Promise<boolean> {
       // Keep going; see doc comment.
     }
   }
-  return true;
+  return reminderCancelled ? 'deleted' : 'reminder-not-cancelled';
 }
