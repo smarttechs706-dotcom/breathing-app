@@ -46,21 +46,25 @@ export function getApiBaseUrl(): string {
 // forever. The abort covers reading the body too, and turns into an ordinary
 // Error, so each screen's existing error + Retry UI handles it.
 export const REQUEST_TIMEOUT_MS = 10_000;
+// The check-in save gets longer: on-device a save took 4-13 s on a cold API,
+// and timing out a save the user just finished is worse than waiting.
+export const CHECKIN_TIMEOUT_MS = 20_000;
 
 async function timedFetch<T>(
   label: string,
   url: URL,
   init: RequestInit | undefined,
-  handle: (response: Response) => Promise<T>
+  handle: (response: Response) => Promise<T>,
+  timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url.toString(), { ...init, signal: controller.signal });
     return await handle(response);
   } catch (err) {
     if (controller.signal.aborted) {
-      throw new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS / 1000} s`);
+      throw new Error(`${label} timed out after ${timeoutMs / 1000} s`);
     }
     throw err;
   } finally {
@@ -182,12 +186,18 @@ export async function postCheckin(payload: {
     body: JSON.stringify(payload),
   };
 
-  return timedFetch('POST /api/checkin', url, init, async (response) => {
-    if (!response.ok) {
-      throw new Error(`POST /api/checkin failed: ${response.status}`);
-    }
-    return response.json();
-  });
+  return timedFetch(
+    'POST /api/checkin',
+    url,
+    init,
+    async (response) => {
+      if (!response.ok) {
+        throw new Error(`POST /api/checkin failed: ${response.status}`);
+      }
+      return response.json();
+    },
+    CHECKIN_TIMEOUT_MS
+  );
 }
 
 // Matches architecture.md's GET /api/insights response shape exactly.

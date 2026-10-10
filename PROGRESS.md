@@ -4499,3 +4499,10 @@ name. None of this is on the phone until the next build.
   F-12 (delete reports success if local clears partly fail / fallback id), F-13
   (pre-D-10 fabricated moods), F-15 (hard-coded APP_VERSION), F-17 (large-font
   check), reduce-motion / live-region announcements.
+
+## Check-in save timeout raised to 20 s (2026-10-10), branch `fix/checkin-timeout-20s`
+`POST /api/checkin` now times out after 20 s (`CHECKIN_TIMEOUT_MS`); every GET and
+the DELETE keep 10 s (`REQUEST_TIMEOUT_MS`). Reason: during the screenshot run on the
+phone, saves took 4-13 s on the cold API, close to the old 10 s limit. The timeout
+error text now reports the real value ("timed out after 20 s"). Not merged, not
+pushed, no build; reaches the phone with the next build.
