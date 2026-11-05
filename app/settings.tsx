@@ -1,10 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getApiBaseUrl } from '../src/api/client';
 import { GlassCard } from '../src/components/GlassCard';
 import { TimePickerModal } from '../src/components/TimePickerModal';
 import { UserNameModal } from '../src/components/UserNameModal';
@@ -27,7 +29,12 @@ import {
 } from '../src/utils/reminders';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = Constants.expoConfig?.version ?? '';
+
+// Opened from About; the policy page is served by the same API as the data.
+function openPrivacyPolicy() {
+  Linking.openURL(new URL('/privacy', getApiBaseUrl()).toString()).catch(() => {});
+}
 
 // architecture.md's Notifications section: daily reminder time is always
 // user-chosen, never a fixed default — see src/utils/reminders.ts.
@@ -255,6 +262,15 @@ export default function SettingsScreen() {
               <Text style={styles.cardTitle}>About</Text>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
             </View>
+            <Pressable
+              onPress={openPrivacyPolicy}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy Policy"
+              style={[styles.aboutRow, styles.privacyRow]}
+            >
+              <Text style={styles.cardTitle}>Privacy Policy</Text>
+              <MaterialIcons name="open-in-new" size={24} color={colors.onSurfaceVariant} />
+            </Pressable>
           </GlassCard>
         </View>
       </SafeAreaView>
@@ -398,6 +414,10 @@ const styles = StyleSheet.create({
     lineHeight: typography.bodyMd.lineHeight,
     fontWeight: '600',
     color: colors.primary,
+  },
+  privacyRow: {
+    marginTop: spacing.gutter,
+    minHeight: 48,
   },
   versionText: {
     fontFamily: typography.bodyMd.fontFamily,

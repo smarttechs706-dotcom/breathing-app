@@ -96,7 +96,7 @@ export async function initNotificationChannel(): Promise<void> {
       vibrationPattern: [0, 250, 250, 250],
     });
   } catch (err) {
-    console.warn('[reminders] channel setup failed', err);
+    if (__DEV__) console.warn('[reminders] channel setup failed', err);
     return;
   }
   // Installs that scheduled a reminder before this channel existed still have
@@ -216,7 +216,7 @@ export async function applyReminderSchedule(
   } catch (err) {
     // Callers only save the preference / show the new time when this is ok,
     // so "enabled" in Settings can't diverge from what is actually scheduled.
-    console.warn('[reminders] schedule failed', err);
+    if (__DEV__) console.warn('[reminders] schedule failed', err);
     return {
       ok: false,
       error: err instanceof Error ? err.message : 'Failed to schedule the reminder.',

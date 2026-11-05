@@ -1,40 +1,23 @@
 # Progress
 
 ## Status
-Workspace scaffolded, folder structure set up, PRD.md/architecture.md/CLAUDE.md
-in place, design references loaded, theme tokens done, Expo Router wired up.
-Build order steps 1-6 done and verified on-device: Home, Library, Session
-Player, shared tab bar/navigation, Insights, and now Onboarding. Two known
-cosmetic-only deferrals remain (tab bar active-pill width; Library's last
-card requiring a scroll under the floating tab bar — both previously
-investigated and understood, not regressions). This session (2026-09-16)
-built Onboarding (3 screens) and confirmed all 3 screens plus every exit
-path (Next/Next/Get Started, Skip, Enable Reminders) on-device. A later
-same-week session (2026-09-17) added real "why this helps" descriptions
-to the 5 sessions that lacked them, matching Deep Exhale's existing copy
-style — additive-only, `src/data/sessions.ts` only. A same-week session
-(2026-09-18) replaced `BreathOrb` (Home) and `SessionThumbnail` (Library)'s
-programmatic-SVG placeholders with the user's 7 real illustration images
-in `assets/illustrations/` — see "Real illustrations" section below. A
-following 2026-09-18/19 session investigated a reported Home orb
-flicker on-device (no bug found in the animation itself — see "Home orb
-art investigation" below), then the user supplied a cleaned-up
-transparent `hero-orb.png` and 6 cleaned-up session illustrations,
-re-keyed `SessionThumbnail` from `pattern` to session `id`, and fixed two
-real thumbnail bugs (off-center Deep Exhale, undersized Stress Relief) —
-see the corresponding dated sections below for full detail. On-device
-confirmation of the illustration/thumbnail-fix work is still pending
-(adb connection to the user's phone needs re-pairing — see "Blockers").
-A 2026-09-19 session made several data-only changes to
-`src/data/sessions.ts` (title renames, category moves, a corresponding
-badge fix synced into architecture.md's locked table — see the dated
-entries below), then built Settings (build order step 7) once the user
-supplied its design reference — `app/settings.tsx`, two cards (Daily
-Reminder, About) per `settings-code.html`/`DESIGN.md`, additive-only, not
-yet confirmed on-device (see "Done: Settings screen" below and
-"Blockers"). Next up: Settings needs on-device confirmation, then
-Notifications (build order step 10) and the backend (step 8) remain the
-biggest unbuilt pieces.
+Build order steps 1-9 are done: theme tokens, Home, Library, Session Player,
+Insights, Onboarding, Settings (Daily Reminder, Name, Delete my data, About),
+the real backend (`breathing-app-api`), and every screen wired to it. Step 10
+is half done: the daily reminder is built and verified on-device (2026-09-29);
+the weekly recap is not built (no code schedules it). "Delete my data" is
+built (`DELETE /api/user` + local wipe), as are the DEEP-AUDIT-3 frontend
+fixes (Phase 1 and 2, see the dated sections near the end of this file).
+Current work (2026-10): security/privacy audit follow-ups. Branch
+`fix/checkin-timeout-20s` (20 s check-in timeout) and
+`fix/audit-4-quick-wins` (privacy-policy link, CSPRNG device id, version from
+config, `__DEV__`-gated warnings) are not merged or built yet. Still open:
+F-10, F-12, F-13, F-17, reduce-motion/live regions, DEEP-AUDIT-2 D-01, D-04,
+D-07 to D-20, and the security items still missing: user id in the query
+string, no per-install secret, unsent check-ins are not persisted, dependency
+upgrades (runtime `decode-uri-component` via expo-router). Several fixes still
+need an on-device check after the next EAS build. The older per-feature
+history below is kept as written and is not a current status.
 
 ## Done
 - Scaffolded Expo project (`breathing-app`) with TypeScript template
@@ -4374,7 +4357,7 @@ fix, how it will be proven closed.
   Tell the user anything outside D-05/D-06 that turns up rather than fixing it.
 
 **State at the end of this session (2026-10-02):** mobile repo clean at
-`09f0800` (D-02/D-03 fix `84abff8`); no git remote (D-07). Live DB holds exactly
+`09f0800` (D-02/D-03 fix `84abff8`); no git remote at that time (D-07; since added: `origin` = github.com/smarttechs706-dotcom/breathing-app, confirm it is private). Live DB holds exactly
 9 check-ins and 3 streak rows (the pre-test baseline) — compare against this
 after any probe. The 8081/8082/3000 dev servers were stopped.
 
@@ -4506,3 +4489,15 @@ the DELETE keep 10 s (`REQUEST_TIMEOUT_MS`). Reason: during the screenshot run o
 phone, saves took 4-13 s on the cold API, close to the old 10 s limit. The timeout
 error text now reports the real value ("timed out after 20 s"). Not merged, not
 pushed, no build; reaches the phone with the next build.
+
+## Audit-4 quick wins (2026-11-05), branch `fix/audit-4-quick-wins`
+Not committed, not merged, no EAS build. `npx tsc --noEmit` clean.
+- Settings > About: "Privacy Policy" row opens `{API base URL}/privacy` with
+  `Linking.openURL` (URL from `getApiBaseUrl()`, nothing new hard-coded). The
+  `/privacy` page must exist on the API before release.
+- `deviceId.ts`: new ids use `expo-crypto` `randomUUID()`; stored ids are read
+  back unchanged. **Adds `expo-crypto` (native module) -> needs a new EAS build.**
+- `settings.tsx`: version now read from `Constants.expoConfig?.version`.
+- `reminders.ts`: both `console.warn` calls gated behind `__DEV__`.
+- `@expo/ngrok` NOT removed: it is what `expo start --tunnel` needs and
+  `metro.config.js` is built around tunnel mode (see 2026-09 entry above).

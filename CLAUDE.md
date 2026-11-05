@@ -31,8 +31,12 @@ this repo.
   flag it and ask rather than silently deviating.
 
 ## Build/run commands
-(fill in once the fresh Expo project is scaffolded — e.g. `npx expo start`,
-test commands, lint commands)
+- Dev server: `npx expo start` (add `--tunnel` for a phone off the LAN; set
+  `EXPO_PUBLIC_API_BASE_URL` in `.env.local`)
+- Typecheck: `npx tsc --noEmit`
+- Android build: `eas build --profile preview --platform android` (APK) or
+  `--profile production` (AAB)
+- No test or lint scripts exist yet
 
 ## Skills in use
 - frontend-design (Anthropic) + impeccable — for visual polish decisions
@@ -47,8 +51,8 @@ test commands, lint commands)
 4. Session Player (3 states, dummy/placeholder data)
 5. Insights (dummy/placeholder data)
 6. Onboarding (3 screens)
-7. Settings — **no Stitch design exists yet**; needs a design pass or
-   written spec before starting this step, see PRD.md
+7. Settings — done (Daily Reminder, Name, Delete my data, About incl. Privacy
+   Policy link); built from `settings-code.html`
 8. Scaffold breathing-app-api/ and build the real backend (see
    architecture.md's API contract)
 9. Wire all screens to the real backend API, replacing dummy data

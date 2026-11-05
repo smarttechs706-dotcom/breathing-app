@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { randomUUID } from 'expo-crypto';
 
 // architecture.md's "Auth (v1)": no user accounts — a device-generated
 // UUID stored in AsyncStorage on first launch, sent as `userId` in every
@@ -10,15 +11,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Expo Go's AsyncStorage isn't reliably sandboxed per-project on-device.
 const DEVICE_ID_KEY = 'breathe_device_id_v1';
 
-// Plain Math.random()-based v4 UUID — adequate here since this is a local
-// grouping identifier, not a security credential. Avoids adding a new
-// dependency (e.g. expo-crypto) for a non-cryptographic need.
+// New ids come from a CSPRNG: the id is the only thing that identifies a
+// device's mood history to the API (DEEP-AUDIT: Math.random() is not secure).
+// Ids already stored on a device are read back unchanged, so existing installs
+// keep their history.
 function generateUUIDv4(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  return randomUUID();
 }
 
 let cachedDeviceId: string | null = null;
