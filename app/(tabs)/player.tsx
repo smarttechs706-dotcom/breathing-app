@@ -208,7 +208,7 @@ export default function PlayerScreen() {
             colors={[colors.primary, colors.tertiary]}
             style={styles.headline}
           >
-            Breathe
+            Breathease
           </GradientText>
           <Pressable
             onPress={() => router.push('/settings')}

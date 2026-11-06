@@ -1,88 +1,142 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useRef, useState } from 'react';
 
-import { parseAuthLink, type AuthLinkType } from '../../src/auth/deepLink';
+import { AUTH_MESSAGES, authErrorMessage } from '../../src/auth/authErrors';
+import { useAuth } from '../../src/auth/AuthProvider';
+import { parseAuthLink, type AuthLink as ParsedLink } from '../../src/auth/deepLink';
 import { getAuth } from '../../src/auth/supabase';
-import { colors, spacing, typography } from '../../src/theme/tokens';
+import { useSingleFlight } from '../../src/auth/useSingleFlight';
+import { AccountEmail } from '../../src/components/auth/AccountEmail';
+import { AuthLink } from '../../src/components/auth/AuthLink';
+import { AuthScreen } from '../../src/components/auth/AuthScreen';
+import { FormMessage } from '../../src/components/auth/FormMessage';
+import { GradientButton } from '../../src/components/auth/GradientButton';
 
-// Deep-link target for email links. Link handling proved on the device in the
-// auth spike; Phase 4 replaces this plain screen with the real states.
+// Every email link lands here, outside all route guards. A link can only ever
+// verify: nothing destructive runs from one, and an existing session is never
+// replaced without asking.
+type Phase = 'checking' | 'confirmReplace' | 'expired' | 'failed' | 'invalid';
 
-type Status = 'verifying' | 'verified' | 'failed' | 'ignored';
-
-const MESSAGES: Record<Status, string> = {
-  verifying: 'Checking your link...',
-  verified: 'Your link worked.',
-  failed: "This link didn't work.",
-  ignored: "This link can't be used.",
-};
-
+// Android can deliver the same link twice, and links are single use.
 let lastHandledHash: string | null = null;
-
-async function verify(tokenHash: string, type: AuthLinkType): Promise<boolean> {
-  try {
-    const { data, error } = await getAuth().verifyOtp({ token_hash: tokenHash, type });
-    return !error && Boolean(data.session);
-  } catch {
-    return false;
-  }
-}
 
 export default function AuthCallback() {
   const params = useLocalSearchParams<{ token_hash?: string; type?: string }>();
+  const { status, session, beginLink, endLink, signOut } = useAuth();
+  const { running, run } = useSingleFlight();
+  const [phase, setPhase] = useState<Phase>('checking');
+  const [message, setMessage] = useState<string | null>(null);
+  const started = useRef(false);
+
   const link = parseAuthLink(params.token_hash, params.type);
-  const tokenHash = link?.tokenHash ?? null;
-  const type = link?.type ?? null;
-  const [status, setStatus] = useState<Status>('verifying');
+  const isRecovery = link?.type === 'recovery';
+
+  async function redeem(target: ParsedLink) {
+    lastHandledHash = target.tokenHash;
+    // Before verifyOtp on purpose: the session it creates must never be seen
+    // as a plain login, even for a moment or after a kill.
+    await beginLink(target.type === 'recovery' ? 'recovery' : 'linkConfirm');
+
+    let failure: unknown = null;
+    try {
+      const { data, error } = await getAuth().verifyOtp({
+        token_hash: target.tokenHash,
+        type: target.type,
+      });
+      if (error) failure = error;
+      else if (!data.session) failure = {};
+    } catch (error) {
+      failure = error;
+    }
+
+    if (failure === null) {
+      router.replace('/');
+      return;
+    }
+
+    await endLink();
+    const text = authErrorMessage(failure);
+    setMessage(text);
+    setPhase(text === AUTH_MESSAGES.linkExpired ? 'expired' : 'failed');
+  }
+
+  const start = (target: ParsedLink) => run(() => redeem(target));
 
   useEffect(() => {
-    if (!tokenHash || !type) {
-      setStatus('ignored');
+    if (status === 'loading' || started.current) return;
+    started.current = true;
+
+    if (!link || lastHandledHash === link.tokenHash) {
+      setPhase('invalid');
       return;
     }
-    // Links are single use, and Android can deliver the same one twice.
-    if (lastHandledHash === tokenHash) {
-      setStatus('ignored');
+    if (status === 'signedOut') {
+      void start(link);
       return;
     }
-    lastHandledHash = tokenHash;
-    verify(tokenHash, type).then((ok) => setStatus(ok ? 'verified' : 'failed'));
-  }, [tokenHash, type]);
+    setPhase('confirmReplace');
+  }, [status]);
+
+  const useThisLink = () =>
+    run(async () => {
+      if (!link) return;
+      await signOut();
+      await redeem(link);
+    });
+
+  const retry = () => {
+    if (link) void start(link);
+  };
+
+  if (phase === 'confirmReplace') {
+    return (
+      <AuthScreen title="You're already signed in" subtitle="Use this link to switch accounts?">
+        {session?.user.email ? (
+          <AccountEmail prefix="Signed in as" email={session.user.email} />
+        ) : null}
+        <GradientButton label="Use this link" onPress={useThisLink} running={running} />
+        <AuthLink
+          label="Stay signed in"
+          onPress={() => router.replace('/')}
+          disabled={running}
+        />
+      </AuthScreen>
+    );
+  }
+
+  if (phase === 'expired') {
+    return (
+      <AuthScreen title={AUTH_MESSAGES.linkExpired}>
+        <GradientButton label="Log in" onPress={() => router.replace('/login')} />
+        <AuthLink
+          label="Send a new link"
+          onPress={() => router.replace(isRecovery ? '/forgot-password' : '/check-email')}
+        />
+      </AuthScreen>
+    );
+  }
+
+  if (phase === 'failed') {
+    return (
+      <AuthScreen title="That didn't work">
+        <FormMessage message={message} />
+        <GradientButton label="Try again" onPress={retry} running={running} />
+        <AuthLink label="Back" onPress={() => router.replace('/')} disabled={running} />
+      </AuthScreen>
+    );
+  }
+
+  if (phase === 'invalid') {
+    return (
+      <AuthScreen title={AUTH_MESSAGES.linkInvalid}>
+        <GradientButton label="Continue" onPress={() => router.replace('/')} />
+      </AuthScreen>
+    );
+  }
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.title}>{MESSAGES[status]}</Text>
-        {status !== 'verifying' && (
-          <Pressable
-            onPress={() => router.replace('/')}
-            style={styles.button}
-            accessibilityRole="button"
-          >
-            <Text style={styles.buttonText}>Continue</Text>
-          </Pressable>
-        )}
-      </SafeAreaView>
-    </View>
+    <AuthScreen title="Checking your link" subtitle="This only takes a moment.">
+      <GradientButton label="Checking" onPress={() => undefined} running />
+    </AuthScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  safeArea: { flex: 1, padding: spacing.marginMobile, gap: spacing.base },
-  title: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    color: colors.onSurface,
-  },
-  button: {
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: 12,
-  },
-  buttonText: { color: colors.primary, fontWeight: '600' },
-});

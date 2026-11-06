@@ -11,6 +11,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getApiBaseUrl } from '../src/api/client';
+import { AuthProvider, useAuth } from '../src/auth/AuthProvider';
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors } from '../src/theme/tokens';
 import { initNotificationChannel, initNotificationHandler } from '../src/utils/reminders';
@@ -18,6 +19,50 @@ import { initNotificationChannel, initNotificationHandler } from '../src/utils/r
 // Shows the thrown message (e.g. a missing/placeholder API URL in a release
 // build) on screen instead of the app just closing.
 export { ErrorBoundary } from 'expo-router';
+
+// A screen outside every guard stays reachable: `index` routes by status, and
+// `auth/callback` must open whatever the status is. When a guard turns false,
+// Expo Router drops those screens from history and returns to `index`.
+function RootStack() {
+  const { status } = useAuth();
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="auth/callback" />
+
+      <Stack.Protected guard={status === 'signedOut'}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="onboarding/welcome" />
+        <Stack.Screen name="onboarding/how-it-works" />
+        <Stack.Screen name="onboarding/build-habit" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'signedIn'}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="session-player" />
+        <Stack.Screen name="settings" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'recovery'}>
+        <Stack.Screen name="reset-password" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'linkConfirm'}>
+        <Stack.Screen name="auth/signed-in" />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'offlineRestore'}>
+        <Stack.Screen name="offline-restore" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   // Fail fast and visibly on a misconfigured release build; a no-op in dev.
@@ -42,15 +87,12 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ActiveSessionProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        />
-      </ActiveSessionProvider>
+      <AuthProvider>
+        <ActiveSessionProvider>
+          <StatusBar style="light" />
+          <RootStack />
+        </ActiveSessionProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

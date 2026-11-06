@@ -98,7 +98,7 @@ function TopBar() {
         <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
       </View>
       <GradientText colors={[colors.primary, colors.tertiary]} style={styles.headline}>
-        Breathe
+        Breathease
       </GradientText>
       <Pressable
         onPress={() => router.push('/settings')}

@@ -31,11 +31,9 @@ import {
 // Button copy: the actual reference/screenshot only has "Get Started"
 // (primary) + "Enable reminders" (secondary text link) — there's no
 // separate "Skip for now" button on this screen (only the shared "Skip"
-// header present on screens 1-2, absent here per the reference). Per the
-// instruction that both of this screen's actions must end in Home, both
-// "Get Started" and "Enable reminders" navigate to Home; "Enable reminders"
-// additionally shows a dummy permission prompt first (real push
-// notifications are build order step 10, not wired up here).
+// header present on screens 1-2, absent here per the reference). Both
+// "Get Started" and "Enable reminders" end at Sign up, since accounts are
+// required; "Enable reminders" asks for the permission and a time first.
 export default function BuildHabitScreen() {
   const float = useRef(new Animated.Value(0)).current;
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -65,7 +63,7 @@ export default function BuildHabitScreen() {
 
   async function finishOnboarding() {
     await setOnboardingComplete();
-    router.replace('/home');
+    router.replace('/signup');
   }
 
   async function handleEnableReminders() {

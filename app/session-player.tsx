@@ -114,7 +114,7 @@ function TopBar({
         <MaterialIcons name="close" size={24} color={colors.onSurfaceVariant} />
       </Pressable>
       <GradientText colors={[colors.primary, colors.tertiary]} style={styles.topBarTitle}>
-        Breathe
+        Breathease
       </GradientText>
       <Pressable
         onPress={onSettingsPress}

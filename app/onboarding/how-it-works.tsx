@@ -37,9 +37,9 @@ const steps = [
   },
 ];
 
-async function skipToHome() {
+async function skipToSignUp() {
   await setOnboardingComplete();
-  router.replace('/home');
+  router.replace('/signup');
 }
 
 export default function HowItWorksScreen() {
@@ -51,7 +51,7 @@ export default function HowItWorksScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
           <View />
-          <Pressable onPress={skipToHome} hitSlop={8} style={styles.skipButton}>
+          <Pressable onPress={skipToSignUp} hitSlop={8} style={styles.skipButton}>
             <Text style={styles.skipText}>Skip</Text>
             <MaterialIcons name="chevron-right" size={16} color={colors.primary} />
           </Pressable>

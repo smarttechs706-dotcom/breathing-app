@@ -38,6 +38,7 @@ type AuthContextValue = {
   // Call when the link failed, or when the user finished that screen.
   endLink: () => Promise<void>;
   retryRestore: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -106,6 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnrestored(data.session ? false : await hasUnrestoredSession());
   }, []);
 
+  // auth-js can return early and leave the session stored when the network is
+  // down, so the stored copy is always cleared here as well.
+  const signOut = useCallback(async () => {
+    try {
+      await getAuth().signOut({ scope: 'local' });
+    } catch {
+      // Falls through: a local sign-out must still happen with no signal.
+    }
+    await secureSessionStorage.removeItem(SESSION_STORAGE_KEY);
+    await AsyncStorage.removeItem(PENDING_LINK_KEY);
+    setSession(null);
+    setUnrestored(false);
+    setPendingLink(null);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status: deriveAuthStatus({
@@ -118,8 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       beginLink,
       endLink,
       retryRestore,
+      signOut,
     }),
-    [ready, session, pendingLink, unrestored, beginLink, endLink, retryRestore]
+    [ready, session, pendingLink, unrestored, beginLink, endLink, retryRestore, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -19,9 +19,9 @@ import { setOnboardingComplete } from '../../src/utils/onboarding';
 // Home's hero image — reusing the established `BreathOrb` component (a
 // local SVG built off DESIGN.md's own "large, central sphere that pulses
 // with a soft glow" spec) instead of bundling an unowned hotlinked image.
-async function skipToHome() {
+async function skipToSignUp() {
   await setOnboardingComplete();
-  router.replace('/home');
+  router.replace('/signup');
 }
 
 export default function WelcomeScreen() {
@@ -32,7 +32,7 @@ export default function WelcomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
           <MaterialIcons name="local-florist" size={22} color={colors.primary} />
-          <Pressable onPress={skipToHome} hitSlop={8}>
+          <Pressable onPress={skipToSignUp} hitSlop={8}>
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
         </View>

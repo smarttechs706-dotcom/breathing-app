@@ -30,7 +30,7 @@ const REMINDER_CHANNEL_ID = 'reminder-v2';
 
 /** Shown on the Settings reminder card and the onboarding reminder screen. */
 export const REMINDER_TIP =
-  'For on-time reminders, set Battery to No restrictions for Breathe and keep notification volume on.';
+  'For on-time reminders, set Battery to No restrictions for Breathease and keep notification volume on.';
 
 export type ApplyReminderResult = { ok: true } | { ok: false; error: string };
 
@@ -183,7 +183,7 @@ export async function applyReminderSchedule(
     const newId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Time to breathe',
-        body: 'Take a mindful pause with Breathe.',
+        body: 'Take a mindful pause with Breathease.',
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,

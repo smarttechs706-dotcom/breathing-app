@@ -3,7 +3,20 @@ const { test } = require('node:test');
 
 const { loadTs } = require('./helpers.cjs');
 
-const { AUTH_MESSAGES, authErrorMessage } = loadTs('src/auth/authErrors.ts');
+const { AUTH_MESSAGES, authErrorMessage, isAccountExistsError } = loadTs('src/auth/authErrors.ts');
+
+test('account-exists codes are recognised so sign up can end the same way', () => {
+  assert.equal(isAccountExistsError({ code: 'user_already_exists' }), true);
+  assert.equal(isAccountExistsError({ code: 'email_exists' }), true);
+  assert.equal(isAccountExistsError({ code: 'weak_password' }), false);
+  assert.equal(isAccountExistsError(null), false);
+});
+
+test('neutral messages never say whether an account exists', () => {
+  for (const key of ['checkEmail', 'resendSent', 'forgotSent', 'invalidCredentials']) {
+    assert.doesNotMatch(AUTH_MESSAGES[key], /already|registered|not found|no account/i);
+  }
+});
 
 const cases = [
   [{ code: 'invalid_credentials', status: 400 }, 'invalidCredentials'],

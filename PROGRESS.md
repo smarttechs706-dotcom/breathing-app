@@ -4526,7 +4526,21 @@ yet), `authStatus.ts`, `authErrors.ts`, `deepLink.ts`, `npm run check:auth`, and
 `npm run test:auth` (61 tests in `tests/auth/`, Node's runner, no new
 dependencies). App name is now Breathease in `app.json`.
 
-**Next:** Phase 4 screens, only when the user says so. Before any EAS build, set
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in that EAS
-environment, or the build crashes at launch by design. Phase 5 needs the
-backend's Bearer routes.
+**Phase 4, screens and gating (2026-11-07): committed as WIP, not pushed, not yet
+tested with real emails.** Only Log in, Forgot password and Sign up have been seen
+on the phone, with no form submitted. Sign up, Log in, Forgot password, Check your email, Reset password,
+"Signed in as", and an offline screen. Route guards in `app/_layout.tsx`,
+`app/index.tsx` routes by status, `app/+native-intent.tsx` filters inbound links.
+All auth buttons share `useSingleFlight`; Resend and Forgot have a 60 s cooldown
+held outside the screen. Checked in a mobile browser with Supabase mocked (37
+checks) and by `npm run test:auth` (91 tests).
+- Visible name is now Breathease everywhere ("Breathe in slowly" instructions stay).
+- Skipped for now by the user's choice: glass cards around forms, uppercase labels.
+- Signed-in users have no sign-out button until Phase 6. Only the link screens
+  can sign out for now.
+- Data still uses device ids until Phase 5.
+
+**Next:** run Phase 4 on the phone, including links to a closed app (preview APK).
+Before any EAS build, set `EXPO_PUBLIC_SUPABASE_URL` and
+`EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in that EAS environment, or the build
+crashes at launch by design. Phase 5 needs the backend's Bearer routes.
