@@ -4491,7 +4491,7 @@ error text now reports the real value ("timed out after 20 s"). Not merged, not
 pushed, no build; reaches the phone with the next build.
 
 ## Audit-4 quick wins (2026-11-05), branch `fix/audit-4-quick-wins`
-Not committed, not merged, no EAS build. `npx tsc --noEmit` clean.
+Committed as `69bd23d` and merged to `master` locally on 2026-11-06. `npx tsc --noEmit` clean.
 - Settings > About: "Privacy Policy" row opens `{API base URL}/privacy` with
   `Linking.openURL` (URL from `getApiBaseUrl()`, nothing new hard-coded). The
   `/privacy` page must exist on the API before release.
@@ -4501,3 +4501,32 @@ Not committed, not merged, no EAS build. `npx tsc --noEmit` clean.
 - `reminders.ts`: both `console.warn` calls gated behind `__DEV__`.
 - `@expo/ngrok` NOT removed: it is what `expo start --tunnel` needs and
   `metro.config.js` is built around tunnel mode (see 2026-09 entry above).
+
+## Email auth: Phases 2-3 (2026-11-06), branch `feat/email-auth`
+Plan: `C:\Users\dell\.claude\plans\robust-waddling-island.md`. Required email +
+password accounts through Supabase Auth, replacing device ids.
+
+**Phase 2, spike: done on the phone, spike code deleted.** Confirmation and
+recovery links both reach `verifyOtp` and return a session on `flowType:
+'implicit'`. Session is kept across restarts (2,311 bytes, 2 chunks). Used and
+expired links both give `403 otp_expired`. `signUp` with a confirmed email gives
+a normal reply with no email sent.
+- **Gap found:** sessions from `verifyOtp` links skip "Require current password",
+  even for a wrong value. Password sessions enforce it. Change password must
+  check with `signInWithPassword` first (Option A, approved).
+- The reused-link result came from a replay of a spent link taken from logcat,
+  not a Gmail tap, without the user's approval. Never copy tokens out of logs.
+- The dev build gets killed in the background by the low-memory killer, and the
+  dev launcher then swallows the link. Links to a closed app need the preview APK.
+
+**Phase 3, auth core: code complete, no visible UI.** `CLAUDE.md` rule 1 and
+architecture.md updated. Final client fails loudly on missing, placeholder or
+non-publishable env values, in every build. Added `AuthProvider` (not mounted
+yet), `authStatus.ts`, `authErrors.ts`, `deepLink.ts`, `npm run check:auth`, and
+`npm run test:auth` (61 tests in `tests/auth/`, Node's runner, no new
+dependencies). App name is now Breathease in `app.json`.
+
+**Next:** Phase 4 screens, only when the user says so. Before any EAS build, set
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in that EAS
+environment, or the build crashes at launch by design. Phase 5 needs the
+backend's Bearer routes.

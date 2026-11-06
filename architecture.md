@@ -6,14 +6,17 @@
   repo from the mobile app
 - **Database:** Supabase (Postgres) — accessed ONLY through the Next.js API,
   never directly from the mobile app
+- **Auth:** Supabase Auth, email + password, through `supabase-js` for AUTH ONLY
 - **Hosting (backend):** Vercel
 - **Design source:** Stitch-generated DESIGN.md + HTML exports (see
   /assets/design-reference/) — these are the visual source of truth
 
 ## Key architectural decision: Next.js API layer in front of Supabase
 The mobile app calls a custom Next.js REST API, which then talks to Supabase.
-The mobile app never imports `@supabase/supabase-js` and never holds a
-Supabase key.
+All data goes through that API with a Bearer token. The mobile app uses
+`@supabase/supabase-js` for auth only, through `getAuth()` in
+`src/auth/supabase.ts`, and holds only the publishable key. `npm run
+check:auth` fails on `.from()`, `.rpc()`, storage or a server key in app code.
 
 **Why:** full code ownership and portability (no platform lock-in), direct
 debuggability (read our own API code and logs instead of a third-party
@@ -21,10 +24,10 @@ abstraction), and precise control over business logic (streak calculation,
 mood-delta rules) that's easier to express correctly in real code than
 through a low-code backend layer.
 
-**Confirmed (2026-09-23, breathing-app-api/PROGRESS.md):** this is
-permanent, not per-feature — the mobile app never calls Supabase directly
-with an anon/public key for anything, ever. `breathing-app-api` is the
-sole gateway, using the `service_role` key only. Consequence: Supabase
+**Updated (2026-11-06):** the mobile app never reaches Supabase data directly,
+for anything, ever. Auth is the one exception, for accounts only.
+`breathing-app-api` is the sole data gateway, using the `service_role` key
+only. Consequence: Supabase
 Row Level Security on the underlying tables must still be enabled with
 deny-all policies for `anon`/`authenticated` — `service_role` bypasses
 RLS regardless, so this costs the API nothing, but the anon key is
@@ -241,8 +244,24 @@ that was Stitch generating inconsistent nav per screen; Home/Insights'
 version wins.
 
 ## Auth (v1)
-No user accounts. Device-generated UUID stored in AsyncStorage on first
-launch, sent as `userId` in all API calls.
+Required email + password accounts through Supabase Auth, with no guest mode.
+The device UUID stays in use only until the Phase 5 API cutover.
+
+- **Client:** `flowType: 'implicit'`. Email links use `verifyOtp` with a
+  `token_hash`, which never reads a PKCE verifier, and the phone has no WebCrypto.
+- **Session storage:** chunked SecureStore adapter. Sessions are about 2,300
+  bytes, past the single-value size this adapter allows.
+- **Links:** email → https page → `breathingapp://auth/callback` → `verifyOtp`.
+  `src/auth/deepLink.ts` rejects anything not matching the known shape.
+- **Status:** `src/auth/authStatus.ts` decides the one auth status; `AuthProvider`
+  feeds it. A link flag is stored before `verifyOtp`, so a kill cannot skip
+  the recovery or "Signed in as" screen.
+- **Change password:** must check the current password with
+  `signInWithPassword` first. Sessions from `verifyOtp` links skip Supabase's
+  "Require current password" check, even for a wrong value (seen on a device,
+  2026-11-06).
+- **Known risk:** custom scheme links can be intercepted, and Android's system
+  log records the full link. App Links fix this, after the closed test.
 
 ## Notifications
 `expo-notifications` in the mobile app. Daily reminder scheduled locally on

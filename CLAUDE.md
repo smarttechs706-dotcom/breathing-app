@@ -4,9 +4,9 @@ Read PRD.md, architecture.md, and PROGRESS.md before starting any work in
 this repo.
 
 ## House rules — never violate these
-- **Never call Supabase directly from this app.** No `@supabase/supabase-js`
-  as a dependency, no Supabase client code, no Supabase auth. All data goes
-  through the Next.js API defined in architecture.md.
+- **supabase-js is allowed for AUTH ONLY** (`getAuth()` only, never
+  `.from()`/`.rpc()`/storage); all data goes through the Next.js API with
+  Bearer tokens. Publishable key only, never `service_role`.
 - **Never re-derive the Library session mapping** (badge/category/pattern).
   Use the locked table in architecture.md exactly as given — it's the result
   of extensive verification, not a starting guess.
@@ -36,7 +36,10 @@ this repo.
 - Typecheck: `npx tsc --noEmit`
 - Android build: `eas build --profile preview --platform android` (APK) or
   `--profile production` (AAB)
-- No test or lint scripts exist yet
+- Auth rules check: `npm run check:auth` (there is no ESLint; this is the lint
+  step). Add `-- --cutover` from Phase 5 on to also fail on device-id code
+- Auth logic tests: `npm run test:auth` (Node's test runner, no new
+  dependencies). Other code has no tests yet
 
 ## Skills in use
 - frontend-design (Anthropic) + impeccable — for visual polish decisions

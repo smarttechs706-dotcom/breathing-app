@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 import { secureSessionStorage } from './secureSessionStorage';
@@ -13,6 +13,36 @@ export const SESSION_STORAGE_KEY = 'breathease-auth';
 
 const AUTH_TIMEOUT_MS = 15_000;
 
+// Expo only inlines EXPO_PUBLIC_ values read as these exact expressions.
+const RAW_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const RAW_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+// Fails loudly in every build, at startup: an app that cannot reach auth has
+// no usable path, so a silent failure later would only be harder to find. The
+// messages name the setting and never echo its value.
+function requireUrl(): string {
+  if (!RAW_URL) {
+    throw new Error('EXPO_PUBLIC_SUPABASE_URL is missing. Set it for this build.');
+  }
+  if (!RAW_URL.startsWith('https://') || new URL(RAW_URL).hostname.endsWith('.invalid')) {
+    throw new Error('EXPO_PUBLIC_SUPABASE_URL is not a real https:// URL. Set it for this build.');
+  }
+  return RAW_URL;
+}
+
+function requirePublishableKey(): string {
+  if (!RAW_PUBLISHABLE_KEY) {
+    throw new Error('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing. Set it for this build.');
+  }
+  // Anything else is a placeholder or, worse, a server key in a public app.
+  if (!RAW_PUBLISHABLE_KEY.startsWith('sb_publishable_')) {
+    throw new Error(
+      'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not a publishable key. Set it for this build.'
+    );
+  }
+  return RAW_PUBLISHABLE_KEY;
+}
+
 // Every auth call is bounded, same reasoning as timedFetch in src/api/client.ts:
 // a stalled connection must not leave a spinner running forever.
 const fetchWithTimeout: typeof fetch = (input, init) => {
@@ -22,45 +52,28 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
-let client: SupabaseClient | null = null;
+const client = createClient(requireUrl(), requirePublishableKey(), {
+  auth: {
+    // Not pkce: email links use verifyOtp with a token_hash, which never reads
+    // the verifier. Proved on a device in the auth spike.
+    flowType: 'implicit',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+    storage: secureSessionStorage,
+    storageKey: SESSION_STORAGE_KEY,
+  },
+  global: { fetch: fetchWithTimeout },
+});
 
-// SPIKE: built on first use and throws a readable error, so a missing env
-// value shows on the spike screen instead of crashing the whole app at import.
-function getClient(): SupabaseClient {
-  if (client) return client;
-
-  const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) {
-    throw new Error(
-      'EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not set.'
-    );
-  }
-
-  client = createClient(url, publishableKey, {
-    auth: {
-      flowType: 'implicit',
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-      storage: secureSessionStorage,
-      storageKey: SESSION_STORAGE_KEY,
-    },
-    global: { fetch: fetchWithTimeout },
+// Refresh only while the app is in the foreground (Supabase's Expo guide).
+if (Platform.OS !== 'web') {
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') client.auth.startAutoRefresh();
+    else client.auth.stopAutoRefresh();
   });
-
-  // Refresh only while the app is in the foreground (Supabase's Expo guide).
-  if (Platform.OS !== 'web') {
-    const created = client;
-    AppState.addEventListener('change', (state) => {
-      if (state === 'active') created.auth.startAutoRefresh();
-      else created.auth.stopAutoRefresh();
-    });
-  }
-
-  return client;
 }
 
 export function getAuth() {
-  return getClient().auth;
+  return client.auth;
 }

@@ -142,15 +142,3 @@ export const secureSessionStorage = {
     return enqueue(() => removeChunked(key));
   },
 };
-
-// SPIKE ONLY: sizes, never contents.
-export async function inspectStoredValue(
-  key: string
-): Promise<{ bytes: number; chunks: number } | null> {
-  const value = await secureSessionStorage.getItem(key);
-  if (value === null) return null;
-  const chunks = splitUtf8(value);
-  let bytes = 0;
-  for (const char of value) bytes += utf8Length(char.codePointAt(0) as number);
-  return { bytes, chunks: chunks.length };
-}

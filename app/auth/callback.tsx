@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { parseAuthLink, type AuthLinkType } from '../../src/auth/deepLink';
 import { getAuth } from '../../src/auth/supabase';
 import { colors, spacing, typography } from '../../src/theme/tokens';
 
@@ -20,12 +21,7 @@ const MESSAGES: Record<Status, string> = {
 
 let lastHandledHash: string | null = null;
 
-function first(value: string | string[] | undefined): string | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-async function verify(tokenHash: string, type: 'email' | 'recovery'): Promise<boolean> {
+async function verify(tokenHash: string, type: AuthLinkType): Promise<boolean> {
   try {
     const { data, error } = await getAuth().verifyOtp({ token_hash: tokenHash, type });
     return !error && Boolean(data.session);
@@ -36,12 +32,13 @@ async function verify(tokenHash: string, type: 'email' | 'recovery'): Promise<bo
 
 export default function AuthCallback() {
   const params = useLocalSearchParams<{ token_hash?: string; type?: string }>();
-  const tokenHash = first(params.token_hash);
-  const type = first(params.type);
+  const link = parseAuthLink(params.token_hash, params.type);
+  const tokenHash = link?.tokenHash ?? null;
+  const type = link?.type ?? null;
   const [status, setStatus] = useState<Status>('verifying');
 
   useEffect(() => {
-    if (!tokenHash || (type !== 'email' && type !== 'recovery')) {
+    if (!tokenHash || !type) {
       setStatus('ignored');
       return;
     }
