@@ -1,6 +1,6 @@
 export const MIN_PASSWORD_LENGTH = 8;
 
-const MAX_FIRST_NAME_LENGTH = 30;
+export const MAX_FIRST_NAME_LENGTH = 30;
 
 export function normalizeEmail(raw: string): string {
   return raw.trim();

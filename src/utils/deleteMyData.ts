@@ -2,9 +2,7 @@ import { Alert, Platform } from 'react-native';
 
 import { deleteUserData } from '../api/client';
 import { clearCachedSessions } from '../state/sessionsCache';
-import { clearOnboardingComplete } from './onboarding';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
-import { clearUserName } from './userName';
 
 export const DELETE_TITLE = 'Delete your account?';
 export const DELETE_MESSAGE =
@@ -61,6 +59,7 @@ export const DELETE_REMINDER_NOT_CANCELLED =
  * clears the local data. Local clears are best-effort individually so one
  * failing key can't stop the rest, and the server data is already gone by then.
  * The caller signs out afterwards: the token outlives the deleted account.
+ * The onboarding flag stays, so this phone lands on Log in, not onboarding.
  */
 export async function deleteMyData(): Promise<DeleteResult> {
   try {
@@ -85,8 +84,6 @@ export async function deleteMyData(): Promise<DeleteResult> {
     // Keep the stored reminder setting if the reminder is still scheduled, so
     // the next account on this phone sees it as on and can turn it off.
     ...(reminderCancelled ? [clearReminderSettings] : []),
-    clearUserName,
-    clearOnboardingComplete,
     clearCachedSessions,
   ];
   for (const clear of clears) {

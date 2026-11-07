@@ -49,6 +49,7 @@ breathing-app/
 │   │   └── insights.tsx
 │   ├── onboarding/
 │   ├── session-player.tsx
+│   ├── change-password.tsx
 │   └── settings.tsx
 ├── src/
 │   ├── theme/tokens.ts       # generated from DESIGN.md — colors, type, spacing, radius
@@ -277,7 +278,18 @@ The device UUID was removed in the Phase 5 API cutover.
 - **Change password:** must check the current password with
   `signInWithPassword` first. Sessions from `verifyOtp` links skip Supabase's
   "Require current password" check, even for a wrong value (seen on a device,
-  2026-11-06).
+  2026-11-06). `src/auth/changePassword.ts` does that, then calls `updateUser`
+  with `current_password`. Nothing retries, and the 60 s wait starts only on a
+  rate limit, so a typo can be corrected straight away.
+- **Name:** `user_metadata.display_name`, set at sign-up and edited with
+  `updateUser`. Home and Settings read it from the session through
+  `src/auth/accountName.ts`. It is for display only. There is no local name.
+- **Sign out:** `AuthProvider.signOut`, local scope, works with no signal. The
+  route guards go to Log in. The daily reminder is a phone setting and stays.
+- **Delete account:** see the API contract. The onboarding flag stays, so the
+  phone lands on Log in.
+- **Old installs:** `src/utils/legacyCleanup.ts` removes the old device id and
+  local name by prefix at each launch, so neither key is named in code.
 - **Known risk:** custom scheme links can be intercepted, and Android's system
   log records the full link. App Links fix this, after the closed test.
 

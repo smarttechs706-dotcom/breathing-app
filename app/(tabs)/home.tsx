@@ -26,16 +26,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../src/api/apiErrors';
 import { fetchInsights, fetchSessions, type InsightsResponse } from '../../src/api/client';
+import { accountFirstName, homeGreeting } from '../../src/auth/accountName';
+import { useAuth } from '../../src/auth/AuthProvider';
 import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
+import { AccountAvatar } from '../../src/components/AccountAvatar';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MOOD_EMOJIS, MOOD_LABELS } from '../../src/components/MoodSelector';
-import { UserNameModal } from '../../src/components/UserNameModal';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
-import { getUserName } from '../../src/utils/userName';
 
 function formatDuration(durationSec: number) {
   return `${Math.round(durationSec / 60)} min`;
@@ -67,26 +68,12 @@ function greetingForHour(hour: number): string {
 
 export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
-  // TEMPORARY local display name (src/utils/userName.ts) — undefined = still
-  // reading storage (shows nothing, so a saved name never flashes the
-  // "Tap to add your name" prompt), null = none saved.
-  const [userName, setUserNameState] = useState<string | null | undefined>(undefined);
-  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const { session } = useAuth();
   const [hour, setHour] = useState(() => new Date().getHours());
 
-  // Home stays mounted underneath Settings, so a mount-only read would go
-  // stale after editing the name there. Reads local storage only — no network
-  // call, so this doesn't touch the insights/sessions fetches below.
   useFocusEffect(
     useCallback(() => {
-      let active = true;
       setHour(new Date().getHours());
-      getUserName().then((name) => {
-        if (active) setUserNameState(name);
-      });
-      return () => {
-        active = false;
-      };
     }, [])
   );
   // null = still loading (first fetch, or a retry in flight).
@@ -183,32 +170,17 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
           <View style={styles.topBarLeft}>
-            <View style={styles.avatar}>
-              <MaterialIcons name="person" size={20} color={colors.onSurfaceVariant} />
-            </View>
+            <AccountAvatar size={48} />
             <View style={styles.greetingColumn}>
               <Text style={styles.greetingLabel}>{greetingForHour(hour)}</Text>
-              {/* Fixed-height slot so the bar doesn't shift between the
-                  loading, "Tap to add your name" and name states. */}
               <View style={styles.greetingNameSlot}>
-                {userName === undefined ? null : userName === null ? (
-                  <Pressable
-                    onPress={() => setNameModalVisible(true)}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add your name"
-                  >
-                    <Text style={styles.addNamePrompt}>Tap to add your name</Text>
-                  </Pressable>
-                ) : (
-                  <GradientText
-                    colors={[colors.primary, colors.tertiary]}
-                    style={styles.greetingName}
-                    numberOfLines={1}
-                  >
-                    {userName}
-                  </GradientText>
-                )}
+                <GradientText
+                  colors={[colors.primary, colors.tertiary]}
+                  style={styles.greetingName}
+                  numberOfLines={1}
+                >
+                  {homeGreeting(accountFirstName(session?.user))}
+                </GradientText>
               </View>
             </View>
           </View>
@@ -308,13 +280,17 @@ export default function HomeScreen() {
             </View>
 
             {error ? (
-              <View style={styles.snapshotCenterState}>
+              // A row, not the centered stack Featured uses: this sits low on the
+              // screen, and a taller block pushed Retry behind the tab bar.
+              <View style={styles.snapshotErrorRow}>
                 <MaterialIcons name="error-outline" size={28} color={colors.onSurfaceVariant} />
-                <Text style={styles.snapshotCenterStateText}>
-                  Couldn&apos;t load your snapshot.
-                </Text>
-                <Text style={styles.snapshotCenterStateSubtext}>{error}</Text>
-                <Pressable onPress={load} style={styles.retryButton}>
+                <View style={styles.snapshotErrorText}>
+                  <Text style={styles.snapshotCenterStateText}>
+                    Couldn&apos;t load your snapshot.
+                  </Text>
+                  <Text style={styles.snapshotErrorSubtext}>{error}</Text>
+                </View>
+                <Pressable onPress={load} style={[styles.retryButton, styles.retryButtonInline]}>
                   <Text style={styles.retryButtonText}>Retry</Text>
                 </Pressable>
               </View>
@@ -376,16 +352,6 @@ export default function HomeScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-
-      <UserNameModal
-        visible={nameModalVisible}
-        initialName={userName ?? null}
-        onSaved={(name) => {
-          setUserNameState(name);
-          setNameModalVisible(false);
-        }}
-        onCancel={() => setNameModalVisible(false)}
-      />
     </View>
   );
 }
@@ -440,24 +406,6 @@ const styles = StyleSheet.create({
   greetingNameSlot: {
     minHeight: typography.headlineLgMobile.lineHeight,
     justifyContent: 'center',
-  },
-  // TEMPORARY prompt shown until a name is saved — a quieter line than the
-  // gradient name, in the accent color so it reads as tappable.
-  addNamePrompt: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   greetingLabel: {
     fontFamily: typography.labelSm.fontFamily,
@@ -625,6 +573,24 @@ const styles = StyleSheet.create({
     fontSize: typography.bodyMd.fontSize,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
+  },
+  snapshotErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base * 1.5,
+    paddingVertical: spacing.base * 2,
+  },
+  snapshotErrorText: {
+    flex: 1,
+    gap: spacing.base / 2,
+  },
+  snapshotErrorSubtext: {
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    color: colors.onSurfaceVariant,
+  },
+  retryButtonInline: {
+    marginTop: 0,
   },
   retryButton: {
     marginTop: spacing.base,

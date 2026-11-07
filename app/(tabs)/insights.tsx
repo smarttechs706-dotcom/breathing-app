@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../src/api/apiErrors';
 import { fetchInsights, type InsightsResponse } from '../../src/api/client';
+import { AccountAvatar } from '../../src/components/AccountAvatar';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MoodTrendChart } from '../../src/components/MoodTrendChart';
@@ -94,9 +95,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 function TopBar() {
   return (
     <View style={styles.topBar}>
-      <View style={styles.avatar}>
-        <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
-      </View>
+      <AccountAvatar size={40} />
       <GradientText colors={[colors.primary, colors.tertiary]} style={styles.headline}>
         Breathease
       </GradientText>
@@ -342,16 +341,6 @@ const styles = StyleSheet.create({
   // session-player.tsx's settings icon.
   settingsButton: {
     padding: spacing.base,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
   },
   headline: {
     fontFamily: typography.headlineLgMobile.fontFamily,

@@ -8,6 +8,8 @@ export const AUTH_MESSAGES = {
   weakPassword: 'Use at least 8 characters',
   samePassword: 'Choose a different password',
   currentPasswordIncorrect: 'Current password is incorrect',
+  passwordsDontMatch: "Passwords don't match",
+  passwordChanged: 'Your password has been changed.',
   linkExpired: 'This link was already used or has expired',
   linkInvalid: "This link can't be used",
   logInAgain: 'Please log in again to continue',

@@ -1,3 +1,4 @@
+import { StyleSheet, View } from 'react-native';
 import Svg, {
   Defs,
   FeGaussianBlur,
@@ -39,7 +40,6 @@ interface Point {
 // of hand-authored.
 function buildSmoothPath(points: Point[]): string {
   if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
 
   let d = `M ${points[0].x},${points[0].y}`;
   for (let i = 1; i < points.length - 1; i++) {
@@ -76,6 +76,16 @@ export function MoodTrendChart({
 }) {
   const points = moodToPoints(data);
   if (points.length === 0) return null;
+
+  // One point has no line to draw. A plain View, because the SVG below stretches
+  // to fit (preserveAspectRatio="none") and would turn a circle into an oval.
+  if (points.length === 1) {
+    return (
+      <View style={{ height }}>
+        <View style={[styles.dot, { top: `${(points[0].y / VIEWBOX_HEIGHT) * 100}%` }]} />
+      </View>
+    );
+  }
 
   const linePath = buildSmoothPath(points);
   const firstX = points[0].x;
@@ -122,3 +132,18 @@ export function MoodTrendChart({
     </Svg>
   );
 }
+
+const DOT_SIZE = 12;
+
+const styles = StyleSheet.create({
+  dot: {
+    position: 'absolute',
+    left: '50%',
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    marginLeft: -DOT_SIZE / 2,
+    marginTop: -DOT_SIZE / 2,
+    borderRadius: DOT_SIZE / 2,
+    backgroundColor: colors.primary,
+  },
+});

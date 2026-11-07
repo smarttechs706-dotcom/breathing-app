@@ -52,8 +52,7 @@ const rules = [
 if (cutover) {
   rules.push({
     message: 'device ids were replaced by accounts',
-    // Phase 6: add breathe_user_name back here once src/utils/userName.ts is gone.
-    test: (line) => /deviceId|getDeviceId|breathe_device_id/.test(line),
+    test: (line) => /deviceId|getDeviceId|breathe_device_id|breathe_user_name/.test(line),
   });
 }
 

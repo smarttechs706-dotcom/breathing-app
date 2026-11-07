@@ -4616,3 +4616,66 @@ one-off), so the Metro `/api` proxy is not used for this test.
 `EXPO_PUBLIC_API_BASE_URL` is set for that EAS environment: `eas.json` does not set
 it. Decide whether deleting an account lands on onboarding or Log in. Phase 6 adds
 Account, sign out and the name flow.
+
+## Email auth: Phase 6, Account screens (2026-11-08), branch `feat/email-auth`
+**Committed locally on `feat/email-auth`, not pushed. Run on the phone with account B,
+except the items listed below.**
+
+- Settings has an Account section: read-only email, first name, Change password,
+  Sign out. Settings now scrolls, because the content no longer fits. There is no
+  Account section in `settings-code.html`, so it reuses that screen's card and row
+  styles.
+- Sign out has a confirm step. The guards go to Log in. The daily reminder stays
+  (user's choice).
+- The name comes from `user_metadata.display_name` and edits use `updateUser`. Home
+  shows the time greeting above "Hi, <name>", or "Hi there" with no name. Local name
+  code is deleted (`userName.ts`, `UserNameModal`), nothing migrated.
+  `legacyCleanup.ts` also removes the old stored name by prefix.
+- `app/change-password.tsx` + `src/auth/changePassword.ts`: `signInWithPassword`,
+  then `updateUser` with `current_password`. The 60 s wait starts only on a rate
+  limit (user's choice). Whether other devices get signed out has not been checked.
+- Delete: the row is now "Delete account" and the onboarding flag stays, so it lands
+  on Log in (user's choice). `clearOnboardingComplete` was then unused and removed.
+- `breathe_user_name` is back in `--cutover`.
+- Fixed both Phase 5 known issues: one check-in now shows a dot (a plain View, since
+  the stretched SVG would make an oval), and Snapshot's error is a compact row with
+  Retry beside the text. A very short phone would still need to scroll to it.
+
+Results: `test:auth` 145/145 (125 existing, 20 new), `check:auth` passed,
+`check:auth -- --cutover` passed, `tsc --noEmit` clean. Tests cover the name helper,
+the change-password order and messages, delete keeping the onboarding flag, and the
+sweep. The screens themselves, the dot and the Snapshot row have no automated test.
+
+**On the phone (2026-11-08, dev build over adb, live Supabase and Vercel API):**
+- Passed: login; Home greeting ("Hi there" with no name, "Hi, <name>" after saving);
+  Settings Account section; empty name rejected; a saved name updates Settings and
+  Home at once and survives sign-out; Change password empty form, short password,
+  mismatch and wrong current password; a correct change, then sign out and login
+  with the new password; Sign out's Cancel stays in Settings and confirming lands on
+  Log in, with no crash.
+- One correct-looking attempt first showed "Current password is incorrect". The
+  retyped attempt worked. Most likely a typing or autofill slip, not proven: the two
+  steps share that message, so Supabase's Last sign-in would be needed to tell.
+- The user types real passwords on the phone, so they never enter the session.
+- Passed: the Snapshot error row, offline over `adb reverse`. With Featured recovered
+  and Snapshot still failing, Retry sits fully above the tab bar, and it recovers.
+- Added after those checks: autofill off on the name field; a pencil on the First
+  name row; "Add your name" when there is none; `AccountAvatar` on all four tabs
+  (first letter in the name gradient, or a person icon; 48 on Home, 40 elsewhere;
+  opens Settings). The letter, the Settings tap and the pencil were seen on the
+  phone. Results: `test:auth` 148/148, `check:auth` passed, `--cutover` passed,
+  `tsc --noEmit` clean.
+- Not run: the Mood Trend dot (B has no check-ins), Delete account landing on Log in
+  (B is not a throwaway), and whether a password change signs out other devices.
+  The person icon and "Add your name" were not seen, because B has a name.
+- Open: the name field once held text nobody typed before typing began, likely
+  autofill or the keyboard, cause unknown. Autofill is now off, but it was not
+  re-tested with an empty field, so the fix is not proven.
+- Noticed: Home says "GOOD EVENING" after midnight. That logic was not changed here.
+- Account B's first name is a test value and its password is a throwaway until the
+  user sets the final one.
+
+**Next:** commit Phase 6, then the separate design-polish round (agreed plan). The
+polish must keep the avatar at 48 on Home and 40 elsewhere, replacing audit item 23.
+The Phase 5 items still wait for the preview APK: real email links, expired-session
+401, held check-in and rapid taps.

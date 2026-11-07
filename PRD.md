@@ -61,7 +61,8 @@ Browse → Play → Check in → See result → Come back
    back-button stepping between phases — see architecture.md for the full
    rationale and back-button behavior.
 5. **Insights** — mood trend chart, streak calendar, stat cards
-6. **Settings** — reminder time, notification toggle (not yet designed)
+6. **Settings** — reminder time, notification toggle, and an Account section
+   (email, first name, change password, sign out), delete account, About
 
 ## Retention hooks (v1 priority order)
 1. Streak counter + loss-aversion nudge

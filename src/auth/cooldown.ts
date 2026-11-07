@@ -2,7 +2,7 @@
 // reset the wait. Lost when the app is killed, when Supabase's own rate limit
 // still applies. Not keyed by email: a per-address wait could hint at accounts.
 
-export type CooldownKey = 'resend' | 'forgot';
+export type CooldownKey = 'resend' | 'forgot' | 'changePassword';
 
 export const COOLDOWN_SECONDS = 60;
 

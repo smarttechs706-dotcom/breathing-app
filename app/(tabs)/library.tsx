@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { friendlyError } from '../../src/api/apiErrors';
 import { fetchSessions } from '../../src/api/client';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
+import { AccountAvatar } from '../../src/components/AccountAvatar';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { SessionThumbnail } from '../../src/components/SessionThumbnail';
@@ -131,9 +132,7 @@ export default function LibraryScreen() {
     <View style={styles.root}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
-          </View>
+          <AccountAvatar size={40} />
           <GradientText
             colors={[colors.primary, colors.tertiary]}
             style={styles.headline}
@@ -330,16 +329,6 @@ const styles = StyleSheet.create({
   // session-player.tsx's settings icon.
   settingsButton: {
     padding: spacing.base,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
   },
   headline: {
     fontFamily: typography.headlineLgMobile.fontFamily,

@@ -3,14 +3,26 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getApiBaseUrl } from '../src/api/client';
+import { accountFirstName } from '../src/auth/accountName';
 import { useAuth } from '../src/auth/AuthProvider';
+import { useSingleFlight } from '../src/auth/useSingleFlight';
+import { EditNameModal } from '../src/components/EditNameModal';
 import { GlassCard } from '../src/components/GlassCard';
 import { TimePickerModal } from '../src/components/TimePickerModal';
-import { UserNameModal } from '../src/components/UserNameModal';
 import {
   confirmDelete,
   DELETE_FAILURE,
@@ -18,7 +30,6 @@ import {
   deleteMyData,
   showDeleted,
 } from '../src/utils/deleteMyData';
-import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
   REMINDER_TIP,
@@ -34,6 +45,23 @@ const APP_VERSION = Constants.expoConfig?.version ?? '';
 // Opened from About; the policy page is served by the same API as the data.
 function openPrivacyPolicy() {
   Linking.openURL(new URL('/privacy', getApiBaseUrl()).toString()).catch(() => {});
+}
+
+// react-native-web's Alert.alert is a no-op, so web (used for testing) falls
+// back to the browser's own dialog, same as confirmDelete.
+function confirmSignOut(): Promise<boolean> {
+  if (Platform.OS === 'web') return Promise.resolve(window.confirm('Sign out?'));
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Sign out?',
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Sign out', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
 }
 
 // architecture.md's Notifications section: daily reminder time is always
@@ -94,20 +122,22 @@ export default function SettingsScreen() {
     getReminderSettings().then(setReminderSettings);
   }, []);
 
-  // TEMPORARY local display name (src/utils/userName.ts), edited here via the
-  // same modal Home uses for its first-time prompt. Home re-reads it on focus.
-  const [userName, setUserNameState] = useState<string | null>(null);
+  const { session, signOut } = useAuth();
+  const email = session?.user.email ?? null;
+  const firstName = accountFirstName(session?.user);
   const [nameModalVisible, setNameModalVisible] = useState(false);
-
-  useEffect(() => {
-    getUserName().then(setUserNameState);
-  }, []);
-
-  const { signOut } = useAuth();
+  const leaving = useSingleFlight();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  async function handleDeleteData() {
+  // The route guards go to Log in once the session is gone, so nothing
+  // navigates here.
+  const handleSignOut = () =>
+    leaving.run(async () => {
+      if (await confirmSignOut()) await signOut();
+    });
+
+  async function handleDeleteAccount() {
     if (deleting) return;
     if (!(await confirmDelete())) return;
     setDeleting(true);
@@ -190,7 +220,10 @@ export default function SettingsScreen() {
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
 
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           {/* settings-code.html: absolute -top-12 -left-12 w-64 h-64
               rounded-full bg-primary-container/10 blur-3xl — same flat-
               circle approximation for backdrop-blur glow already used for
@@ -215,30 +248,70 @@ export default function SettingsScreen() {
             <Text style={styles.reminderTip}>{REMINDER_TIP}</Text>
           </GlassCard>
 
+          {/* No Account section in settings-code.html: these reuse the card and
+              row styles already on this screen. */}
           <GlassCard radius={radii.lg} style={styles.card}>
+            <Text style={styles.sectionLabel}>Account</Text>
+            <View
+              style={[styles.aboutRow, styles.accountRow]}
+              accessible
+              accessibilityLabel={`Email ${email ?? 'not available'}`}
+            >
+              <Text style={styles.cardTitle}>Email</Text>
+              <Text style={styles.emailValue} numberOfLines={1} ellipsizeMode="middle">
+                {email ?? ''}
+              </Text>
+            </View>
             <Pressable
               onPress={() => setNameModalVisible(true)}
               accessibilityRole="button"
-              accessibilityLabel="Edit your name"
-              style={styles.aboutRow}
+              accessibilityLabel="Edit your first name"
+              style={[styles.aboutRow, styles.accountRow]}
             >
-              <Text style={styles.cardTitle}>Name</Text>
-              <Text style={styles.nameValue} numberOfLines={1}>
-                {userName ?? 'Not set'}
-              </Text>
+              <Text style={styles.cardTitle}>First name</Text>
+              <View style={styles.nameEdit}>
+                <Text style={styles.nameValue} numberOfLines={1}>
+                  {firstName ?? 'Add your name'}
+                </Text>
+                <MaterialIcons name="edit" size={24} color={colors.onSurfaceVariant} />
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/change-password')}
+              accessibilityRole="button"
+              accessibilityLabel="Change password"
+              style={[styles.aboutRow, styles.accountRow]}
+            >
+              <Text style={styles.cardTitle}>Change password</Text>
+              <MaterialIcons name="chevron-right" size={24} color={colors.onSurfaceVariant} />
+            </Pressable>
+            <Pressable
+              onPress={handleSignOut}
+              disabled={leaving.running}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+              accessibilityState={{ disabled: leaving.running, busy: leaving.running }}
+              style={[styles.aboutRow, styles.accountRow]}
+            >
+              <Text style={styles.cardTitle}>Sign out</Text>
+              {leaving.running ? (
+                <ActivityIndicator color={colors.onSurfaceVariant} />
+              ) : (
+                <MaterialIcons name="logout" size={24} color={colors.onSurfaceVariant} />
+              )}
             </Pressable>
           </GlassCard>
 
           <GlassCard radius={radii.lg} style={styles.card}>
             <Pressable
-              onPress={handleDeleteData}
+              onPress={handleDeleteAccount}
               disabled={deleting}
               accessibilityRole="button"
-              accessibilityLabel="Delete my data"
+              accessibilityLabel="Delete account"
               accessibilityState={{ disabled: deleting }}
               style={styles.aboutRow}
             >
-              <Text style={styles.cardTitle}>Delete my data</Text>
+              <Text style={styles.cardTitle}>Delete account</Text>
               {deleting ? (
                 <ActivityIndicator color={colors.error} />
               ) : (
@@ -263,7 +336,7 @@ export default function SettingsScreen() {
               <MaterialIcons name="open-in-new" size={24} color={colors.onSurfaceVariant} />
             </Pressable>
           </GlassCard>
-        </View>
+        </ScrollView>
       </SafeAreaView>
 
       <TimePickerModal
@@ -274,14 +347,10 @@ export default function SettingsScreen() {
         onCancel={() => setPickerVisible(false)}
       />
 
-      <UserNameModal
+      <EditNameModal
         visible={nameModalVisible}
-        initialName={userName}
-        onSaved={(name) => {
-          setUserNameState(name);
-          setNameModalVisible(false);
-        }}
-        onCancel={() => setNameModalVisible(false)}
+        initialName={firstName}
+        onClose={() => setNameModalVisible(false)}
       />
     </View>
   );
@@ -320,6 +389,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.marginMobile,
     paddingTop: spacing.base * 2,
+    paddingBottom: spacing.base * 4,
     gap: spacing.base * 3,
   },
   backgroundGlow: {
@@ -395,11 +465,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  // Name card's value — shrinks and truncates so a 30-char name can't push
-  // the "Name" label off the row.
-  nameValue: {
+  sectionLabel: {
+    fontFamily: typography.labelSm.fontFamily,
+    fontSize: typography.labelSm.fontSize,
+    fontWeight: typography.labelSm.fontWeight,
+    letterSpacing: typography.labelSm.letterSpacing,
+    color: colors.onSurfaceVariant,
+  },
+  accountRow: {
+    minHeight: 48,
+  },
+  // Read-only, so it uses the quiet color rather than the editable accent.
+  emailValue: {
     flexShrink: 1,
     marginLeft: spacing.base * 2,
+    fontFamily: typography.bodyMd.fontFamily,
+    fontSize: typography.bodyMd.fontSize,
+    lineHeight: typography.bodyMd.lineHeight,
+    color: colors.onSurfaceVariant,
+  },
+  // Shrinks and truncates so a 30-char name can't push the label off the row.
+  nameEdit: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base,
+    marginLeft: spacing.base * 2,
+  },
+  nameValue: {
+    flexShrink: 1,
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
     lineHeight: typography.bodyMd.lineHeight,

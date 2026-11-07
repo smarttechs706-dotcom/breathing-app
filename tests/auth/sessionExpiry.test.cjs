@@ -59,7 +59,7 @@ function legacyCleanup(storage) {
   });
 }
 
-test('startup cleanup removes the old id and nothing else', async () => {
+test('startup cleanup removes the old id and name, and nothing else', async () => {
   const removed = [];
   const { removeLegacyIdentity } = legacyCleanup({
     getAllKeys: async () => [
@@ -73,13 +73,13 @@ test('startup cleanup removes the old id and nothing else', async () => {
   });
 
   await removeLegacyIdentity();
-  assert.deepEqual(removed, ['breathe_device_id_v1']);
+  assert.deepEqual(removed, ['breathe_device_id_v1', 'breathe_user_name_v1']);
 });
 
-test('startup cleanup does nothing when there is no old id', async () => {
+test('startup cleanup does nothing when no old values are left', async () => {
   let calls = 0;
   const { removeLegacyIdentity } = legacyCleanup({
-    getAllKeys: async () => ['breathe_user_name_v1'],
+    getAllKeys: async () => ['breathe_onboarding_complete_v1'],
     multiRemove: async () => {
       calls += 1;
     },

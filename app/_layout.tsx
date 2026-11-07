@@ -48,6 +48,7 @@ function RootStack() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="session-player" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="change-password" />
       </Stack.Protected>
 
       <Stack.Protected guard={status === 'recovery'}>

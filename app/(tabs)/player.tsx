@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchInsights, fetchSessions } from '../../src/api/client';
+import { AccountAvatar } from '../../src/components/AccountAvatar';
 import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
@@ -199,9 +200,7 @@ export default function PlayerScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={18} color={colors.onSurfaceVariant} />
-          </View>
+          <AccountAvatar size={40} />
           <GradientText
             colors={[colors.primary, colors.tertiary]}
             style={styles.headline}
@@ -366,16 +365,6 @@ const styles = StyleSheet.create({
   // session-player.tsx's settings icon.
   settingsButton: {
     padding: spacing.base,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceVariant,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
   },
   headline: {
     fontFamily: typography.headlineLgMobile.fontFamily,

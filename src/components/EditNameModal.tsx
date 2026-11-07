@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -11,58 +12,58 @@ import {
   View,
 } from 'react-native';
 
+import { AUTH_MESSAGES, authErrorMessage } from '../auth/authErrors';
+import { getAuth } from '../auth/supabase';
+import { useSingleFlight } from '../auth/useSingleFlight';
+import { MAX_FIRST_NAME_LENGTH, normalizeFirstName } from '../auth/validation';
 import { colors, radii, spacing, typography } from '../theme/tokens';
-import { MAX_USER_NAME_LENGTH, normalizeUserName, setUserName } from '../utils/userName';
 import { GlassCard } from './GlassCard';
 
-// TEMPORARY, like src/utils/userName.ts: a small "enter your name" dialog
-// shared by Home (first-time prompt) and Settings (edit). Same shell as
-// TimePickerModal — transparent fade Modal, dimmed backdrop, GlassCard on a
-// solid base, Cancel + gradient confirm button — so it matches the rest of
-// the app instead of introducing a new dialog style.
-interface UserNameModalProps {
+// Same shell as TimePickerModal: transparent fade Modal, dimmed backdrop,
+// GlassCard on a solid base, Cancel + gradient confirm button. The saved name
+// reaches Home and Settings through the session that updateUser refreshes.
+interface EditNameModalProps {
   visible: boolean;
-  /** Name currently saved, used to pre-fill the field when editing. */
   initialName: string | null;
-  /** Called with the saved (trimmed, length-capped) name after a successful save. */
-  onSaved: (name: string) => void;
-  onCancel: () => void;
+  onClose: () => void;
 }
 
-export function UserNameModal({ visible, initialName, onSaved, onCancel }: UserNameModalProps) {
+export function EditNameModal({ visible, initialName, onClose }: EditNameModalProps) {
+  const { running, run } = useSingleFlight();
   const [text, setText] = useState(initialName ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  // The Modal's children stay mounted across open/close (parent only toggles
-  // `visible`), so reset the field each time it opens or the previous
-  // attempt's text and error would still be showing.
+  // The Modal's children stay mounted across open/close, so reset each time it
+  // opens or the previous attempt's text and error would still be showing.
   useEffect(() => {
     if (visible) {
       setText(initialName ?? '');
       setError(null);
-      setSaving(false);
     }
   }, [visible, initialName]);
 
-  async function handleSave() {
-    if (saving) return;
-    // Validate before touching storage: an empty / whitespace-only name is
-    // rejected here, nothing is saved, and the dialog stays open.
-    if (normalizeUserName(text) === null) {
-      setError('Please enter a name.');
-      return;
-    }
-    setSaving(true);
-    const saved = await setUserName(text);
-    setSaving(false);
-    if (saved === null) {
-      setError("Couldn't save your name. Please try again.");
-      return;
-    }
-    onSaved(saved);
-  }
+  const save = () =>
+    run(async () => {
+      const name = normalizeFirstName(text);
+      if (!name) {
+        setError(AUTH_MESSAGES.enterFirstName);
+        return;
+      }
+
+      try {
+        const { error: saveError } = await getAuth().updateUser({
+          data: { display_name: name },
+        });
+        if (saveError) {
+          setError(authErrorMessage(saveError));
+          return;
+        }
+        onClose();
+      } catch (failure) {
+        setError(authErrorMessage(failure));
+      }
+    });
 
   return (
     <Modal
@@ -72,17 +73,17 @@ export function UserNameModal({ visible, initialName, onSaved, onCancel }: UserN
       // Same reasoning as TimePickerModal: a transparent Modal otherwise
       // leaves the Android system-bar strips undimmed.
       statusBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={onClose}
       onShow={() => inputRef.current?.focus()}
     >
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Pressable style={styles.backdrop} onPress={onCancel}>
+        <Pressable style={styles.backdrop} onPress={onClose}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.cardWrapper}>
             <GlassCard radius={radii.lg} style={styles.card}>
-              <Text style={styles.title}>What should we call you?</Text>
+              <Text style={styles.title}>Your first name</Text>
 
               <TextInput
                 ref={inputRef}
@@ -91,38 +92,50 @@ export function UserNameModal({ visible, initialName, onSaved, onCancel }: UserN
                   setText(next);
                   if (error) setError(null);
                 }}
-                placeholder="Your name"
+                placeholder="First name"
                 placeholderTextColor={colors.onSurfaceVariant}
-                maxLength={MAX_USER_NAME_LENGTH}
+                maxLength={MAX_FIRST_NAME_LENGTH}
                 autoFocus
                 autoCapitalize="words"
                 autoCorrect={false}
+                autoComplete="off"
+                importantForAutofill="no"
                 returnKeyType="done"
-                onSubmitEditing={handleSave}
-                accessibilityLabel="Your name"
+                onSubmitEditing={save}
+                accessibilityLabel="First name"
                 style={styles.input}
               />
 
               {error ? (
-                <Text style={styles.errorText}>{error}</Text>
-              ) : (
-                <Text style={styles.hintText}>
-                  Shown on Home. Stored on this device only.
+                <Text style={styles.errorText} accessibilityLiveRegion="polite">
+                  {error}
                 </Text>
+              ) : (
+                <Text style={styles.hintText}>Shown on Home.</Text>
               )}
 
               <View style={styles.actions}>
-                <Pressable onPress={onCancel} hitSlop={8} style={styles.cancelButton}>
+                <Pressable onPress={onClose} hitSlop={8} style={styles.cancelButton}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </Pressable>
-                <Pressable onPress={handleSave} accessibilityRole="button" accessibilityLabel="Save name">
+                <Pressable
+                  onPress={save}
+                  disabled={running}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save name"
+                  accessibilityState={{ disabled: running, busy: running }}
+                >
                   <LinearGradient
                     colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.saveButton}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    {running ? (
+                      <ActivityIndicator color="#ffffff" size="small" />
+                    ) : (
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    )}
                   </LinearGradient>
                 </Pressable>
               </View>
@@ -208,6 +221,8 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   saveButton: {
+    minWidth: 76,
+    alignItems: 'center',
     paddingHorizontal: spacing.base * 3,
     paddingVertical: spacing.base * 1.25,
     borderRadius: radii.full,
