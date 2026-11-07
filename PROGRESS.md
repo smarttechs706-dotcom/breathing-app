@@ -4546,7 +4546,7 @@ Before any EAS build, set `EXPO_PUBLIC_SUPABASE_URL` and
 crashes at launch by design. Phase 5 needs the backend's Bearer routes.
 
 ## Email auth: Phase 5, API cutover (2026-11-07), branch `feat/email-auth`
-**Code complete, not committed, not yet run on the phone or against the live API.**
+**Committed locally as `cf1f3c5`, not pushed. Run on the phone against the live API.**
 Backend: Bearer routes live at master `e09c490`. The real-email Phase 4 test is
 still open: the sign-up link never reached the app on the dev build (launcher
 swallowed it), so links still need the preview APK.
@@ -4612,6 +4612,7 @@ one-off), so the Metro `/api` proxy is not used for this test.
 - Home's Snapshot Retry can sit partly behind the tab bar once Featured Session has
   recovered. Tapping the visible part works.
 
-**Next:** approve the commit. Before any EAS build, confirm
+**Next:** run the remaining checks on the preview APK. Before any EAS build, confirm
 `EXPO_PUBLIC_API_BASE_URL` is set for that EAS environment: `eas.json` does not set
-it. Phase 6 adds Account, sign out and the name flow.
+it. Decide whether deleting an account lands on onboarding or Log in. Phase 6 adds
+Account, sign out and the name flow.
