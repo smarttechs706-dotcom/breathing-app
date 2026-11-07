@@ -74,7 +74,8 @@ Browse → Play → Check in → See result → Come back
 ## Out of scope for v1
 - Real biometric integration (HealthKit/Google Fit) — deliberately using
   manual mood entry instead, to avoid permission friction and scope creep
-- User accounts/auth — device-based UUID only for v1
+- Guest mode — an email + password account is required (see architecture.md,
+  "Auth (v1)")
 - Paywall/monetization — add only once approaching real launch with a
   validated pricing model; not needed for validation testing
 - Multi-language/Arabic localization — noted as a possible differentiator,

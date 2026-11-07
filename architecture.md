@@ -65,8 +65,9 @@ breathing-app-api/
 ├── CLAUDE.md
 ├── app/api/
 │   ├── sessions/route.ts     # GET, optional ?category=
-│   ├── checkin/route.ts      # POST
-│   └── insights/route.ts     # GET ?user_id=
+│   ├── checkin/route.ts      # POST (Bearer)
+│   ├── insights/route.ts     # GET (Bearer)
+│   └── user/route.ts         # DELETE (Bearer), removes the account
 ├── lib/supabase.ts           # server-side Supabase client (service_role key)
 └── types/models.ts           # kept in sync with mobile app's types/models.ts
 ```
@@ -95,7 +96,7 @@ interface Session {
 
 interface Checkin {
   id: string;
-  userId: string;
+  userId: string;    // response only, set by the API from the token
   sessionId: string;
   preMood: number;   // 1-5
   postMood: number;  // 1-5
@@ -103,7 +104,7 @@ interface Checkin {
 }
 
 interface Streak {
-  userId: string;
+  userId: string;    // response only, set by the API from the token
   currentStreak: number;
   longestStreak: number;
   lastSessionDate: string; // ISO date
@@ -128,18 +129,35 @@ badge column changed for Morning Reset and Stress Relief):
 | box-breathing | Box Breathing | Recovery | Heart | bloom |
 
 ## API contract
-- `GET {base_url}/api/sessions?category=` → `Session[]`
-- `POST {base_url}/api/checkin` → body `{userId, sessionId, preMood, postMood}`,
+Identity comes only from `Authorization: Bearer <access_token>`, read from
+`getAuth().getSession()` in `src/api/client.ts`. The API ignores `userId` and
+`user_id`, and the app never sends them.
+
+- `GET {base_url}/api/sessions?category=` → `Session[]`. Public, no token
+- `POST {base_url}/api/checkin` (Bearer) → body `{sessionId, preMood, postMood}`,
   inserts checkin, updates streak (increment if last session was yesterday,
   reset to 1 if gap >1 day, no-op if already checked in today), returns
   updated `Streak`
-- `GET {base_url}/api/insights?user_id=` → `{checkins: Checkin[] (last 30
+- `DELETE {base_url}/api/user` (Bearer) → removes the caller's check-ins, streak
+  and account. The token stays valid for up to an hour, so the app signs out
+  straight after
+- `GET {base_url}/api/insights` (Bearer) → `{checkins: Checkin[] (last 30
   days), streak: Streak, totalSessions: number, sessionsThisWeek: number,
   mindfulMinutes: number, monthOverMonthDelta: number}` —
   `mindfulMinutes` is total session duration completed (sum of
   `durationSec` across checkins, in minutes); `monthOverMonthDelta` is
   percentage change in sessions completed vs. the prior 30-day period
   (matches the Insights screen's "+12% Vs Last Month" stat card)
+
+Failures are handled in one place, `src/api/apiErrors.ts`, and screens show
+`friendlyError(err)`:
+
+| Reply | What the app does |
+|---|---|
+| 401 | Signs out once, Log in shows "Please sign in again." A check-in is held in memory and sent once if the same user logs back in |
+| 503, no network, timeout | "Can't reach the server, try again" with a manual Retry. No sign-out, no automatic retry |
+| 429 | "Too many requests, wait a moment." |
+| Anything else | Generic text, never a status or server message |
 
 ## Session Player implementation (explicit — do not deviate)
 
@@ -245,7 +263,7 @@ version wins.
 
 ## Auth (v1)
 Required email + password accounts through Supabase Auth, with no guest mode.
-The device UUID stays in use only until the Phase 5 API cutover.
+The device UUID was removed in the Phase 5 API cutover.
 
 - **Client:** `flowType: 'implicit'`. Email links use `verifyOtp` with a
   `token_hash`, which never reads a PKCE verifier, and the phone has no WebCrypto.

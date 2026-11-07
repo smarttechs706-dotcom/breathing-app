@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { friendlyError } from '../../src/api/apiErrors';
 import { fetchSessions } from '../../src/api/client';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { GlassCard } from '../../src/components/GlassCard';
@@ -73,9 +74,7 @@ export default function LibraryScreen() {
         setCachedSessions(fresh);
         setSessions(fresh);
       })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load sessions.')
-      );
+      .catch((err) => setError(friendlyError(err)));
   }, []);
 
   useEffect(() => {

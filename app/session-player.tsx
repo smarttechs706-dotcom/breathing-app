@@ -17,7 +17,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { friendlyError } from '../src/api/apiErrors';
 import { fetchSessions, postCheckin } from '../src/api/client';
+import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
 import { BreathingRing } from '../src/components/BreathingRing';
@@ -27,7 +29,6 @@ import { MOOD_EMOJIS, MoodSelector } from '../src/components/MoodSelector';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
 import type { Session } from '../src/types/models';
-import { getDeviceId } from '../src/utils/deviceId';
 import {
   INITIAL_CLOCK,
   elapsedSeconds,
@@ -165,9 +166,7 @@ export default function SessionPlayerScreen() {
         setCachedSessions(fresh);
         setSessions(fresh);
       })
-      .catch((err) =>
-        setFetchError(err instanceof Error ? err.message : 'Failed to load session.')
-      );
+      .catch((err) => setFetchError(friendlyError(err)));
   }, []);
 
   useEffect(() => {
@@ -223,8 +222,9 @@ export default function SessionPlayerScreen() {
   // Save state for the real POST /api/checkin call Done triggers. On
   // failure, we stay on this screen with saveError set (preMood/postMood
   // stay in state, untouched) instead of silently discarding the
-  // completed session — see PROGRESS.md for the full reasoning.
-  const [saving, setSaving] = useState(false);
+  // completed session — see PROGRESS.md for the full reasoning. Done and the
+  // exit prompt's Save share this lock, so two taps can't send two check-ins.
+  const { running: saving, run: runSave } = useSingleFlight();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
@@ -384,19 +384,19 @@ export default function SessionPlayerScreen() {
     if (!session) return false;
     // D-10: never send a null mood to the API.
     if (preMood === null || postMood === null) return false;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const userId = await getDeviceId();
-      await postCheckin({ userId, sessionId: session.id, preMood, postMood });
-      markCheckinSaved();
-      return true;
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save your session.');
-      return false;
-    } finally {
-      setSaving(false);
-    }
+    const sessionId = session.id;
+    const saved = await runSave(async () => {
+      setSaveError(null);
+      try {
+        await postCheckin({ sessionId, preMood, postMood });
+        markCheckinSaved();
+        return true;
+      } catch (err) {
+        setSaveError(friendlyError(err));
+        return false;
+      }
+    });
+    return saved === true;
   };
 
   // D-03: at post-mood the session is complete but the check-in is only

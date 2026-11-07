@@ -1,6 +1,11 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
+import { getAuth } from '../auth/supabase';
+import { reportSessionExpired } from '../auth/sessionExpiry';
+import { markCheckinSaved } from '../state/checkinSignal';
+import { holdCheckin, takeHeldCheckin, type CheckinPayload } from '../state/pendingCheckin';
 import type { Checkin, Session, Streak } from '../types/models';
+import { ApiError, isAuthNetworkFailure, isSessionExpired, NO_REPLY } from './apiErrors';
 
 // The Next.js API (breathing-app-api) base URL. Per architecture.md, this
 // app never talks to Supabase directly — everything goes through that API.
@@ -49,26 +54,84 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 // The check-in save gets longer: on-device a save took 4-13 s on a cold API,
 // and timing out a save the user just finished is worse than waiting.
 export const CHECKIN_TIMEOUT_MS = 20_000;
+// Deleting an account does more work than a read, and giving up early would
+// report a failure for a delete that actually happened.
+export const DELETE_TIMEOUT_MS = 20_000;
+
+type RequestOptions = Omit<RequestInit, 'headers' | 'signal'> & {
+  headers?: Record<string, string>;
+};
 
 async function timedFetch<T>(
   label: string,
   url: URL,
-  init: RequestInit | undefined,
+  init: RequestOptions | undefined,
   handle: (response: Response) => Promise<T>,
   timeoutMs: number = REQUEST_TIMEOUT_MS
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url.toString(), { ...init, signal: controller.signal });
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), { ...init, signal: controller.signal });
+    } catch {
+      throw new ApiError(label, NO_REPLY);
+    }
+    if (!response.ok) throw new ApiError(label, response.status);
     return await handle(response);
   } catch (err) {
-    if (controller.signal.aborted) {
-      throw new Error(`${label} timed out after ${timeoutMs / 1000} s`);
-    }
+    if (controller.signal.aborted) throw new ApiError(label, NO_REPLY);
     throw err;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// getSession() refreshes an expired token, so the token sent here is current.
+// A refresh that got no answer is offline. A refresh the server refused, or no
+// session at all, is the same as a 401.
+async function currentSession(label: string) {
+  let result: Awaited<ReturnType<ReturnType<typeof getAuth>['getSession']>>;
+  try {
+    result = await getAuth().getSession();
+  } catch {
+    throw new ApiError(label, NO_REPLY);
+  }
+
+  const { data, error } = result;
+  if (error && isAuthNetworkFailure(error)) throw new ApiError(label, NO_REPLY);
+  if (!data.session) {
+    reportSessionExpired();
+    throw new ApiError(label, 401);
+  }
+  return data.session;
+}
+
+// Identity comes only from this token: the API ignores any id in the URL or
+// body, so none is ever sent. `onExpired` runs before the sign-out starts.
+async function authedFetch<T>(
+  label: string,
+  url: URL,
+  init: RequestOptions | undefined,
+  handle: (response: Response) => Promise<T>,
+  timeoutMs?: number,
+  onExpired?: (userId: string) => void
+): Promise<T> {
+  const session = await currentSession(label);
+  const authed: RequestOptions = {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${session.access_token}` },
+  };
+
+  try {
+    return await timedFetch(label, url, authed, handle, timeoutMs);
+  } catch (err) {
+    if (isSessionExpired(err)) {
+      onExpired?.(session.user.id);
+      reportSessionExpired();
+    }
+    throw err;
   }
 }
 
@@ -164,40 +227,45 @@ export async function fetchSessions(category?: Session['category']): Promise<Ses
     url.searchParams.set('category', category);
   }
 
-  return timedFetch('GET /api/sessions', url, undefined, async (response) => {
-    if (!response.ok) {
-      throw new Error(`GET /api/sessions failed: ${response.status}`);
-    }
-    return parseSessions(await response.json());
-  });
+  return timedFetch('GET /api/sessions', url, undefined, async (response) =>
+    parseSessions(await response.json())
+  );
 }
 
-export async function postCheckin(payload: {
-  userId: string;
-  sessionId: string;
-  preMood: number;
-  postMood: number;
-}): Promise<Streak> {
-  const url = new URL('/api/checkin', getApiBaseUrl());
-
-  const init = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  };
-
-  return timedFetch(
+function sendCheckin(
+  checkin: CheckinPayload,
+  onExpired?: (userId: string) => void
+): Promise<Streak> {
+  const { sessionId, preMood, postMood } = checkin;
+  return authedFetch(
     'POST /api/checkin',
-    url,
-    init,
-    async (response) => {
-      if (!response.ok) {
-        throw new Error(`POST /api/checkin failed: ${response.status}`);
-      }
-      return response.json();
+    new URL('/api/checkin', getApiBaseUrl()),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, preMood, postMood }),
     },
-    CHECKIN_TIMEOUT_MS
+    (response) => response.json(),
+    CHECKIN_TIMEOUT_MS,
+    onExpired
   );
+}
+
+export function postCheckin(checkin: CheckinPayload): Promise<Streak> {
+  return sendCheckin(checkin, (userId) => holdCheckin(userId, checkin));
+}
+
+// Sends a check-in held by a 401 once the same user is back. One attempt only:
+// a failure here has no screen to show it on, and must not double-post later.
+export async function sendHeldCheckin(userId: string): Promise<void> {
+  const checkin = takeHeldCheckin(userId);
+  if (!checkin) return;
+  try {
+    await sendCheckin(checkin);
+    markCheckinSaved();
+  } catch {
+    // See above.
+  }
 }
 
 // Matches architecture.md's GET /api/insights response shape exactly.
@@ -210,28 +278,26 @@ export interface InsightsResponse {
   monthOverMonthDelta: number;
 }
 
-export async function fetchInsights(userId: string): Promise<InsightsResponse> {
+export async function fetchInsights(): Promise<InsightsResponse> {
   const url = new URL('/api/insights', getApiBaseUrl());
-  url.searchParams.set('user_id', userId);
 
-  return timedFetch('GET /api/insights', url, undefined, async (response) => {
-    if (!response.ok) {
-      throw new Error(`GET /api/insights failed: ${response.status}`);
-    }
-    return parseInsights(await response.json());
-  });
+  return authedFetch('GET /api/insights', url, undefined, async (response) =>
+    parseInsights(await response.json())
+  );
 }
 
-// DELETE /api/user — removes this device's check-ins and streak from the
-// server. Success is any 2xx; the body ({deleted:{checkins,streaks}}) is not
-// relied on (D-04: don't trust response shapes). Limits: 5/min per id.
-export async function deleteUserData(userId: string): Promise<void> {
+// DELETE /api/user removes the caller's check-ins, streak and account. Success
+// is any 2xx; the body is not relied on (D-04: don't trust response shapes).
+// Safe to retry: the token outlives the account, and a repeat returns the same
+// reply. Limits: 5/min per account.
+export async function deleteUserData(): Promise<void> {
   const url = new URL('/api/user', getApiBaseUrl());
-  url.searchParams.set('user_id', userId);
 
-  await timedFetch('DELETE /api/user', url, { method: 'DELETE' }, async (response) => {
-    if (!response.ok) {
-      throw new Error(`DELETE /api/user failed: ${response.status}`);
-    }
-  });
+  await authedFetch(
+    'DELETE /api/user',
+    url,
+    { method: 'DELETE' },
+    async () => undefined,
+    DELETE_TIMEOUT_MS
+  );
 }

@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { friendlyError } from '../../src/api/apiErrors';
 import { fetchInsights, fetchSessions, type InsightsResponse } from '../../src/api/client';
 import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
@@ -34,7 +35,6 @@ import { MOOD_EMOJIS, MOOD_LABELS } from '../../src/components/MoodSelector';
 import { UserNameModal } from '../../src/components/UserNameModal';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
-import { getDeviceId } from '../../src/utils/deviceId';
 import { getUserName } from '../../src/utils/userName';
 
 function formatDuration(durationSec: number) {
@@ -96,12 +96,9 @@ export default function HomeScreen() {
   const load = useCallback(() => {
     setError(null);
     setInsights(null);
-    getDeviceId()
-      .then(fetchInsights)
+    fetchInsights()
       .then(setInsights)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load your snapshot.')
-      );
+      .catch((err) => setError(friendlyError(err)));
   }, []);
 
   useEffect(() => {
@@ -112,8 +109,7 @@ export default function HomeScreen() {
   // refresh the snapshot silently — old numbers stay on screen, and a failed
   // refresh leaves them as they were.
   const refreshAfterCheckin = useCallback(() => {
-    getDeviceId()
-      .then(fetchInsights)
+    fetchInsights()
       .then(setInsights)
       .catch(() => {});
   }, []);
@@ -151,11 +147,7 @@ export default function HomeScreen() {
         }
         setFeaturedSession(match);
       })
-      .catch((err) =>
-        setFeaturedError(
-          err instanceof Error ? err.message : 'Failed to load featured session.'
-        )
-      );
+      .catch((err) => setFeaturedError(friendlyError(err)));
   }, []);
 
   useEffect(() => {

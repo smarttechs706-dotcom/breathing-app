@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { sendHeldCheckin } from '../api/client';
 import {
   deriveAuthStatus,
   storedSessionIsUsable,
@@ -17,6 +18,7 @@ import {
   type PendingLink,
 } from './authStatus';
 import { secureSessionStorage } from './secureSessionStorage';
+import { resetSessionExpiry, setSessionExpiredHandler } from './sessionExpiry';
 import { getAuth, SESSION_STORAGE_KEY } from './supabase';
 
 const PENDING_LINK_KEY = 'breathease_pending_link';
@@ -78,6 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === 'INITIAL_SESSION') {
         setTimeout(() => void finishStartup(next), 0);
+      } else if (event === 'SIGNED_IN' && next) {
+        resetSessionExpiry();
+        const userId = next.user.id;
+        setTimeout(() => void sendHeldCheckin(userId), 0);
       } else if (event === 'SIGNED_OUT') {
         setUnrestored(false);
         setPendingLink(null);
@@ -121,6 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnrestored(false);
     setPendingLink(null);
   }, []);
+
+  useEffect(() => setSessionExpiredHandler(signOut), [signOut]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

@@ -2,17 +2,16 @@ import { Alert, Platform } from 'react-native';
 
 import { deleteUserData } from '../api/client';
 import { clearCachedSessions } from '../state/sessionsCache';
-import { clearDeviceId, getDeviceId } from './deviceId';
 import { clearOnboardingComplete } from './onboarding';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
 import { clearUserName } from './userName';
 
-export const DELETE_TITLE = 'Delete all your data?';
+export const DELETE_TITLE = 'Delete your account?';
 export const DELETE_MESSAGE =
-  "This permanently deletes your session history, moods and streak from our server, and clears your name and reminder from this phone. It can't be undone, and there is no backup.";
-export const DELETE_SUCCESS = 'Your data has been deleted.';
+  "This permanently deletes your account, session history, moods and streak from our server, and clears your name and reminder from this phone. It can't be undone, and there is no backup.";
+export const DELETE_SUCCESS = 'Your account has been deleted.';
 export const DELETE_FAILURE =
-  "Couldn't delete your data. Check your connection and try again. Nothing was removed.";
+  "Couldn't delete your account. Check your connection and try again. Nothing was removed.";
 
 // react-native-web's Alert.alert is a no-op, so web (used for testing) falls
 // back to the browser's own dialogs. Native uses Alert.alert.
@@ -33,13 +32,13 @@ export function confirmDelete(): Promise<boolean> {
   });
 }
 
-export function showDeleted(onOk: () => void): void {
+export function showDeleted(onOk: () => void, note?: string): void {
   if (Platform.OS === 'web') {
-    window.alert(DELETE_SUCCESS);
+    window.alert(note ? `${DELETE_SUCCESS}\n\n${note}` : DELETE_SUCCESS);
     onOk();
     return;
   }
-  Alert.alert(DELETE_SUCCESS, undefined, [{ text: 'OK', onPress: onOk }], {
+  Alert.alert(DELETE_SUCCESS, note, [{ text: 'OK', onPress: onOk }], {
     cancelable: false,
   });
 }
@@ -48,23 +47,24 @@ export function showDeleted(onOk: () => void): void {
  * 'deleted'                 everything is gone (server + this phone).
  * 'failed'                  the server delete failed; nothing local was touched.
  * 'reminder-not-cancelled'  server data and local data are gone, BUT the OS
- *                           daily reminder could not be cancelled, so its
- *                           stored setting was kept so the user can switch it
- *                           off in Settings (F-06, DEEP-AUDIT-3).
+ *                           daily reminder could not be cancelled, so the user
+ *                           is told how to turn it off before signing out
+ *                           (F-06, DEEP-AUDIT-3).
  */
 export type DeleteResult = 'deleted' | 'failed' | 'reminder-not-cancelled';
 
 export const DELETE_REMINDER_NOT_CANCELLED =
-  "Your data was deleted, but we couldn't turn off your daily reminder. Switch it off under Daily Reminder above.";
+  "We couldn't turn off your daily reminder. You can turn off Breathease notifications in your phone's settings.";
 
 /**
- * Deletes this device's server data, and ONLY if that succeeded clears the
- * local data. Local clears are best-effort individually so one failing key
- * can't stop the rest, and the server data is already gone by then.
+ * Deletes the signed-in account on the server, and ONLY if that succeeded
+ * clears the local data. Local clears are best-effort individually so one
+ * failing key can't stop the rest, and the server data is already gone by then.
+ * The caller signs out afterwards: the token outlives the deleted account.
  */
 export async function deleteMyData(): Promise<DeleteResult> {
   try {
-    await deleteUserData(await getDeviceId());
+    await deleteUserData();
   } catch {
     return 'failed';
   }
@@ -83,10 +83,9 @@ export async function deleteMyData(): Promise<DeleteResult> {
 
   const clears: (() => Promise<unknown> | unknown)[] = [
     // Keep the stored reminder setting if the reminder is still scheduled, so
-    // Settings keeps showing it as on and the user can turn it off.
+    // the next account on this phone sees it as on and can turn it off.
     ...(reminderCancelled ? [clearReminderSettings] : []),
     clearUserName,
-    clearDeviceId,
     clearOnboardingComplete,
     clearCachedSessions,
   ];

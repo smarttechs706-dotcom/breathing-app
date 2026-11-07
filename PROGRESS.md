@@ -4544,3 +4544,74 @@ checks) and by `npm run test:auth` (91 tests).
 Before any EAS build, set `EXPO_PUBLIC_SUPABASE_URL` and
 `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in that EAS environment, or the build
 crashes at launch by design. Phase 5 needs the backend's Bearer routes.
+
+## Email auth: Phase 5, API cutover (2026-11-07), branch `feat/email-auth`
+**Code complete, not committed, not yet run on the phone or against the live API.**
+Backend: Bearer routes live at master `e09c490`. The real-email Phase 4 test is
+still open: the sign-up link never reached the app on the dev build (launcher
+swallowed it), so links still need the preview APK.
+
+- `src/api/client.ts`: `authedFetch` sends `Authorization: Bearer` from
+  `getAuth().getSession()` on check-in, insights and delete. No `userId` or
+  `user_id` in any request. `GET /api/sessions` stays public: the backend has no
+  `requireUser` there, and a plain GET returned 200. DELETE timeout is 20 s.
+- Errors live in `src/api/apiErrors.ts`; every raw API error on screen now uses
+  `friendlyError()` (Home ×2, Insights, Library, Session Player ×2). The table is
+  in architecture.md. A refresh that gets no answer is offline, not a sign-out.
+  The plan's refresh-and-retry on 401 was dropped by the user's brief:
+  `getSession()` already refreshes.
+- `src/auth/sessionExpiry.ts`: one sign-out per login however many requests get a
+  401, plus the one-time "Please sign in again." on Log in.
+- `src/state/pendingCheckin.ts`: a check-in that gets a 401 is held in memory and
+  sent once if the same user logs back in. A check-in that finds no session at all
+  is not held, because there is no user to hold it for.
+- Check-in save uses `useSingleFlight`; Done and the exit prompt's Save share it.
+- `src/utils/deviceId.ts` deleted, `expo-crypto` uninstalled. `legacyCleanup.ts`
+  removes the stored id by the `breathe_device_` prefix at each launch.
+- **Delete now removes the account** (backend change), so the prompt says so, and
+  the app signs out after success. If the reminder can't be cancelled the alert
+  says how to turn it off, since signed-out users can't reach Settings. The
+  Settings row still reads "Delete my data" until Phase 6.
+- **`--cutover` was loosened on purpose, approved by the user:** the term
+  `breathe_user_name` is out until `src/utils/userName.ts` goes. **Phase 6 must put
+  it back** (comment in `scripts/check-auth-rules.mjs`).
+
+Results: `test:auth` 125/125 (91 existing, 34 new), `check:auth` passed,
+`check:auth -- --cutover` passed (was 15 problems), `tsc --noEmit` clean. Requests
+were tested against a mocked `fetch`, not the real API.
+
+`.env.local`: `EXPO_PUBLIC_API_BASE_URL` now points at the Vercel API (user-approved
+one-off), so the Metro `/api` proxy is not used for this test.
+
+**On the phone (2026-11-07, dev build over adb, live Vercel API):**
+- Passed: Home and Insights load real data; a full 10-minute session saved a
+  check-in (Home "Content", 1 session; Insights streak 1, total 1); offline save
+  shows "Can't reach the server, try again", keeps both moods, stays signed in, and
+  Try Again saves it; offline cold start shows that message with Retry on Home and
+  Insights; with the network back nothing retries by itself; all three Retry
+  buttons recover.
+- Delete account: passed on the `+spike1` test account (the user confirmed it in
+  Supabase Users first, since no normal screen shows the signed-in email). The
+  prompt read "Delete your account?", the delete took under 8 s, and "Your account
+  has been deleted." appeared. OK signed out with no crash (same process, nothing in
+  the crash log). It landed on **onboarding (Welcome), not Log in**, because the
+  delete clears the onboarding flag. Server-side removal is verified: the user
+  checked Supabase Users after a refresh, `+spike1` is gone and the other account
+  is still there.
+- **Still to run on the preview APK with a throwaway account:** the expired-session
+  401 (Log in with "Please sign in again."), the held check-in sent after logging
+  back in, and rapid taps on Done. On the phone run, taps 2-4 missed because the
+  button moved up, and the backend's 60 s guard would hide a duplicate anyway. Only
+  the unit test covers single-send so far.
+- `adb reverse` is needed to cold start offline, since airplane mode cuts Metro. The
+  phone has a pattern lock, so adb can't unlock it.
+
+**Known issues, not from Phase 5:**
+- Mood Trend is blank with one check-in. From the code, one point gives a path with
+  no length (`buildSmoothPath` in `src/components/MoodTrendChart.tsx`).
+- Home's Snapshot Retry can sit partly behind the tab bar once Featured Session has
+  recovered. Tapping the visible part works.
+
+**Next:** approve the commit. Before any EAS build, confirm
+`EXPO_PUBLIC_API_BASE_URL` is set for that EAS environment: `eas.json` does not set
+it. Phase 6 adds Account, sign out and the name flow.

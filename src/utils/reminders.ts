@@ -19,7 +19,7 @@ const notificationsUnavailable = isExpoGo && Platform.OS === 'android';
 
 // architecture.md's "Notifications" section: daily reminder scheduled
 // locally on-device, user-configurable time — no backend, no push token.
-// Same AsyncStorage pattern as deviceId.ts/onboarding.ts (namespaced key,
+// Same AsyncStorage pattern as onboarding.ts (namespaced key,
 // fail-open on error).
 const REMINDER_SETTINGS_KEY = 'breathe_reminder_settings_v1';
 

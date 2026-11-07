@@ -14,6 +14,7 @@ import { getApiBaseUrl } from '../src/api/client';
 import { AuthProvider, useAuth } from '../src/auth/AuthProvider';
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors } from '../src/theme/tokens';
+import { removeLegacyIdentity } from '../src/utils/legacyCleanup';
 import { initNotificationChannel, initNotificationHandler } from '../src/utils/reminders';
 
 // Shows the thrown message (e.g. a missing/placeholder API URL in a release
@@ -77,6 +78,7 @@ export default function RootLayout() {
   useEffect(() => {
     initNotificationHandler();
     initNotificationChannel();
+    void removeLegacyIdentity();
   }, []);
 
   if (!fontsLoaded) {

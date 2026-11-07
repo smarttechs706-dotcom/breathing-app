@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { friendlyError } from '../../src/api/apiErrors';
 import { fetchInsights, type InsightsResponse } from '../../src/api/client';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
@@ -22,7 +23,6 @@ import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import type { MoodPoint } from '../../src/data/insights';
 import type { Checkin } from '../../src/types/models';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
-import { getDeviceId } from '../../src/utils/deviceId';
 
 const CONSISTENCY_DAYS = 28;
 
@@ -122,12 +122,9 @@ export default function InsightsScreen() {
   const load = useCallback(() => {
     setError(null);
     setInsights(null);
-    getDeviceId()
-      .then(fetchInsights)
+    fetchInsights()
       .then(setInsights)
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load insights.')
-      );
+      .catch((err) => setError(friendlyError(err)));
   }, []);
 
   useEffect(() => {
@@ -137,8 +134,7 @@ export default function InsightsScreen() {
   // D-02: this tab now survives a completed session (see checkinSignal.ts);
   // refresh silently so the numbers/chart include it.
   const refreshAfterCheckin = useCallback(() => {
-    getDeviceId()
-      .then(fetchInsights)
+    fetchInsights()
       .then(setInsights)
       .catch(() => {});
   }, []);

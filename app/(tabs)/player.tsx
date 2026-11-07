@@ -23,7 +23,6 @@ import { useActiveSession } from '../../src/state/ActiveSessionContext';
 import { getCachedSessions, setCachedSessions } from '../../src/state/sessionsCache';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import type { Session } from '../../src/types/models';
-import { getDeviceId } from '../../src/utils/deviceId';
 
 // architecture.md's "Bottom navigation — Player tab behavior": tapping
 // Player never silently redirects — it always shows this tab's own
@@ -131,8 +130,7 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (activeSessionId) return;
     let cancelled = false;
-    getDeviceId()
-      .then(fetchInsights)
+    fetchInsights()
       .then((insights) => {
         if (!cancelled) setCurrentStreak(insights.streak.currentStreak);
       })

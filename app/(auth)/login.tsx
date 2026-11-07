@@ -2,8 +2,10 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import type { TextInput } from 'react-native';
 
+import { API_MESSAGES } from '../../src/api/apiErrors';
 import { AUTH_MESSAGES, authErrorMessage } from '../../src/auth/authErrors';
 import { setPendingEmail } from '../../src/auth/pendingEmail';
+import { consumeSignInNotice } from '../../src/auth/sessionExpiry';
 import { getAuth } from '../../src/auth/supabase';
 import { useSingleFlight } from '../../src/auth/useSingleFlight';
 import { isValidEmail, normalizeEmail } from '../../src/auth/validation';
@@ -20,7 +22,9 @@ export default function LoginScreen() {
   const { running, run } = useSingleFlight();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<Errors>(() =>
+    consumeSignInNotice() ? { form: API_MESSAGES.sessionExpired } : {}
+  );
   const [needsConfirming, setNeedsConfirming] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 

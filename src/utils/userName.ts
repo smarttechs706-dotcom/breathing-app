@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // AsyncStorage on this device and is never sent to the backend. It is meant
 // to be replaced once real accounts/authentication exist — keep it simple.
 //
-// Namespaced key, same reasoning as onboarding.ts and deviceId.ts: Expo Go's
+// Namespaced key, same reasoning as onboarding.ts: Expo Go's
 // AsyncStorage isn't reliably sandboxed per-project on-device.
 const USER_NAME_KEY = 'breathe_user_name_v1';
 

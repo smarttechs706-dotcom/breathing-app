@@ -7,6 +7,7 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getApiBaseUrl } from '../src/api/client';
+import { useAuth } from '../src/auth/AuthProvider';
 import { GlassCard } from '../src/components/GlassCard';
 import { TimePickerModal } from '../src/components/TimePickerModal';
 import { UserNameModal } from '../src/components/UserNameModal';
@@ -17,7 +18,6 @@ import {
   deleteMyData,
   showDeleted,
 } from '../src/utils/deleteMyData';
-import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getUserName } from '../src/utils/userName';
 import {
   applyReminderSchedule,
@@ -103,6 +103,7 @@ export default function SettingsScreen() {
     getUserName().then(setUserNameState);
   }, []);
 
+  const { signOut } = useAuth();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -117,23 +118,13 @@ export default function SettingsScreen() {
       setDeleteError(DELETE_FAILURE);
       return;
     }
-    if (result === 'reminder-not-cancelled') {
-      // F-06: everything else is deleted, but the OS reminder is still
-      // scheduled. Stay here so the user can switch it off; make Home/Insights
-      // refetch (with the new device id) the next time they are shown instead
-      // of keeping the deleted data on screen.
-      markCheckinSaved();
-      setDeleting(false);
-      setDeleteError(DELETE_REMINDER_NOT_CANCELLED);
-      return;
-    }
-    // Local data is gone, so land on onboarding (first-launch state). Pop the
-    // whole stack first so the old Home/Insights/Player never show stale data;
-    // the root index route then redirects to onboarding.
-    showDeleted(() => {
-      router.dismissAll();
-      router.replace('/');
-    });
+    // The account is gone but its token still works for up to an hour, so sign
+    // out now. The route guards then drop every signed-in screen, which is why
+    // nothing navigates here.
+    showDeleted(
+      () => void signOut(),
+      result === 'reminder-not-cancelled' ? DELETE_REMINDER_NOT_CANCELLED : undefined
+    );
   }
 
   const REMINDER_SCHEDULE_ERROR = "Couldn't schedule the reminder. Please try again.";
