@@ -4728,3 +4728,27 @@ Policy. Sign out uses the same dialog and `useAuth().signOut` as Settings; no au
 or Settings code changed. No Help row (nothing exists to link to). The Home avatar
 now opens Profile and the Home gear is gone. Library, Insights and Player still
 have their own avatar and gear opening Settings (follow-up).
+
+## Library redesign (2026-11-09, branch feat/home-redesign)
+
+`src/features/library/` replaces the old list: one painted 5:2 image card per
+session (160 dp tall, centre kept, sides trimmed; 16 dp margins, 12 dp gaps; the
+whole card is the button, 0.97 press scale), a left-to-right navy gradient for
+the text, and title, duration and category (icon from the session's `badge`).
+Header: "Library" in white, avatar opens Profile, no gear. Navy glass search,
+the same five chips and real counts (active chip solid `inversePrimary`, no
+glow), Quick Start unchanged. Behaviour moved unchanged into the pure
+`libraryModel.ts` (filters, counts, Quick Start target) with tests in
+`tests/library/`. Images: `src/features/library/images/library-<session id>.jpg`,
+1000 x 400, quality 80, 24-55 KB, converted from the untracked PNGs in
+`assets/design-reference/`; a session without an image gets a plain navy
+gradient card. ScrollView kept (6 sessions). Insights' TopBar now uses the same
+avatar (opens Profile) and has no gear. `AccountAvatar` is unchanged, so Player
+still opens Settings; `SessionThumbnail` is now unused (cleanup later).
+Phone-checked: card height 160 dp, gap 12 dp, 24 dp clear of the pill; all 6
+cards open the right session; Quick Start, search, chips, empty message and both
+avatars work. Contrast fix: the text gradient is now 85% / 60% / 0% navy at
+0 / 50 / 85% across the card and the meta row is pure white. Measured on the
+phone against the brightest 1% of background behind each line: titles 3.8-14.3:1
+(need 3:1), meta 5.0-17.0:1 (need 4.5:1) on all 6 cards; the right third is
+7-14% darker in mean luminance, with the sun, moon and glows still clear.

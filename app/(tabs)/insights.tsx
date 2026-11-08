@@ -1,5 +1,4 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
@@ -16,10 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../src/api/apiErrors';
 import { fetchInsights, type InsightsResponse } from '../../src/api/client';
-import { AccountAvatar } from '../../src/components/AccountAvatar';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { MoodTrendChart } from '../../src/components/MoodTrendChart';
+import { PreviewAvatar } from '../../src/features/home/PreviewAvatar';
 import { useRefreshOnNewCheckin } from '../../src/state/checkinSignal';
 import type { MoodPoint } from '../../src/data/insights';
 import type { Checkin } from '../../src/types/models';
@@ -91,23 +90,17 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
-// Shared across the loading/error/success render branches below.
+// Shared across the loading/error/success render branches below. The avatar
+// opens the Profile tab (which links on to Settings); there is no gear, as on
+// Home. The empty 40 dp view keeps the title centred where the gear was.
 function TopBar() {
   return (
     <View style={styles.topBar}>
-      <AccountAvatar size={40} />
+      <PreviewAvatar size={40} />
       <GradientText colors={[colors.primary, colors.tertiary]} style={styles.headline}>
         Breathease
       </GradientText>
-      <Pressable
-        onPress={() => router.push('/settings')}
-        hitSlop={12}
-        style={styles.settingsButton}
-        accessibilityRole="button"
-        accessibilityLabel="Settings"
-      >
-        <MaterialIcons name="settings" size={24} color={colors.primary} />
-      </Pressable>
+      <View style={{ width: 40 }} />
     </View>
   );
 }
