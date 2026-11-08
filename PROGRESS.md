@@ -4698,3 +4698,21 @@ number read to screen readers is the server's `sessionsThisWeek`, which counts a
 rolling last 7 days (`now() - 7 days`), so it is worded "in the last 7 days". The two
 can differ, e.g. on a Monday a session from last Friday counts in the number but has
 no circle this week. The streak itself is still counted in UTC days.
+
+## Floating pill tab bar (2026-11-08, branch feat/home-redesign)
+
+`app/(tabs)/_layout.tsx` now uses our own `tabBar`
+(`src/features/tab-bar/FloatingTabBar.tsx`, layout maths in `tabBarLayout.ts`, tests
+in `tests/tab-bar/`): a centred navy pill (95% fill), 56 dp tall, 16 dp above the
+safe area, one 74 dp slot per tab (230 dp wide for Home, Library, Insights; a
+fourth tab adds a slot), 20 dp icons over 11 dp labels, a sliding SVG highlight
+(70 x 48 dp, white 14%), and a short fade + 8 dp shift between tabs. Sizes were
+brought closer to `assets/design-reference/tabbar-reference.jpg` after measuring
+it. User decisions that override earlier records:
+- **Overrides the 2026-09-14 pill removal:** a rounded active highlight is back. It
+  is drawn with SVG inside a plain animated container, never an animated view's own
+  `borderRadius`, which is what broke the old pill on Android.
+- **Overrides architecture.md's 4-tab bottom-nav spec:** Player is hidden from the
+  bar (`href: null`); `player.tsx` stays as a route. Nothing links to it.
+- **Overrides the Stitch full-width bar:** the bar is a floating pill, not a
+  full-width strip. architecture.md is not updated yet.
