@@ -4716,3 +4716,15 @@ it. User decisions that override earlier records:
   bar (`href: null`); `player.tsx` stays as a route. Nothing links to it.
 - **Overrides the Stitch full-width bar:** the bar is a floating pill, not a
   full-width strip. architecture.md is not updated yet.
+
+## Profile tab (2026-11-09, branch feat/home-redesign)
+
+Fourth tab in the pill (Home, Library, Insights, Profile; `person-circle`), which
+grows to 304 dp. `src/features/profile/` shows the account name, email and
+initial, real stats from the existing `GET /api/insights` (streak, last 7 days,
+mindful minutes), and rows that only link to existing screens: Settings, Daily
+reminder (shows "8:00 PM" or "Off", opens Settings), Change password, Privacy
+Policy. Sign out uses the same dialog and `useAuth().signOut` as Settings; no auth
+or Settings code changed. No Help row (nothing exists to link to). The Home avatar
+now opens Profile and the Home gear is gone. Library, Insights and Player still
+have their own avatar and gear opening Settings (follow-up).

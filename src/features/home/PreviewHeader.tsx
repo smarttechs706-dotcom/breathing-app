@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../../theme/tokens';
@@ -15,6 +14,8 @@ const AVATAR = 48;
 const DAY_COLUMN = 32;
 const DAY_DOT = 18;
 
+// The greeting row: avatar (opens the Profile tab, which links on to
+// Settings) and the greeting with the name. There is no gear here any more.
 // `onLongPressGreeting` is a hidden dev control (see HomeScreen): nothing is
 // drawn for it and nothing moves when it fires.
 export function GreetingRow({
@@ -51,15 +52,6 @@ export function GreetingRow({
           </View>
         </Pressable>
       </View>
-      <Pressable
-        onPress={() => router.push('/settings')}
-        hitSlop={12}
-        style={styles.settings}
-        accessibilityRole="button"
-        accessibilityLabel="Settings"
-      >
-        <Ionicons name="settings-sharp" size={22} color={colors.onSurface} />
-      </Pressable>
     </View>
   );
 }
@@ -142,7 +134,6 @@ const styles = StyleSheet.create({
   greetingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.marginMobile,
     paddingTop: spacing.base,
   },
@@ -168,10 +159,6 @@ const styles = StyleSheet.create({
     ...text.name,
     color: '#ffffff',
     flexShrink: 1,
-  },
-  settings: {
-    padding: spacing.base,
-    marginRight: -spacing.base,
   },
   weekRow: {
     flexDirection: 'row',

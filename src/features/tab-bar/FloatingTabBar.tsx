@@ -45,6 +45,7 @@ export const TAB_ICONS: Record<string, [IconName, IconName]> = {
   home: ['home', 'home-outline'],
   library: ['library', 'library-outline'],
   insights: ['trending-up', 'trending-up-outline'],
+  profile: ['person-circle', 'person-circle-outline'],
 };
 
 const ICON_SIZE = 20;

@@ -6,19 +6,18 @@ import { accountFirstName, accountInitial } from '../../auth/accountName';
 import { useAuth } from '../../auth/AuthProvider';
 import { accents, text } from './styles';
 
-// Preview-only avatar: blue glass circle with a white initial, as in the
-// reference. Same data and behaviour as the shared AccountAvatar (initial
-// from the account name, person icon without one, opens Settings).
+// Home's avatar: blue glass circle with a white initial (person icon without
+// a name). Opens the Profile tab, which links on to Settings.
 export function PreviewAvatar({ size }: { size: number }) {
   const { session } = useAuth();
   const initial = accountInitial(accountFirstName(session?.user));
 
   return (
     <Pressable
-      onPress={() => router.push('/settings')}
+      onPress={() => router.navigate('/profile')}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Open Settings"
+      accessibilityLabel="Open Profile"
       style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
     >
       {initial ? (

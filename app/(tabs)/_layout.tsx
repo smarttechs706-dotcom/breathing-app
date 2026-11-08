@@ -3,8 +3,8 @@ import { Tabs } from 'expo-router';
 import { FloatingTabBar, useTabTransitionOptions } from '../../src/features/tab-bar/FloatingTabBar';
 
 // Tab bar: a floating pill (src/features/tab-bar/FloatingTabBar.tsx) with
-// Home, Library and Insights. Decided 2026-11-08 (see PROGRESS.md), replacing
-// the full-width bar from the Stitch exports.
+// Home, Library, Insights and Profile. Decided 2026-11-08 (see PROGRESS.md),
+// replacing the full-width bar from the Stitch exports.
 //
 // History kept here because it shaped the new bar:
 // - The 2026-09-14 removal of the active-tab pill: on Android the stock bar's
@@ -20,8 +20,8 @@ import { FloatingTabBar, useTabTransitionOptions } from '../../src/features/tab-
 // links to it, and sessions open the Session Player directly.
 //
 // The pill reports its full footprint (pill + float gap + bottom inset) to
-// useBottomTabBarHeight(), so Home, Library and Insights keep clear of it
-// with their existing padding.
+// useBottomTabBarHeight(), so every tab keeps clear of it with its existing
+// padding.
 export default function TabsLayout() {
   const transition = useTabTransitionOptions();
   return (
@@ -33,6 +33,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="library" options={{ title: 'Library' }} />
       <Tabs.Screen name="player" options={{ title: 'Player', href: null }} />
       <Tabs.Screen name="insights" options={{ title: 'Insights' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }

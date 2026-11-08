@@ -1,0 +1,406 @@
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { friendlyError } from '../../api/apiErrors';
+import { fetchInsights, getApiBaseUrl, type InsightsResponse } from '../../api/client';
+import { accountFirstName, accountInitial, homeGreeting } from '../../auth/accountName';
+import { useAuth } from '../../auth/AuthProvider';
+import { useSingleFlight } from '../../auth/useSingleFlight';
+import { useRefreshOnNewCheckin } from '../../state/checkinSignal';
+import { colors, spacing, typography } from '../../theme/tokens';
+import { getReminderSettings } from '../../utils/reminders';
+import { FadeIn, STAGGER_MS } from '../home/motion';
+import { PreviewGlass } from '../home/PreviewGlass';
+import { accents, text } from '../home/styles';
+import {
+  dayCount,
+  minutesLabel,
+  PROFILE_ROWS,
+  reminderLabel,
+  sessionCount,
+  type ProfileRow,
+  type ReminderState,
+} from './profileModel';
+
+// Profile tab: who you are, your real stats, and links to the screens that
+// already exist (Settings, Daily reminder, Change password, Privacy Policy),
+// plus Sign out. Nothing here edits account data; Settings stays the one
+// place for that. Same tokens and light glass cards as Home.
+
+const AVATAR = 72;
+const CARD_RADIUS = 16;
+
+// Deep navy like the rest of the redesign: from the tab pill's navy at the
+// top to the navy at the bottom of Home's paintings (backgrounds.ts
+// imageBottom). On this background PreviewGlass reads as the same navy glass
+// as Home's cards; on the neutral app background it read grey.
+const BACKGROUND_TOP = '#0a1028';
+const BACKGROUND_BOTTOM = '#00051a';
+
+// Same dialog as Settings (app/settings.tsx keeps its own private copy).
+// react-native-web's Alert.alert is a no-op, so web uses the browser dialog.
+function confirmSignOut(): Promise<boolean> {
+  if (Platform.OS === 'web') return Promise.resolve(window.confirm('Sign out?'));
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Sign out?',
+      undefined,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Sign out', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+}
+
+// Same page Settings opens; served by the same API as the data.
+function openPrivacyPolicy() {
+  Linking.openURL(new URL('/privacy', getApiBaseUrl()).toString()).catch(() => {});
+}
+
+export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
+  const { session, signOut } = useAuth();
+  const leaving = useSingleFlight();
+  const firstName = accountFirstName(session?.user);
+  const initial = accountInitial(firstName);
+  const email = session?.user.email ?? null;
+
+  // Stats from the existing GET /api/insights. null = loading.
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const loadInsights = useCallback(() => {
+    setInsightsError(null);
+    setInsights(null);
+    fetchInsights()
+      .then(setInsights)
+      .catch((err) => setInsightsError(friendlyError(err)));
+  }, []);
+  useEffect(() => {
+    loadInsights();
+  }, [loadInsights]);
+  // After a saved check-in: refresh quietly; old numbers stay on a failure.
+  const refreshAfterCheckin = useCallback(() => {
+    fetchInsights()
+      .then(setInsights)
+      .catch(() => {});
+  }, []);
+  useRefreshOnNewCheckin(refreshAfterCheckin);
+
+  // Reminder status, read on every focus so it is current after Settings.
+  const [reminder, setReminder] = useState<ReminderState | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getReminderSettings()
+        .then((s) => {
+          if (active) setReminder(s);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  // Nothing navigates after signing out: the route guards go to Log in.
+  const handleSignOut = () =>
+    leaving.run(async () => {
+      if (await confirmSignOut()) await signOut();
+    });
+
+  const openRow = (row: ProfileRow) => {
+    if (row.target.kind === 'privacy') openPrivacyPolicy();
+    else router.push(row.target.href);
+  };
+
+  return (
+    <View style={styles.root}>
+      <LinearGradient
+        colors={[BACKGROUND_TOP, BACKGROUND_BOTTOM]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + spacing.base * 3 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <FadeIn style={styles.header}>
+            <View
+              style={styles.avatar}
+              accessible
+              accessibilityLabel={firstName ? `${firstName}'s profile` : 'Your profile'}
+            >
+              {initial ? (
+                <Text style={styles.initial}>{initial}</Text>
+              ) : (
+                <Ionicons name="person" size={36} color="#ffffff" />
+              )}
+            </View>
+            <Text style={styles.name} numberOfLines={1} accessibilityRole="header">
+              {firstName ?? homeGreeting(null)}
+            </Text>
+            {email && (
+              <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
+                {email}
+              </Text>
+            )}
+          </FadeIn>
+
+          <FadeIn delay={STAGGER_MS}>
+            {insightsError ? (
+              <PreviewGlass radius={CARD_RADIUS} style={styles.errorCard}>
+                <View style={styles.errorText}>
+                  <Text style={styles.errorTitle}>Couldn&apos;t load your stats.</Text>
+                  <Text style={styles.errorDetail} numberOfLines={2}>
+                    {insightsError}
+                  </Text>
+                </View>
+                <Pressable onPress={loadInsights} hitSlop={8} accessibilityRole="button">
+                  <Text style={styles.retry}>Retry</Text>
+                </Pressable>
+              </PreviewGlass>
+            ) : (
+              <View
+                style={[styles.stats, !insights && styles.loading]}
+                accessible={!insights}
+                accessibilityLabel={insights ? undefined : 'Loading your stats'}
+              >
+                <Stat
+                  icon="flame"
+                  iconColor={accents.flame}
+                  value={insights ? dayCount(insights.streak.currentStreak) : ''}
+                  label="Streak"
+                />
+                <Stat
+                  icon="calendar-outline"
+                  iconColor={colors.secondary}
+                  value={insights ? sessionCount(insights.sessionsThisWeek) : ''}
+                  label="Last 7 days"
+                />
+                <Stat
+                  icon="time-outline"
+                  iconColor={colors.secondary}
+                  value={insights ? minutesLabel(insights.mindfulMinutes) : ''}
+                  label="Mindful minutes"
+                />
+              </View>
+            )}
+          </FadeIn>
+
+          <FadeIn delay={STAGGER_MS * 2}>
+            <PreviewGlass radius={CARD_RADIUS}>
+              {PROFILE_ROWS.map((row, i) => {
+                const value = row.key === 'reminder' ? reminderLabel(reminder) : null;
+                const external = row.target.kind === 'privacy';
+                return (
+                  <Pressable
+                    key={row.key}
+                    onPress={() => openRow(row)}
+                    accessibilityRole={external ? 'link' : 'button'}
+                    accessibilityLabel={value ? `${row.label}, ${value}` : row.label}
+                    style={({ pressed }) => [
+                      styles.row,
+                      i > 0 && styles.rowDivider,
+                      pressed && styles.rowPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name={row.icon as keyof typeof Ionicons.glyphMap}
+                      size={22}
+                      color={colors.onSurfaceVariant}
+                    />
+                    <Text style={styles.rowLabel} numberOfLines={1}>
+                      {row.label}
+                    </Text>
+                    {value && <Text style={styles.rowValue}>{value}</Text>}
+                    <Ionicons
+                      name={external ? 'open-outline' : 'chevron-forward'}
+                      size={18}
+                      color={colors.onSurfaceVariant}
+                    />
+                  </Pressable>
+                );
+              })}
+            </PreviewGlass>
+          </FadeIn>
+
+          <FadeIn delay={STAGGER_MS * 3}>
+            <PreviewGlass radius={CARD_RADIUS}>
+              <Pressable
+                onPress={handleSignOut}
+                disabled={leaving.running}
+                accessibilityRole="button"
+                accessibilityLabel="Sign out"
+                accessibilityState={{ disabled: leaving.running, busy: leaving.running }}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              >
+                <Ionicons name="log-out-outline" size={22} color={colors.onSurfaceVariant} />
+                <Text style={styles.rowLabel}>Sign out</Text>
+                {leaving.running && <ActivityIndicator color={colors.onSurfaceVariant} />}
+              </Pressable>
+            </PreviewGlass>
+          </FadeIn>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+function Stat({
+  icon,
+  iconColor,
+  value,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  value: string;
+  label: string;
+}) {
+  return (
+    <PreviewGlass radius={CARD_RADIUS} style={styles.stat}>
+      <View
+        style={styles.statBody}
+        accessible={value !== ''}
+        accessibilityLabel={value !== '' ? `${label}: ${value}` : undefined}
+      >
+        <Ionicons name={icon} size={20} color={iconColor} />
+        <Text style={styles.statValue} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={styles.statLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
+    </PreviewGlass>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BACKGROUND_BOTTOM,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: spacing.gutter,
+    paddingTop: spacing.base * 3,
+    gap: spacing.base * 3,
+  },
+  header: {
+    alignItems: 'center',
+    gap: spacing.base,
+  },
+  avatar: {
+    width: AVATAR,
+    height: AVATAR,
+    borderRadius: AVATAR / 2,
+    borderWidth: 1,
+    borderColor: accents.avatarBorder,
+    backgroundColor: accents.avatarFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.base,
+  },
+  initial: {
+    ...typography.headlineLg,
+    color: '#ffffff',
+  },
+  name: {
+    ...text.name,
+    color: '#ffffff',
+  },
+  email: {
+    ...text.body,
+    color: colors.onSurfaceVariant,
+  },
+  stats: {
+    flexDirection: 'row',
+    gap: spacing.base * 1.5,
+  },
+  loading: {
+    opacity: 0.4,
+  },
+  stat: {
+    flex: 1,
+  },
+  statBody: {
+    paddingVertical: spacing.base * 2,
+    paddingHorizontal: spacing.base,
+    alignItems: 'center',
+    gap: spacing.base * 0.5,
+  },
+  statValue: {
+    ...text.featuredTitle,
+    fontSize: 18,
+    lineHeight: 24,
+    minHeight: 24,
+    color: '#ffffff',
+  },
+  statLabel: {
+    ...text.cardMeta,
+    color: colors.onSurfaceVariant,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 56,
+    paddingHorizontal: spacing.base * 2,
+    gap: spacing.base * 1.5,
+  },
+  rowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: accents.glassBorder,
+  },
+  rowPressed: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  rowLabel: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+    flex: 1,
+  },
+  rowValue: {
+    ...text.body,
+    color: colors.onSurfaceVariant,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base * 2,
+    padding: spacing.base * 2,
+  },
+  errorText: {
+    flex: 1,
+  },
+  errorTitle: {
+    ...text.body,
+    color: colors.onSurface,
+  },
+  errorDetail: {
+    ...text.body,
+    color: colors.onSurfaceVariant,
+  },
+  retry: {
+    ...text.link,
+    color: colors.primary,
+  },
+});
