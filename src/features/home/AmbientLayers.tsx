@@ -26,7 +26,8 @@ import { EASE_IN_OUT_SINE } from './motion';
 
 // Linear 0 -> 1 loop. Values 0 and 1 must look the same (offscreen, or the
 // same point of a periodic curve), so the restart is invisible.
-function useCycle(value: Animated.Value, running: boolean, durationMs: number) {
+// Also used by PreviewOrb's moving light.
+export function useCycle(value: Animated.Value, running: boolean, durationMs: number) {
   const last = useRef(0);
   useEffect(() => {
     if (!running) return;
@@ -58,7 +59,8 @@ function useCycle(value: Animated.Value, running: boolean, durationMs: number) {
 }
 
 // 0 -> 1 -> 0 loop with sine easing; on resume it first eases back to 0.
-function usePingPong(value: Animated.Value, running: boolean, halfMs: number) {
+// Also used by PreviewOrb's breathing.
+export function usePingPong(value: Animated.Value, running: boolean, halfMs: number) {
   const last = useRef(0);
   useEffect(() => {
     if (!running) return;

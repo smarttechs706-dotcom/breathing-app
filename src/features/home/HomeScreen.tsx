@@ -19,6 +19,7 @@ import { useRefreshOnNewCheckin } from '../../state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../../state/sessionsCache';
 import { colors, spacing } from '../../theme/tokens';
 import type { Session } from '../../types/models';
+import { horizonOnScreen, SCENES } from './backgrounds';
 import { FeaturedSessionCard } from './FeaturedSessionCard';
 import { FadeIn, STAGGER_MS } from './motion';
 import { NowForYou } from './NowForYou';
@@ -26,14 +27,13 @@ import { pickFeatured, pickNowForYou } from './picks';
 import { GreetingRow, WeekRow } from './PreviewHeader';
 import { PreviewOrb } from './PreviewOrb';
 import { text } from './styles';
-import { horizonOnScreen, SCENES } from './backgrounds';
 import { TimeOfDayBackground } from './TimeOfDayBackground';
 import { backgroundPhaseForHour, type DayPhase } from './timeOfDay';
 import { weekActivity } from './weekActivity';
 
-// Matches the real tab bar's content height in app/(tabs)/_layout.tsx. This
-// route sits outside the tabs, so no tab bar shows; the space is kept so the
-// layout sits where it will once it replaces Home.
+// Used only when no tab-bar height is passed in (the dev preview route, which
+// sits outside the tabs): the real tab bar's content height from
+// app/(tabs)/_layout.tsx, so the layout sits where it does on Home.
 const TAB_BAR_CONTENT_HEIGHT = 84;
 
 // The Featured card's top edge stays at least this far below the horizon.
@@ -66,7 +66,12 @@ function useLocalHour(): number {
   return hour;
 }
 
-export function HomeRedesignPreview() {
+// The Home screen. app/(tabs)/home.tsx renders it with the real tab-bar
+// height; the dev route app/home-redesign-preview.tsx renders it without.
+// Data and navigation are the same as the previous Home: GET /api/sessions
+// (cache first) for the Featured card and "Now for you", GET /api/insights for
+// the week row and streak, a silent refresh after a saved check-in.
+export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
   const { session: authSession, status } = useAuth();
   const insets = useSafeAreaInsets();
   const hour = useLocalHour();
@@ -85,19 +90,21 @@ export function HomeRedesignPreview() {
     setHeaderBottom(y + height);
   }, []);
 
-  // Session history: real check-ins and the server's streak.
+  // Session history: real check-ins, the server's streak and 7-day count.
+  // null = loading (first fetch, or a retry in flight).
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
-  const [insightsError, setInsightsError] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const loadInsights = useCallback(() => {
-    setInsightsError(false);
+    setInsightsError(null);
     setInsights(null);
     fetchInsights()
       .then(setInsights)
-      .catch(() => setInsightsError(true));
+      .catch((err) => setInsightsError(friendlyError(err)));
   }, []);
 
-  // Session catalog: starts from the shared cache like the real Home.
+  // Session catalog: starts from the shared cache when it holds a list, then
+  // refreshes. A failed refresh with a cached list keeps showing the cache.
   const [sessions, setSessions] = useState<Session[] | null>(() => {
     const cached = getCachedSessions();
     return cached && cached.length > 0 ? cached : null;
@@ -120,6 +127,7 @@ export function HomeRedesignPreview() {
     loadSessions();
   }, [signedIn, loadInsights, loadSessions]);
 
+  // After a saved check-in: refresh quietly; old numbers stay on a failure.
   const refreshAfterCheckin = useCallback(() => {
     fetchInsights()
       .then(setInsights)
@@ -134,10 +142,12 @@ export function HomeRedesignPreview() {
     [insights, hour]
   );
 
+  // Home itself sits behind the signed-in guard; only the dev route can be
+  // open while signed out.
   if (!signedIn) {
     return (
       <View style={[styles.root, styles.centered]}>
-        <Text style={styles.notice}>Sign in to see the Home redesign preview.</Text>
+        <Text style={styles.notice}>Sign in to see Home.</Text>
       </View>
     );
   }
@@ -158,13 +168,19 @@ export function HomeRedesignPreview() {
       : ({ kind: 'loading' } as const);
 
   const weekState = insightsError
-    ? ({ kind: 'error', onRetry: loadInsights } as const)
+    ? ({ kind: 'error', message: insightsError, onRetry: loadInsights } as const)
     : insights && days
-      ? ({ kind: 'ready', days, streak: insights.streak.currentStreak } as const)
+      ? ({
+          kind: 'ready',
+          days,
+          streak: insights.streak.currentStreak,
+          sessionsLast7Days: insights.sessionsThisWeek,
+        } as const)
       : ({ kind: 'loading' } as const);
 
   const displayName = accountFirstName(authSession?.user) ?? homeGreeting(null);
   const phase = phaseOverride ?? backgroundPhaseForHour(hour);
+  const bottomSpace = tabBarHeight ?? TAB_BAR_CONTENT_HEIGHT + insets.bottom;
 
   // The orb area grows at least enough to put the Featured card's top edge
   // CARD_BELOW_HORIZON under the horizon (window coordinates: the scroll
@@ -180,10 +196,7 @@ export function HomeRedesignPreview() {
       <TimeOfDayBackground phase={phase} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: TAB_BAR_CONTENT_HEIGHT + insets.bottom + spacing.base * 3 },
-          ]}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomSpace + spacing.base * 3 }]}
           showsVerticalScrollIndicator={false}
         >
           <View onLayout={onHeaderLayout}>

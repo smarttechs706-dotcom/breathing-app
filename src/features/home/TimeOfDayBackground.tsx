@@ -14,17 +14,18 @@ import Svg, {
 
 import { DriftingPainting, NightStars, WaterShimmer } from './AmbientLayers';
 import { horizonOnScreen, imageFrame, SCENES, sceneHorizon, type Scene } from './backgrounds';
-import { EASE_IN_OUT_SINE, useAmbientMotion, useReducedMotion } from './motion';
+import { EASE_IN_OUT_SINE, useAmbientMotion } from './motion';
 import type { DayPhase } from './timeOfDay';
 
 const CROSSFADE_MS = 1500;
 
-// Full-screen scene behind the preview. When the phase changes, the new scene
-// fades in over the old one (1.5 s). With reduced motion it switches at once.
+// Full-screen scene behind Home. When the phase changes, the new scene fades
+// in over the old one (1.5 s). It switches at once instead when motion is
+// reduced (or unknown), when Home is not on screen, or when the app is in the
+// background; a fade in progress when Home loses focus finishes immediately.
 // Ambient motion (drift, night twinkle, water shimmer) runs only on the
 // current scene and only while useAmbientMotion says so.
 export function TimeOfDayBackground({ phase }: { phase: DayPhase }) {
-  const reduced = useReducedMotion();
   const ambient = useAmbientMotion();
   const fade = useRef(new Animated.Value(1)).current;
   const shown = useRef(phase);
@@ -38,8 +39,7 @@ export function TimeOfDayBackground({ phase }: { phase: DayPhase }) {
     const from = shown.current;
     shown.current = phase;
 
-    // Unknown (null) counts as reduced: switch without moving anything.
-    if (reduced !== false) {
+    if (!ambient.running) {
       fade.setValue(1);
       setLayers({ current: phase, previous: null });
       return;
@@ -56,8 +56,13 @@ export function TimeOfDayBackground({ phase }: { phase: DayPhase }) {
     anim.start(({ finished }) => {
       if (finished) setLayers((l) => ({ current: l.current, previous: null }));
     });
-    return () => anim.stop();
-  }, [phase, reduced, fade]);
+    // Losing focus (or a new phase) mid-fade: jump to the end, no motion left.
+    return () => {
+      anim.stop();
+      fade.setValue(1);
+      setLayers((l) => ({ current: l.current, previous: null }));
+    };
+  }, [phase, ambient.running, fade]);
 
   return (
     <View style={styles.fill} pointerEvents="none">

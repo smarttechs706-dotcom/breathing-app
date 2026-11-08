@@ -1,6 +1,6 @@
 // Pure layout and timing for the ambient background motion: painting drift,
 // night twinkle and water shimmer. No React Native imports, so it is tested
-// directly in Node (tests/home-redesign-preview).
+// directly in Node (tests/home/home.test.cjs).
 
 // --- Painting placement ---------------------------------------------------
 

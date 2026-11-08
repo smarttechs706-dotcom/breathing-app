@@ -7,15 +7,16 @@ import type { EmptyDayFill } from './backgrounds';
 import { PreviewAvatar } from './PreviewAvatar';
 import { accents, text } from './styles';
 import { greetingForHour } from './timeOfDay';
-import { dayName, streakLabel, type ActivityDay } from './weekActivity';
+import { streakLabel, weekSummary, type ActivityDay } from './weekActivity';
 
-// Reference: avatar 52 px -> 40 pt; day circles 22 px -> 18 pt on 32 pt columns.
-const AVATAR = 40;
+// Avatar 48 pt on Home (product decision; the reference measured 40).
+// Day circles 22 px -> 18 pt on 32 pt columns (reference x0.774).
+const AVATAR = 48;
 const DAY_COLUMN = 32;
 const DAY_DOT = 18;
 
-// `onLongPressGreeting` is a hidden dev control (see HomeRedesignPreview):
-// nothing is drawn for it and nothing moves when it fires.
+// `onLongPressGreeting` is a hidden dev control (see HomeScreen): nothing is
+// drawn for it and nothing moves when it fires.
 export function GreetingRow({
   hour,
   displayName,
@@ -65,8 +66,9 @@ export function GreetingRow({
 
 type WeekState =
   | { kind: 'loading' }
-  | { kind: 'error'; onRetry: () => void }
-  | { kind: 'ready'; days: ActivityDay[]; streak: number };
+  // `message` is friendlyError(err), the same text the old Home showed.
+  | { kind: 'error'; message: string; onRetry: () => void }
+  | { kind: 'ready'; days: ActivityDay[]; streak: number; sessionsLast7Days: number };
 
 export function WeekRow({
   state,
@@ -78,7 +80,12 @@ export function WeekRow({
   if (state.kind === 'error') {
     return (
       <View style={styles.weekRow}>
-        <Text style={styles.weekError}>Couldn&apos;t load your week.</Text>
+        <View style={styles.weekErrorText}>
+          <Text style={styles.weekError}>Couldn&apos;t load your week.</Text>
+          <Text style={styles.weekErrorDetail} numberOfLines={2}>
+            {state.message}
+          </Text>
+        </View>
         <Pressable onPress={state.onRetry} hitSlop={8} accessibilityRole="button">
           <Text style={styles.retry}>Retry</Text>
         </Pressable>
@@ -87,9 +94,8 @@ export function WeekRow({
   }
 
   const days = state.kind === 'ready' ? state.days : null;
-  const summary = days
-    ? `This week: ${days.map((d, i) => `${dayName(i)} ${d.done ? 'done' : 'no session'}`).join(', ')}`
-    : 'Loading this week';
+  const summary =
+    state.kind === 'ready' ? weekSummary(state.days, state.sessionsLast7Days) : 'Loading this week';
 
   return (
     <View style={styles.weekRow}>
@@ -228,10 +234,16 @@ const styles = StyleSheet.create({
     ...text.streak,
     color: accents.streakText,
   },
+  weekErrorText: {
+    flexShrink: 1,
+  },
   weekError: {
     ...text.body,
+    color: colors.onSurface,
+  },
+  weekErrorDetail: {
+    ...text.body,
     color: colors.onSurfaceVariant,
-    flexShrink: 1,
   },
   retry: {
     ...text.link,

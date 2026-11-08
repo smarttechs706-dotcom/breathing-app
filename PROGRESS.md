@@ -4679,3 +4679,22 @@ sweep. The screens themselves, the dot and the Snapshot row have no automated te
 polish must keep the avatar at 48 on Home and 40 elsewhere, replacing audit item 23.
 The Phase 5 items still wait for the preview APK: real email links, expired-session
 401, held check-in and rapid taps.
+
+## Home redesign moved into the real Home (2026-11-08, branch feat/home-redesign)
+
+The approved preview now renders the Home tab. `src/features/home-redesign-preview/`
+was renamed (git mv) to `src/features/home/`, `HomeRedesignPreview.tsx` to
+`HomeScreen.tsx`, and the tests to `tests/home/home.test.cjs`
+(`node --test tests/home/home.test.cjs`). `app/(tabs)/home.tsx` is a thin wrapper
+that passes the real tab-bar height. The dev route `/home-redesign-preview` and its
+Settings row stay for now.
+
+Decisions: current mood is dropped from Home (Insights still shows it); avatar
+48 pt on Home; the week circles replace the "This week" number.
+
+**Week circles vs. the 7-day count (known difference, not a bug):** the circles show
+this calendar week (Sunday to Saturday) by local day, from real check-in dates. The
+number read to screen readers is the server's `sessionsThisWeek`, which counts a
+rolling last 7 days (`now() - 7 days`), so it is worded "in the last 7 days". The two
+can differ, e.g. on a Monday a session from last Friday counts in the number but has
+no circle this week. The streak itself is still counted in UTC days.

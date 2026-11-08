@@ -1,5 +1,5 @@
-// Tests for the Home redesign preview's pure logic. Run with:
-//   node --test tests/home-redesign-preview/homeRedesignPreview.test.cjs
+// Tests for the Home screen's pure logic (src/features/home). Run with:
+//   node --test tests/home/home.test.cjs
 // Reuses the auth tests' TypeScript loader; it is not part of `npm run test:auth`.
 
 const assert = require('node:assert/strict');
@@ -7,15 +7,11 @@ const { test } = require('node:test');
 
 const { loadTs } = require('../auth/helpers.cjs');
 
-const { greetingForHour, backgroundPhaseForHour } = loadTs(
-  'src/features/home-redesign-preview/timeOfDay.ts'
+const { greetingForHour, backgroundPhaseForHour } = loadTs('src/features/home/timeOfDay.ts');
+const { weekActivity, weekSummary, streakLabel, formatMinutes, localDateKey } = loadTs(
+  'src/features/home/weekActivity.ts'
 );
-const { weekActivity, streakLabel, formatMinutes, localDateKey } = loadTs(
-  'src/features/home-redesign-preview/weekActivity.ts'
-);
-const { pickFeatured, pickNowForYou, NOW_FOR_YOU_IDS } = loadTs(
-  'src/features/home-redesign-preview/picks.ts'
-);
+const { pickFeatured, pickNowForYou, NOW_FOR_YOU_IDS } = loadTs('src/features/home/picks.ts');
 
 test('greeting boundaries: night 00-05, morning 05-12, afternoon 12-17, evening 17-24', () => {
   const expected = {
@@ -129,6 +125,19 @@ test('localDateKey pads month and day', () => {
   assert.equal(localDateKey(new Date(2026, 0, 5)), '2026-01-05');
 });
 
+test('screen readers hear each day and the server count, named as the last 7 days', () => {
+  const checkins = [new Date(2026, 10, 9, 10, 0).toISOString()]; // Monday
+  const days = weekActivity(checkins, THURSDAY);
+  assert.equal(
+    weekSummary(days, 3),
+    'This week: Sunday no session, Monday done, Tuesday no session, Wednesday no session, ' +
+      'Thursday no session, Friday no session, Saturday no session. 3 sessions in the last 7 days.'
+  );
+  assert.match(weekSummary(days, 1), /\. 1 session in the last 7 days\.$/);
+  assert.match(weekSummary(weekActivity([], THURSDAY), 0), /\. 0 sessions in the last 7 days\.$/);
+  assert.match(weekSummary(days, -2), /\. 0 sessions in the last 7 days\.$/);
+});
+
 test('streak label shows the real count, including 0', () => {
   assert.equal(streakLabel(0), '0 days');
   assert.equal(streakLabel(1), '1 day');
@@ -170,7 +179,7 @@ test('"Now for you" uses the three real ids, in order, and skips missing ones', 
 
 // --- Ambient motion (ambient.ts) ------------------------------------------
 
-const ambient = loadTs('src/features/home-redesign-preview/ambient.ts');
+const ambient = loadTs('src/features/home/ambient.ts');
 
 // The test phone: 1080x2408 px at 2.75 px/dp.
 const PHONE = { w: 1080 / 2.75, h: 2408 / 2.75 };
@@ -303,7 +312,7 @@ test('twinkle curve stays between low and high and loops without a jump', () => 
 test('water shimmer is faint and sits between the horizon and the Featured card', () => {
   assert.ok(ambient.SHIMMER_PEAK_OPACITY <= 0.12);
   assert.ok(ambient.SHIMMER_OFFSET > 0);
-  // The card stays at least 40 dp below the horizon (HomeRedesignPreview).
+  // The card stays at least 40 dp below the horizon (HomeScreen CARD_BELOW_HORIZON).
   assert.ok(ambient.SHIMMER_OFFSET + ambient.SHIMMER_HEIGHT < 40);
   assert.ok(ambient.SHIMMER_LOOP_MS >= 10_000);
 });

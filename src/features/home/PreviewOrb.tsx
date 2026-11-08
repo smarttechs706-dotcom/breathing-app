@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
+import { Animated, Image, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
-import { EASE_IN_OUT_SINE, useReducedMotion } from './motion';
+import { useCycle, usePingPong } from './AmbientLayers';
+import { useAmbientMotion } from './motion';
 
 // The glowing orb from the reference: hero-orb.png on a soft halo and glow.
 // Sizes from the reference (orb 106 px, halo 160 px, x0.774).
@@ -30,49 +31,24 @@ const LIGHT_TRAVEL = 8;
 
 // `backing` adds a faint dark disc under the glow, for bright skies where the
 // glow alone would wash out.
+//
+// Motion follows useAmbientMotion: still with reduced motion (or while it is
+// unknown); paused, holding where it is, when Home loses focus or the app goes
+// to the background; resumed from there without a jump.
 export function PreviewOrb({ backing = false }: { backing?: boolean }) {
-  const reduced = useReducedMotion();
+  const { allowed, running } = useAmbientMotion();
   const breath = useRef(new Animated.Value(0)).current;
   const light = useRef(new Animated.Value(0)).current;
 
+  usePingPong(breath, running, BREATH_MS);
+  useCycle(light, running, LIGHT_MS);
+
+  // Reduced motion: a still frame at rest.
   useEffect(() => {
-    // Still unknown (null) or reduced: hold a still frame.
-    if (reduced !== false) {
-      breath.setValue(0);
-      light.setValue(0);
-      return;
-    }
-    const breathing = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breath, {
-          toValue: 1,
-          duration: BREATH_MS,
-          easing: EASE_IN_OUT_SINE,
-          useNativeDriver: true,
-        }),
-        Animated.timing(breath, {
-          toValue: 0,
-          duration: BREATH_MS,
-          easing: EASE_IN_OUT_SINE,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    const drifting = Animated.loop(
-      Animated.timing(light, {
-        toValue: 1,
-        duration: LIGHT_MS,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    breathing.start();
-    drifting.start();
-    return () => {
-      breathing.stop();
-      drifting.stop();
-    };
-  }, [reduced, breath, light]);
+    if (allowed) return;
+    breath.setValue(0);
+    light.setValue(0);
+  }, [allowed, breath, light]);
 
   const orbScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, BREATH_SCALE] });
   const glowScale = breath.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.08] });
