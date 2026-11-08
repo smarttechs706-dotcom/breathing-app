@@ -12,7 +12,8 @@ import { formatMinutes } from './weekActivity';
 // The app's own session illustrations, keyed by real session id. A session
 // without one gets a plain tile rather than someone else's picture.
 const IMAGES: Record<string, number> = {
-  'deep-exhale': require('../../../assets/illustrations/deepexhale.png'),
+  // Wave artwork from deep-exhale-thumb.png (256x256 JPG copy).
+  'deep-exhale': require('./images/deep-exhale.jpg'),
   'morning-reset': require('../../../assets/illustrations/morningreset.png'),
   'calm-focus': require('../../../assets/illustrations/calmfocus.png'),
   'stress-relief': require('../../../assets/illustrations/stressrelief.png'),

@@ -1,6 +1,6 @@
 import { LinearGradient as LinearGradientView } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -12,16 +12,20 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-import { imageFrame, SCENES, sceneHorizon, type Scene } from './backgrounds';
-import { EASE_IN_OUT_SINE, useReducedMotion } from './motion';
+import { DriftingPainting, NightStars, WaterShimmer } from './AmbientLayers';
+import { horizonOnScreen, imageFrame, SCENES, sceneHorizon, type Scene } from './backgrounds';
+import { EASE_IN_OUT_SINE, useAmbientMotion, useReducedMotion } from './motion';
 import type { DayPhase } from './timeOfDay';
 
 const CROSSFADE_MS = 1500;
 
 // Full-screen scene behind the preview. When the phase changes, the new scene
 // fades in over the old one (1.5 s). With reduced motion it switches at once.
+// Ambient motion (drift, night twinkle, water shimmer) runs only on the
+// current scene and only while useAmbientMotion says so.
 export function TimeOfDayBackground({ phase }: { phase: DayPhase }) {
   const reduced = useReducedMotion();
+  const ambient = useAmbientMotion();
   const fade = useRef(new Animated.Value(1)).current;
   const shown = useRef(phase);
   const [layers, setLayers] = useState<{ current: DayPhase; previous: DayPhase | null }>({
@@ -57,35 +61,76 @@ export function TimeOfDayBackground({ phase }: { phase: DayPhase }) {
 
   return (
     <View style={styles.fill} pointerEvents="none">
-      {layers.previous && <SceneLayer phase={layers.previous} />}
+      {layers.previous && (
+        <SceneLayer phase={layers.previous} allowed={ambient.allowed} running={false} />
+      )}
       <Animated.View style={[styles.fill, { opacity: fade }]}>
-        <SceneLayer phase={layers.current} />
+        <SceneLayer phase={layers.current} allowed={ambient.allowed} running={ambient.running} />
       </Animated.View>
     </View>
   );
 }
 
-function SceneLayer({ phase }: { phase: DayPhase }) {
+// `allowed`: draw the ambient layers at all (off with reduced motion).
+// `running`: animate them (off when paused, and for a scene fading out).
+function SceneLayer({
+  phase,
+  allowed,
+  running,
+}: {
+  phase: DayPhase;
+  allowed: boolean;
+  running: boolean;
+}) {
   const { width: w, height: h } = useWindowDimensions();
   const scene = SCENES[phase];
-  return scene.image ? <PaintedScene scene={scene} w={w} h={h} /> : <DrawnScene scene={scene} w={w} h={h} />;
+  const horizonY = horizonOnScreen(phase, w, h);
+
+  return (
+    <View style={styles.fill}>
+      {scene.image ? (
+        <PaintedScene scene={scene} w={w} h={h} horizonY={horizonY} running={running} />
+      ) : (
+        <DrawnScene scene={scene} w={w} h={h} />
+      )}
+      {allowed && phase === 'night' && <NightStars w={w} h={h} running={running} />}
+      {allowed && <WaterShimmer w={w} horizonY={horizonY} running={running} />}
+      <Shades scene={scene} h={h} />
+    </View>
+  );
 }
 
-function PaintedScene({ scene, w, h }: { scene: Scene; w: number; h: number }) {
-  const frame = imageFrame(scene, w, h);
+function PaintedScene({
+  scene,
+  w,
+  h,
+  horizonY,
+  running,
+}: {
+  scene: Scene;
+  w: number;
+  h: number;
+  horizonY: number;
+  running: boolean;
+}) {
   return (
     <View style={[styles.fill, { backgroundColor: scene.imageBottom }]}>
-      <Image
+      <DriftingPainting
         source={scene.image!}
-        style={{
-          position: 'absolute',
-          top: frame.top,
-          left: frame.left,
-          width: frame.width,
-          height: frame.height,
-        }}
+        frame={imageFrame(scene, w, h)}
+        horizonY={horizonY}
+        running={running}
       />
-      {/* Shade the top for the greeting, and the lower part for the cards. */}
+    </View>
+  );
+}
+
+// Shade the top for the greeting, and the lower part for the cards. Paintings
+// only; the drawn scene is already dark in both places.
+function Shades({ scene, h }: { scene: Scene; h: number }) {
+  if (!scene.image) return null;
+  return (
+    <>
       <LinearGradientView
         colors={['rgba(6,10,28,0.55)', 'rgba(6,10,28,0)']}
         style={[styles.topShade, { height: h * 0.28 }]}
@@ -97,7 +142,7 @@ function PaintedScene({ scene, w, h }: { scene: Scene; w: number; h: number }) {
         locations={scene.strongBottomShade ? [0, 0.15, 1] : [0, 0.45, 1]}
         style={[styles.bottomShade, { height: h * 0.55 }]}
       />
-    </View>
+    </>
   );
 }
 

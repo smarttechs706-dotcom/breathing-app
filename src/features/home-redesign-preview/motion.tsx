@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  AppState,
   Easing,
   Pressable,
   type PressableProps,
@@ -38,6 +40,31 @@ export function useReducedMotion(): boolean | null {
     };
   }, []);
   return reduced;
+}
+
+// For the ambient background motion (drift, twinkle, shimmer).
+// `allowed`: reduced motion is known to be off (unknown counts as reduced).
+// `running`: allowed, and the screen has focus, and the app is in the
+// foreground. Loops run only while `running`; otherwise they hold still.
+export function useAmbientMotion(): { allowed: boolean; running: boolean } {
+  const reduced = useReducedMotion();
+  const [focused, setFocused] = useState(false);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, [])
+  );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
+    return () => sub.remove();
+  }, []);
+
+  const allowed = reduced === false;
+  return { allowed, running: allowed && focused && foreground };
 }
 
 // Fades in and rises 8pt once on mount. With reduced motion it only fades.

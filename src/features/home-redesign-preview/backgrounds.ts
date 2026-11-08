@@ -1,5 +1,6 @@
 import { Image, type ImageSourcePropType } from 'react-native';
 
+import { paintingFrame, type Frame } from './ambient';
 import type { DayPhase } from './timeOfDay';
 
 // One scene per time of day. A painting is used when `image` is set; the
@@ -13,8 +14,8 @@ export interface Scene {
   // The painting's bottom-edge colour (sampled), used to fill below it when
   // it is shifted up to bring the horizon to PAINTED_HORIZON_ON_SCREEN.
   imageBottom?: string;
-  // Horizon as a share of the scene's own height. The paintings put it at
-  // about half (row ~925 of 1844); the drawn scene at 40% like the reference.
+  // Horizon (shoreline row) as a share of the painting's own height. The
+  // drawn scene ignores this and uses 40% like the reference.
   horizon: number;
   sky: [string, string, string, string]; // top -> horizon
   water: [string, string, string]; // horizon -> bottom
@@ -33,7 +34,11 @@ export interface Scene {
 
 export type EmptyDayFill = 'default' | 'solid' | 'faint';
 
+// Shoreline rows, measured on the source PNGs: morning, afternoon and evening
+// share ~925 of 1844 (evening measures 918, left as is). home-night4.png's
+// shoreline is lower, at row 961 of 1846, so night has its own value.
 const PAINTED_HORIZON = 925 / 1844;
+const NIGHT_HORIZON = 961 / 1846;
 const DRAWN_HORIZON = 0.4;
 // Paintings are shifted up (cropping sky only) so their horizon lands here,
 // as a share of screen height. Never shifted down.
@@ -77,12 +82,12 @@ export const SCENES: Record<DayPhase, Scene> = {
     light: { kind: 'sun', color: '#ffb47c', glow: 0.6 },
   },
   night: {
-    // From home-night3.png (moon ~30% across, 25% down, clear of the name and
-    // week row). home-night.png and home-night2.png are not used.
+    // From home-night4.png (moon ~35% across, 32% down). home-night.png,
+    // home-night2.png and home-night3.png are not used.
     image: require('./images/home-night.jpg'),
-    imageBottom: '#000519',
+    imageBottom: '#00051a',
     emptyDays: 'solid',
-    horizon: PAINTED_HORIZON,
+    horizon: NIGHT_HORIZON,
     sky: ['#05081a', '#0a1232', '#16225a', '#2a3876'],
     water: ['#152050', '#0a1030', '#05081a'],
     farHills: '#1b2752',
@@ -96,17 +101,10 @@ export function sceneHorizon(scene: Scene): number {
   return scene.image ? scene.horizon : DRAWN_HORIZON;
 }
 
-// How a painting is placed: scaled to cover the screen and centred
-// horizontally, then shifted up (cropping only sky) so its horizon lands at
-// PAINTED_HORIZON_ON_SCREEN. It is never zoomed further and never shifted
-// down; the strip it leaves at the bottom is filled with its own bottom colour.
-export function imageFrame(scene: Scene, w: number, h: number) {
+// How a painting is placed on this screen (see paintingFrame in ambient.ts).
+export function imageFrame(scene: Scene, w: number, h: number): Frame {
   const { width: iw, height: ih } = Image.resolveAssetSource(scene.image!);
-  const scale = Math.max(w / iw, h / ih);
-  const width = iw * scale;
-  const height = ih * scale;
-  const top = Math.min(0, h * PAINTED_HORIZON_ON_SCREEN - height * sceneHorizon(scene));
-  return { width, height, left: (w - width) / 2, top };
+  return paintingFrame(iw, ih, w, h, sceneHorizon(scene), PAINTED_HORIZON_ON_SCREEN);
 }
 
 // Where the horizon lands on screen, in points from the top, for a phase.
