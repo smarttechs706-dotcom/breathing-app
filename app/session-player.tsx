@@ -24,8 +24,8 @@ import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
 import { BreathingRing } from '../src/components/BreathingRing';
 import { GlassCard } from '../src/components/GlassCard';
-import { GradientText } from '../src/components/GradientText';
-import { MOOD_EMOJIS, MoodSelector } from '../src/components/MoodSelector';
+import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
+import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
 import { colors, radii, spacing, typography } from '../src/theme/tokens';
 import type { Session } from '../src/types/models';
@@ -86,12 +86,6 @@ function formatTime(totalSec: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-// D-10: a mood is null until the user picks one, so this must tolerate null.
-function emojiForMood(mood: number | null) {
-  if (mood === null) return '–';
-  return MOOD_EMOJIS[Math.min(Math.max(mood, 1), MOOD_EMOJIS.length) - 1];
-}
-
 // Shared across the loading/error/not-found/ready render branches below —
 // same reasoning as insights.tsx's own module-level TopBar component.
 // Takes its press handlers as props (rather than reading them from module
@@ -112,11 +106,9 @@ function TopBar({
         accessibilityRole="button"
         accessibilityLabel="Close session"
       >
-        <MaterialIcons name="close" size={24} color={colors.onSurfaceVariant} />
+        <MaterialIcons name="close" size={24} color="#ffffff" />
       </Pressable>
-      <GradientText colors={[colors.primary, colors.tertiary]} style={styles.topBarTitle}>
-        Breathease
-      </GradientText>
+      <Text style={styles.topBarTitle}>Breathease</Text>
       <Pressable
         onPress={onSettingsPress}
         hitSlop={12}
@@ -124,7 +116,7 @@ function TopBar({
         accessibilityRole="button"
         accessibilityLabel="Settings"
       >
-        <MaterialIcons name="settings" size={24} color={colors.primary} />
+        <MaterialIcons name="settings" size={24} color="#ffffff" />
       </Pressable>
     </View>
   );
@@ -466,6 +458,7 @@ export default function SessionPlayerScreen() {
   if (fetchError) {
     return (
       <View style={styles.root}>
+        <SessionBackdrop sessionId={null} phase="pre-mood" />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
           <View style={styles.centerState}>
@@ -484,6 +477,7 @@ export default function SessionPlayerScreen() {
   if (sessions === null) {
     return (
       <View style={styles.root}>
+        <SessionBackdrop sessionId={null} phase="pre-mood" />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
           <View style={styles.centerState}>
@@ -505,6 +499,7 @@ export default function SessionPlayerScreen() {
     // to.
     return (
       <View style={styles.root}>
+        <SessionBackdrop sessionId={null} phase="pre-mood" />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
           <View style={styles.centerState}>
@@ -562,6 +557,7 @@ export default function SessionPlayerScreen() {
 
   return (
     <View style={styles.root}>
+      <SessionBackdrop sessionId={session.id} phase={phase} />
       {/* Disables the swipe-back gesture (iOS edge swipe / Android
           predictive back) specifically during the active phase, so it
           can't bypass the confirmation dialog the hardware/X back button
@@ -576,24 +572,10 @@ export default function SessionPlayerScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View
-            style={[
-              styles.phaseContainer,
-              {
-                opacity: transitionAnim,
-                transform: [
-                  {
-                    scale: transitionAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.97, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
+          <BackdropSpacer />
+          <PhaseTransition progress={transitionAnim} style={styles.phaseContainer}>
             {phase === 'pre-mood' && (
-              <GlassCard radius={radii.lg} style={styles.card}>
+              <View style={styles.panel}>
                 <View style={styles.preMoodTop}>
                   <View style={styles.durationBadge}>
                     <MaterialIcons name="waves" size={16} color={colors.tertiary} />
@@ -609,7 +591,7 @@ export default function SessionPlayerScreen() {
 
                 <View style={styles.preMoodBottom}>
                   <Text style={styles.moodQuestion}>How are you feeling?</Text>
-                  <MoodSelector
+                  <MoodScale
                     value={preMood}
                     onChange={setPreMood}
                     style={styles.moodSelector}
@@ -633,7 +615,7 @@ export default function SessionPlayerScreen() {
                     </LinearGradient>
                   </Pressable>
                 </View>
-              </GlassCard>
+              </View>
             )}
 
             {phase === 'active' && (
@@ -650,7 +632,7 @@ export default function SessionPlayerScreen() {
               // overflow:hidden + matching borderRadius View outside the
               // BlurView, same technique as insights.tsx's cardClip.
               <View style={styles.activeCardClip}>
-                <GlassCard radius={radii.xl} style={[styles.card, styles.activeCard]}>
+                <GlassCard radius={radii.xl} style={styles.activeCard}>
                   <View style={styles.activeCenter}>
                     <Text style={styles.phaseLabel}>{phaseLabel}</Text>
                     <BreathingRing
@@ -697,7 +679,7 @@ export default function SessionPlayerScreen() {
             )}
 
             {phase === 'post-mood' && (
-              <GlassCard radius={radii.lg} style={styles.card}>
+              <View style={styles.panel}>
                 <View style={styles.postMoodTop}>
                   <View style={styles.checkBadge}>
                     <MaterialIcons
@@ -717,9 +699,9 @@ export default function SessionPlayerScreen() {
 
                   <View style={styles.beforeAfterRow}>
                     <View style={styles.beforeAfterItem}>
-                      <Text style={styles.beforeAfterEmoji}>
-                        {emojiForMood(preMood)}
-                      </Text>
+                      <View style={styles.beforeAfterEmoji}>
+                        <MoodGlyph mood={preMood} size={24} color={colors.onSurfaceVariant} />
+                      </View>
                       <Text style={styles.beforeAfterLabel}>Before</Text>
                     </View>
                     <MaterialIcons
@@ -728,16 +710,16 @@ export default function SessionPlayerScreen() {
                       color={colors.onSurfaceVariant}
                     />
                     <View style={styles.beforeAfterItem}>
-                      <Text style={[styles.beforeAfterEmoji, styles.afterEmoji]}>
-                        {emojiForMood(postMood)}
-                      </Text>
+                      <View style={[styles.beforeAfterEmoji, styles.afterEmoji]}>
+                        <MoodGlyph mood={postMood} size={30} color={colors.tertiary} />
+                      </View>
                       <Text style={[styles.beforeAfterLabel, styles.afterLabel]}>
                         After
                       </Text>
                     </View>
                   </View>
 
-                  <MoodSelector value={postMood} onChange={setPostMood} />
+                  <MoodScale value={postMood} onChange={setPostMood} />
                 </View>
 
                 {saveError && (
@@ -777,9 +759,9 @@ export default function SessionPlayerScreen() {
                     </Text>
                   )}
                 </Pressable>
-              </GlassCard>
+              </View>
             )}
-          </Animated.View>
+          </PhaseTransition>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -789,7 +771,7 @@ export default function SessionPlayerScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#00051a',
   },
   safeArea: {
     flex: 1,
@@ -804,19 +786,19 @@ const styles = StyleSheet.create({
   topBarButton: {
     padding: spacing.base,
   },
+  // Plain white over the paintings (the scrim in SessionBackdrop sits behind it).
   topBarTitle: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
-    lineHeight: typography.headlineLgMobile.lineHeight,
+    ...typography.headlineLgMobile,
+    fontSize: 20,
+    lineHeight: 28,
+    color: '#ffffff',
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.marginMobile,
     paddingBottom: spacing.sectionGap,
   },
-  // Loading/error/not-found states (FRONTEND-AUDIT-2.md fix) — same values
-  // as Library/Insights' equivalent centered states for visual consistency.
+  // Loading/error/not-found states (FRONTEND-AUDIT-2.md fix).
   centerState: {
     flex: 1,
     alignItems: 'center',
@@ -825,14 +807,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.marginMobile,
   },
   centerStateText: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    fontWeight: '600',
+    ...typography.headlineLgMobile,
+    fontSize: 18,
+    lineHeight: 24,
     color: colors.onSurface,
   },
   centerStateSubtext: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
   },
@@ -844,72 +825,68 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   retryButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
+    ...typography.labelSm,
     color: colors.onPrimary,
   },
+  // Each phase is centred in the space below the top bar; the cards fit their
+  // content instead of stretching to fill the screen.
   phaseContainer: {
     flex: 1,
+    justifyContent: 'center',
+    paddingVertical: spacing.base * 2,
   },
-  card: {
-    flex: 1,
+  // Before and after: translucent navy glass so the painting shows through.
+  panel: {
     padding: spacing.base * 3,
-    justifyContent: 'space-between',
-    minHeight: 480,
+    borderRadius: radii.lg,
+    backgroundColor: 'rgba(10,16,40,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   // ---- pre-mood ----
   preMoodTop: {
-    gap: spacing.base * 2,
+    gap: spacing.base * 1.5,
   },
   durationBadge: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
     gap: spacing.base,
-    backgroundColor: `${colors.surfaceVariant}80`,
+    backgroundColor: 'rgba(10,16,40,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: spacing.base * 1.5,
     paddingVertical: spacing.base * 0.75,
     borderRadius: radii.full,
   },
   durationBadgeText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
   },
   sessionTitle: {
-    fontFamily: typography.displayLg.fontFamily,
-    fontSize: 40,
-    fontWeight: '700',
+    ...typography.headlineLgMobile,
     color: colors.onSurface,
   },
   sessionDescription: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    lineHeight: typography.bodyLg.lineHeight,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
   },
   preMoodBottom: {
     gap: spacing.base * 2,
-    marginTop: spacing.sectionGap,
+    marginTop: spacing.base * 4,
   },
   moodQuestion: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
+    ...typography.bodyLg,
     color: colors.onSurface,
     textAlign: 'center',
   },
   moodHint: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
-    marginBottom: spacing.base,
   },
   moodHintPost: {
-    marginTop: spacing.sectionGap,
-    marginBottom: 0,
+    marginTop: spacing.base * 3,
   },
   buttonDisabled: {
     opacity: 0.4,
@@ -926,42 +903,38 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   beginButtonText: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    fontWeight: '600',
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
     color: '#ffffff',
   },
   // ---- active ----
-  // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md) — see the active-phase
-  // GlassCard's JSX comment above. flex:1 so the wrapper still fills
-  // phaseContainer the same way the GlassCard's own flex:1 (styles.card)
-  // did before this wrapper existed.
+  // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md): a second overflow:hidden +
+  // matching borderRadius wrapper outside GlassCard's BlurView, which does not
+  // clip its own corners reliably on Android.
   activeCardClip: {
-    flex: 1,
     borderRadius: radii.xl,
     overflow: 'hidden',
   },
   activeCard: {
+    padding: spacing.base * 3,
     alignItems: 'center',
+    gap: spacing.base * 4,
   },
   activeCenter: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sectionGap,
+    gap: spacing.base * 3,
   },
   phaseLabel: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
+    ...typography.headlineLgMobile,
+    fontSize: 22,
+    lineHeight: 28,
     color: colors.onSurface,
-    opacity: 0.8,
   },
   phaseSubLabel: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
-    opacity: 0.6,
+    textAlign: 'center',
   },
   activeFooter: {
     width: '100%',
@@ -972,8 +945,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   timeText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+    ...typography.bodyMd,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.onSurfaceVariant,
   },
   progressTrack: {
@@ -1003,32 +977,29 @@ const styles = StyleSheet.create({
     gap: spacing.base,
   },
   checkBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: `${colors.tertiaryContainer}4D`,
     alignItems: 'center',
     justifyContent: 'center',
   },
   completeHeadline: {
-    fontFamily: typography.displayLg.fontFamily,
-    fontSize: 32,
-    fontWeight: '700',
+    ...typography.headlineLgMobile,
     color: colors.onSurface,
   },
   mindfulMinutes: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
+    ...typography.bodyMd,
     color: colors.tertiary,
   },
   postMoodCardInner: {
-    backgroundColor: `${colors.surfaceContainer}66`,
+    backgroundColor: 'rgba(10,16,40,0.35)',
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    padding: spacing.base * 3,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: spacing.base * 2.5,
     gap: spacing.base * 2,
-    marginTop: spacing.sectionGap,
+    marginTop: spacing.base * 3,
   },
   beforeAfterRow: {
     flexDirection: 'row',
@@ -1041,23 +1012,22 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   beforeAfterEmoji: {
-    fontSize: 24,
-    opacity: 0.5,
+    height: 32,
+    justifyContent: 'center',
+    opacity: 0.6,
   },
   afterEmoji: {
-    fontSize: 30,
     opacity: 1,
   },
   beforeAfterLabel: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
   },
   afterLabel: {
     color: colors.tertiary,
   },
   doneButton: {
-    marginTop: spacing.sectionGap,
+    marginTop: spacing.base * 3,
     paddingVertical: spacing.base * 2,
     borderRadius: radii.full,
     alignItems: 'center',
@@ -1070,15 +1040,16 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   doneButtonText: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.onSurface,
   },
   saveErrorBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.base,
-    marginTop: spacing.sectionGap,
+    marginTop: spacing.base * 3,
     padding: spacing.base * 1.5,
     borderRadius: radii.md,
     backgroundColor: `${colors.onErrorContainer}1A`,
@@ -1090,14 +1061,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   saveErrorTitle: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    fontWeight: '600',
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.onSurface,
   },
   saveErrorSubtext: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+    ...typography.labelSm,
     color: colors.onSurfaceVariant,
   },
 });

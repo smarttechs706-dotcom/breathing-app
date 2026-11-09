@@ -4740,7 +4740,7 @@ the same five chips and real counts (active chip solid `inversePrimary`, no
 glow), Quick Start unchanged. Behaviour moved unchanged into the pure
 `libraryModel.ts` (filters, counts, Quick Start target) with tests in
 `tests/library/`. Images: `src/features/library/images/library-<session id>.jpg`,
-1000 x 400, quality 80, 24-55 KB, converted from the untracked PNGs in
+1000 x 400, quality 80, 24-44 KB, converted from the untracked PNGs in
 `assets/design-reference/`; a session without an image gets a plain navy
 gradient card. ScrollView kept (6 sessions). Insights' TopBar now uses the same
 avatar (opens Profile) and has no gear. `AccountAvatar` is unchanged, so Player
@@ -4754,3 +4754,33 @@ phone against the brightest 1% of background behind each line: titles 3.8-14.3:1
 7-14% darker in mean luminance, with the sun, moon and glows still clear.
 
 Cleanup (2026-11-09): the dev preview route `app/home-redesign-preview.tsx` and its `__DEV__` row in Settings were removed.
+
+## Session player: painted background and weather mood icons (2026-11-09, branch feat/home-redesign)
+
+`src/features/session/`: the player's flat grey background is now the navy
+gradient used by Profile and Library (`#0a1028` to `#00051a`) with the
+session's painting across the top (`images/session-<id>.jpg`, 1080 x 600
+centre crops of the untracked PNGs in `assets/design-reference/`, 34-61 KB),
+fading into the navy over its lower 45%, with a light scrim behind the top
+bar. Content starts 60% of the way down the painting. The painting is full
+on "How are you feeling?", 35% while breathing (the orb stays the focus) and
+80% on Session Complete; the change takes 400 ms, or is instant with reduced
+motion, and the painting never moves. No painting (loading, error, unknown
+session) shows the plain navy. The emoji mood picker is replaced, in the
+player only, by `MoodScale`: weather icons (storm, rain, cloud, part sun, sun;
+filled when selected, on a solid `inversePrimary` circle), same 1-5 values,
+labels and save logic; the Before -> After row uses the same icons.
+`src/components/MoodSelector.tsx` is unchanged but now unused (cleanup later).
+The phase transition is fade-only with reduced motion; `BreathingRing` is
+unchanged (it still ignores reduced motion; it is the breathing guide).
+`app/session-player.tsx` changed only in imports, render tree and two styles;
+no hooks, timers, dialogs or save code. Tests: `tests/session/`.
+
+Breathing screen portraits: each session also has a full-screen portrait
+painting (`images/session-<id>-portrait.jpg`, native size about 852 x 1846
+from the untracked portrait PNGs, quality 80, 81-141 KB; Deep Exhale's source
+is `deep-exhale-portrait-forest.png`). Only on the breathing screen, it
+crossfades in at 45% strength (to be tuned on the phone) while the top painting
+fades out, 400 ms or instant with reduced motion, never moving. Before and
+after screens are unchanged; a session without a portrait keeps the dimmed top
+painting. Only `src/features/session/` and its tests changed for this.
