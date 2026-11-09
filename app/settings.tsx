@@ -336,21 +336,6 @@ export default function SettingsScreen() {
               <MaterialIcons name="open-in-new" size={24} color={colors.onSurfaceVariant} />
             </Pressable>
           </GlassCard>
-
-          {/* Dev builds only: the one way into the Home redesign preview. */}
-          {__DEV__ && (
-            <GlassCard radius={radii.lg} style={styles.card}>
-              <Pressable
-                onPress={() => router.push('/home-redesign-preview')}
-                accessibilityRole="button"
-                accessibilityLabel="Home redesign preview"
-                style={[styles.aboutRow, styles.accountRow]}
-              >
-                <Text style={styles.cardTitle}>Home redesign preview</Text>
-                <MaterialIcons name="chevron-right" size={24} color={colors.onSurfaceVariant} />
-              </Pressable>
-            </GlassCard>
-          )}
         </ScrollView>
       </SafeAreaView>
 

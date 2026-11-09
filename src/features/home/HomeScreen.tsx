@@ -66,8 +66,7 @@ function useLocalHour(): number {
   return hour;
 }
 
-// The Home screen. app/(tabs)/home.tsx renders it with the real tab-bar
-// height; the dev route app/home-redesign-preview.tsx renders it without.
+// The Home screen. app/(tabs)/home.tsx renders it with the real tab-bar height.
 // Data and navigation are the same as the previous Home: GET /api/sessions
 // (cache first) for the Featured card and "Now for you", GET /api/insights for
 // the week row and streak, a silent refresh after a saved check-in.

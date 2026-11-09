@@ -4752,3 +4752,5 @@ avatars work. Contrast fix: the text gradient is now 85% / 60% / 0% navy at
 phone against the brightest 1% of background behind each line: titles 3.8-14.3:1
 (need 3:1), meta 5.0-17.0:1 (need 4.5:1) on all 6 cards; the right third is
 7-14% darker in mean luminance, with the sun, moon and glows still clear.
+
+Cleanup (2026-11-09): the dev preview route `app/home-redesign-preview.tsx` and its `__DEV__` row in Settings were removed.
