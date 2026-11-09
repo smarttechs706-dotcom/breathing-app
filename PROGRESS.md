@@ -4784,3 +4784,30 @@ crossfades in at 45% strength (to be tuned on the phone) while the top painting
 fades out, 400 ms or instant with reduced motion, never moving. Before and
 after screens are unchanged; a session without a portrait keeps the dimmed top
 painting. Only `src/features/session/` and its tests changed for this.
+
+CORRECTION (supersedes the two paragraphs above, as committed in 03d6b49): the
+portrait is the background on ALL three phases (80% before, 45% breathing, 70%
+after; 400 ms crossfades, instant with reduced motion); the top painting is
+only the fallback for a session without a portrait. The before and after cards
+are local translucent navy panels (45% navy, hairline border; `GlassCard`
+untouched) that fit their content, centred. Typography fix: the session title
+was `displayLg`'s family at 40 dp with `fontWeight: '700'` set directly, and
+"Session Complete" 32 dp the same way; every player text style now spreads a
+tokens.ts role (title 28 dp `headlineLgMobile`, description 16 dp `bodyMd`,
+question 18 dp `bodyLg`), no direct fontFamily/fontWeight. Top bar: plain
+white title, white X and gear, stronger scrim (all pass 17:1+ on 6 screens).
+
+## Breathing circle and tab icons (2026-11-09, branch feat/home-redesign)
+
+Breathing screen: the dark card is gone; the circle, instruction, timer,
+progress bar and Pause sit directly on the portrait. New
+`src/features/session/BreathCircle.tsx`: solid indigo-to-navy centre (tokens
+inversePrimary -> onPrimaryFixedVariant -> onPrimaryFixed) with a light rim and
+the phase word only (no waves icon), 6 translucent periwinkle halo discs
+scaling 1 -> 1.15 with the session's phase timings (Animated, same loop as
+`BreathingRing`), and a fixed 300 dp hairline outer ring. Colours live in
+`CIRCLE_COLORS`. Reduced motion: halos still, only the word changes.
+`BreathingRing` and `GlassCard` are now unused by the player (left in the
+repo). Phone-checked on all 6 sessions (halo 248 -> 285 dp): phase word 8.1:1+,
+instruction 6.4:1+, timer 10.6:1+. Tab icons (`TAB_ICONS` only): home, book,
+stats-chart, person, filled when active; pill still 304 x 56 dp.

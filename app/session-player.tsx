@@ -22,8 +22,7 @@ import { fetchSessions, postCheckin } from '../src/api/client';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
-import { BreathingRing } from '../src/components/BreathingRing';
-import { GlassCard } from '../src/components/GlassCard';
+import { BreathCircle } from '../src/features/session/BreathCircle';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
@@ -619,62 +618,46 @@ export default function SessionPlayerScreen() {
             )}
 
             {phase === 'active' && (
-              // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md Medium finding):
-              // expo-blur's native BlurView on Android doesn't reliably clip
-              // to a rounded rect via the parent's own overflow:hidden at
-              // radii.xl (48px) — confirmed on-device as 2-of-4 corners
-              // staying sharp (see PROGRESS.md's Insights "stat card corners
-              // uneven" entry, and src/components/GlassCard.tsx). This card
-              // is the only other radii.xl GlassCard in the app besides
-              // Insights', which already has this same wrapper — Insights
-              // never got a matching fix here because the two pieces of work
-              // happened in separate sessions. Wrapping in a second
-              // overflow:hidden + matching borderRadius View outside the
-              // BlurView, same technique as insights.tsx's cardClip.
-              <View style={styles.activeCardClip}>
-                <GlassCard radius={radii.xl} style={styles.activeCard}>
-                  <View style={styles.activeCenter}>
-                    <Text style={styles.phaseLabel}>{phaseLabel}</Text>
-                    <BreathingRing
-                      inhaleSec={session.phaseConfig.inhale}
-                      holdSec={session.phaseConfig.hold}
-                      exhaleSec={session.phaseConfig.exhale}
-                      restSec={session.phaseConfig.rest}
-                      paused={paused}
-                    />
-                    <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
-                  </View>
+              <View style={styles.activeLayout}>
+                <BreathCircle
+                  label={phaseLabel}
+                  inhaleSec={session.phaseConfig.inhale}
+                  holdSec={session.phaseConfig.hold}
+                  exhaleSec={session.phaseConfig.exhale}
+                  restSec={session.phaseConfig.rest}
+                  paused={paused}
+                />
+                <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
 
-                  <View style={styles.activeFooter}>
-                    <View style={styles.timeRow}>
-                      <Text style={styles.timeText}>{formatTime(elapsedSec)}</Text>
-                      <Text style={styles.timeText}>
-                        {formatTime(session.durationSec)}
-                      </Text>
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <LinearGradient
-                        colors={[colors.primary, colors.tertiary]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={[styles.progressFill, { width: `${progressPercent}%` }]}
-                      />
-                    </View>
-                    <Pressable
-                      onPress={handlePauseToggle}
-                      style={styles.pauseButton}
-                      hitSlop={4}
-                      accessibilityRole="button"
-                      accessibilityLabel={paused ? 'Resume session' : 'Pause session'}
-                    >
-                      <MaterialIcons
-                        name={paused ? 'play-arrow' : 'pause'}
-                        size={24}
-                        color={colors.onSurface}
-                      />
-                    </Pressable>
+                <View style={styles.activeFooter}>
+                  <View style={styles.timeRow}>
+                    <Text style={styles.timeText}>{formatTime(elapsedSec)}</Text>
+                    <Text style={styles.timeText}>
+                      {formatTime(session.durationSec)}
+                    </Text>
                   </View>
-                </GlassCard>
+                  <View style={styles.progressTrack}>
+                    <LinearGradient
+                      colors={[colors.primary, colors.tertiary]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.progressFill, { width: `${progressPercent}%` }]}
+                    />
+                  </View>
+                  <Pressable
+                    onPress={handlePauseToggle}
+                    style={styles.pauseButton}
+                    hitSlop={4}
+                    accessibilityRole="button"
+                    accessibilityLabel={paused ? 'Resume session' : 'Pause session'}
+                  >
+                    <MaterialIcons
+                      name={paused ? 'play-arrow' : 'pause'}
+                      size={24}
+                      color="#ffffff"
+                    />
+                  </Pressable>
+                </View>
               </View>
             )}
 
@@ -909,32 +892,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   // ---- active ----
-  // CORNER-CLIP FIX (2026-09-20, AUDIT-2.md): a second overflow:hidden +
-  // matching borderRadius wrapper outside GlassCard's BlurView, which does not
-  // clip its own corners reliably on Android.
-  activeCardClip: {
-    borderRadius: radii.xl,
-    overflow: 'hidden',
-  },
-  activeCard: {
-    padding: spacing.base * 3,
-    alignItems: 'center',
-    gap: spacing.base * 4,
-  },
-  activeCenter: {
+  // No card: the circle, instruction and controls sit on the painting. A soft
+  // navy text shadow keeps the small text readable over brighter patches.
+  activeLayout: {
     alignItems: 'center',
     gap: spacing.base * 3,
   },
-  phaseLabel: {
-    ...typography.headlineLgMobile,
-    fontSize: 22,
-    lineHeight: 28,
-    color: colors.onSurface,
-  },
   phaseSubLabel: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
+    color: colors.onSurface,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,5,26,0.85)',
+    textShadowRadius: 8,
   },
   activeFooter: {
     width: '100%',
@@ -948,12 +917,14 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.onSurfaceVariant,
+    color: colors.onSurface,
+    textShadowColor: 'rgba(0,5,26,0.85)',
+    textShadowRadius: 8,
   },
   progressTrack: {
     height: 8,
     borderRadius: radii.full,
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     overflow: 'hidden',
   },
   progressFill: {
@@ -965,11 +936,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: `${colors.surfaceVariant}80`,
+    backgroundColor: 'rgba(10,16,40,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   // ---- post-mood ----
   postMoodTop: {

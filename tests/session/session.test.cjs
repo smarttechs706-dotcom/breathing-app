@@ -58,6 +58,19 @@ test('all six sessions have a painting, every file exists, and the two maps agre
   }
 });
 
+test('breathing circle: phase word only (no logo), Animated only, same 1 -> 1.15 breath, reduced motion holds still', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/session/BreathCircle.tsx'), 'utf8');
+  assert.ok(!/waves|Ionicons|MaterialIcons/.test(src), 'no icon inside the circle');
+  assert.ok(!/from '(react-native-reanimated|moti|@shopify\/react-native-skia)'/.test(src), 'Animated only');
+  assert.ok(src.includes('const BREATH_SCALE = 1.15;'));
+  assert.ok(/reduced !== false/.test(src), 'reduced motion handled');
+  assert.ok(src.includes('export const CIRCLE_COLORS'), 'colours in one constant');
+  const player = fs.readFileSync(path.join(repo, 'app/session-player.tsx'), 'utf8');
+  assert.ok(player.includes('<BreathCircle'), 'player uses the new circle');
+  assert.ok(!player.includes('BreathingRing'), 'old ring no longer used');
+  assert.ok(fs.existsSync(path.join(repo, 'src/components/BreathingRing.tsx')), 'old ring stays in the repo');
+});
+
 test('a session without a painting (or no session yet) gets the plain navy background', () => {
   assert.equal(model.hasSessionImage('some-new-session'), false);
   assert.equal(model.hasSessionImage(null), false);
