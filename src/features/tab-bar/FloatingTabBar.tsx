@@ -43,9 +43,9 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // A route without an entry here (e.g. the hidden Player tab) is not shown.
 export const TAB_ICONS: Record<string, [IconName, IconName]> = {
   home: ['home', 'home-outline'],
-  library: ['library', 'library-outline'],
-  insights: ['trending-up', 'trending-up-outline'],
-  profile: ['person-circle', 'person-circle-outline'],
+  library: ['book', 'book-outline'],
+  insights: ['stats-chart', 'stats-chart-outline'],
+  profile: ['person', 'person-outline'],
 };
 
 const ICON_SIZE = 20;
