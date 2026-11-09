@@ -4811,3 +4811,19 @@ scaling 1 -> 1.15 with the session's phase timings (Animated, same loop as
 repo). Phone-checked on all 6 sessions (halo 248 -> 285 dp): phase word 8.1:1+,
 instruction 6.4:1+, timer 10.6:1+. Tab icons (`TAB_ICONS` only): home, book,
 stats-chart, person, filled when active; pill still 304 x 56 dp.
+
+## Profile and Settings cleanup (2026-11-09, branch feat/home-redesign)
+
+Settings now has three glass cards on the shared navy backdrop: Change password
+and Sign out; Delete account (error colour); About (version) and Privacy
+Policy. Removed from Settings: Email, First name (its edit; `EditNameModal`
+stays in the repo, unused, so the name can no longer be changed), the Daily
+Reminder card and the decorative `backgroundGlow` circle from the Stitch export.
+Profile keeps avatar, name, email, the three stats, Settings and Daily reminder;
+Change password, Privacy Policy and Sign out now live only in Settings. The
+Daily Reminder card moved unchanged to a new screen, `app/reminder.tsx`
+(registered in `app/_layout.tsx` inside the signed-in guard), opened from
+Profile's row; both read "Off" or the time, e.g. "8:00 PM" (`reminderLabel`).
+New `src/features/profile/ScreenBackdrop.tsx` draws the navy gradient for all
+three screens and has an unused optional `painting` prop for a later image with
+a dark fade. All moved handlers are byte-for-byte unchanged.

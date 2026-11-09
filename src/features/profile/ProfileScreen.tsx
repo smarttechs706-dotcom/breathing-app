@@ -1,12 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,10 +11,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../api/apiErrors';
-import { fetchInsights, getApiBaseUrl, type InsightsResponse } from '../../api/client';
+import { fetchInsights, type InsightsResponse } from '../../api/client';
 import { accountFirstName, accountInitial, homeGreeting } from '../../auth/accountName';
 import { useAuth } from '../../auth/AuthProvider';
-import { useSingleFlight } from '../../auth/useSingleFlight';
 import { useRefreshOnNewCheckin } from '../../state/checkinSignal';
 import { colors, spacing, typography } from '../../theme/tokens';
 import { getReminderSettings } from '../../utils/reminders';
@@ -35,47 +29,18 @@ import {
   type ProfileRow,
   type ReminderState,
 } from './profileModel';
+import { BACKDROP_BOTTOM, ScreenBackdrop } from './ScreenBackdrop';
 
-// Profile tab: who you are, your real stats, and links to the screens that
-// already exist (Settings, Daily reminder, Change password, Privacy Policy),
-// plus Sign out. Nothing here edits account data; Settings stays the one
-// place for that. Same tokens and light glass cards as Home.
+// Profile tab: who you are, your real stats, and two rows: Settings (account
+// actions, About) and Daily reminder (its own screen). Change password,
+// Privacy Policy and Sign out live only in Settings. Same tokens and light
+// glass cards as Home; background from ScreenBackdrop.
 
 const AVATAR = 72;
 const CARD_RADIUS = 16;
 
-// Deep navy like the rest of the redesign: from the tab pill's navy at the
-// top to the navy at the bottom of Home's paintings (backgrounds.ts
-// imageBottom). On this background PreviewGlass reads as the same navy glass
-// as Home's cards; on the neutral app background it read grey.
-const BACKGROUND_TOP = '#0a1028';
-const BACKGROUND_BOTTOM = '#00051a';
-
-// Same dialog as Settings (app/settings.tsx keeps its own private copy).
-// react-native-web's Alert.alert is a no-op, so web uses the browser dialog.
-function confirmSignOut(): Promise<boolean> {
-  if (Platform.OS === 'web') return Promise.resolve(window.confirm('Sign out?'));
-  return new Promise((resolve) => {
-    Alert.alert(
-      'Sign out?',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Sign out', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) }
-    );
-  });
-}
-
-// Same page Settings opens; served by the same API as the data.
-function openPrivacyPolicy() {
-  Linking.openURL(new URL('/privacy', getApiBaseUrl()).toString()).catch(() => {});
-}
-
 export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
-  const { session, signOut } = useAuth();
-  const leaving = useSingleFlight();
+  const { session } = useAuth();
   const firstName = accountFirstName(session?.user);
   const initial = accountInitial(firstName);
   const email = session?.user.email ?? null;
@@ -101,7 +66,7 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
   }, []);
   useRefreshOnNewCheckin(refreshAfterCheckin);
 
-  // Reminder status, read on every focus so it is current after Settings.
+  // Reminder status, read on every focus so it is current after the Reminder screen.
   const [reminder, setReminder] = useState<ReminderState | null>(null);
   useFocusEffect(
     useCallback(() => {
@@ -117,24 +82,11 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
     }, [])
   );
 
-  // Nothing navigates after signing out: the route guards go to Log in.
-  const handleSignOut = () =>
-    leaving.run(async () => {
-      if (await confirmSignOut()) await signOut();
-    });
-
-  const openRow = (row: ProfileRow) => {
-    if (row.target.kind === 'privacy') openPrivacyPolicy();
-    else router.push(row.target.href);
-  };
+  const openRow = (row: ProfileRow) => router.push(row.target.href);
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[BACKGROUND_TOP, BACKGROUND_BOTTOM]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <ScreenBackdrop />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + spacing.base * 3 }]}
@@ -207,12 +159,11 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
             <PreviewGlass radius={CARD_RADIUS}>
               {PROFILE_ROWS.map((row, i) => {
                 const value = row.key === 'reminder' ? reminderLabel(reminder) : null;
-                const external = row.target.kind === 'privacy';
                 return (
                   <Pressable
                     key={row.key}
                     onPress={() => openRow(row)}
-                    accessibilityRole={external ? 'link' : 'button'}
+                    accessibilityRole="button"
                     accessibilityLabel={value ? `${row.label}, ${value}` : row.label}
                     style={({ pressed }) => [
                       styles.row,
@@ -230,7 +181,7 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
                     </Text>
                     {value && <Text style={styles.rowValue}>{value}</Text>}
                     <Ionicons
-                      name={external ? 'open-outline' : 'chevron-forward'}
+                      name="chevron-forward"
                       size={18}
                       color={colors.onSurfaceVariant}
                     />
@@ -240,22 +191,6 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
             </PreviewGlass>
           </FadeIn>
 
-          <FadeIn delay={STAGGER_MS * 3}>
-            <PreviewGlass radius={CARD_RADIUS}>
-              <Pressable
-                onPress={handleSignOut}
-                disabled={leaving.running}
-                accessibilityRole="button"
-                accessibilityLabel="Sign out"
-                accessibilityState={{ disabled: leaving.running, busy: leaving.running }}
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              >
-                <Ionicons name="log-out-outline" size={22} color={colors.onSurfaceVariant} />
-                <Text style={styles.rowLabel}>Sign out</Text>
-                {leaving.running && <ActivityIndicator color={colors.onSurfaceVariant} />}
-              </Pressable>
-            </PreviewGlass>
-          </FadeIn>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -295,7 +230,7 @@ function Stat({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BACKGROUND_BOTTOM,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
     flex: 1,

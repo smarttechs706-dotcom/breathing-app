@@ -30,8 +30,8 @@ export interface ReminderState {
   minute: number | null;
 }
 
-// "8:00 PM", or "Off" when the reminder is off or has no time yet. Same
-// format as the Daily Reminder card in Settings.
+// "8:00 PM", or "Off" when the reminder is off or has no time yet. The one
+// wording for the reminder, on Profile and on the Reminder screen.
 export function reminderLabel(settings: ReminderState | null): string {
   if (!settings || !settings.enabled || settings.hour === null || settings.minute === null) {
     return 'Off';
@@ -41,26 +41,19 @@ export function reminderLabel(settings: ReminderState | null): string {
   return `${hour12}:${String(settings.minute).padStart(2, '0')} ${period}`;
 }
 
-// Rows in the Profile list. They only link to screens that already exist;
-// nothing here changes a setting. Sign out is a separate card.
-export type ProfileRowKey = 'settings' | 'reminder' | 'password' | 'privacy';
+// Rows in the Profile list. They only link to screens; nothing here changes a
+// setting. Change password, Privacy Policy and Sign out live in Settings.
+export type ProfileRowKey = 'settings' | 'reminder';
 
 export interface ProfileRow {
   key: ProfileRowKey;
   label: string;
   icon: string; // Ionicons outline name
-  target: { kind: 'route'; href: '/settings' | '/change-password' } | { kind: 'privacy' };
+  target: { kind: 'route'; href: '/settings' | '/reminder' };
 }
 
 export const PROFILE_ROWS: readonly ProfileRow[] = [
   { key: 'settings', label: 'Settings', icon: 'settings-outline', target: { kind: 'route', href: '/settings' } },
-  // The reminder is changed in Settings; there is no separate screen.
-  { key: 'reminder', label: 'Daily reminder', icon: 'alarm-outline', target: { kind: 'route', href: '/settings' } },
-  {
-    key: 'password',
-    label: 'Change password',
-    icon: 'key-outline',
-    target: { kind: 'route', href: '/change-password' },
-  },
-  { key: 'privacy', label: 'Privacy Policy', icon: 'shield-checkmark-outline', target: { kind: 'privacy' } },
+  // Opens the Reminder screen (app/reminder.tsx), the one place to change it.
+  { key: 'reminder', label: 'Daily reminder', icon: 'alarm-outline', target: { kind: 'route', href: '/reminder' } },
 ];

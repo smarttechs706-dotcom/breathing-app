@@ -1,8 +1,7 @@
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,12 +16,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getApiBaseUrl } from '../src/api/client';
-import { accountFirstName } from '../src/auth/accountName';
 import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
-import { EditNameModal } from '../src/components/EditNameModal';
-import { GlassCard } from '../src/components/GlassCard';
-import { TimePickerModal } from '../src/components/TimePickerModal';
+import { PreviewGlass } from '../src/features/home/PreviewGlass';
+import { accents, text } from '../src/features/home/styles';
+import { BACKDROP_BOTTOM, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import {
   confirmDelete,
   DELETE_FAILURE,
@@ -30,17 +28,15 @@ import {
   deleteMyData,
   showDeleted,
 } from '../src/utils/deleteMyData';
-import {
-  applyReminderSchedule,
-  REMINDER_TIP,
-  getReminderSettings,
-  requestNotificationPermission,
-  saveReminderSettings,
-  type ReminderSettings,
-} from '../src/utils/reminders';
-import { colors, radii, spacing, typography } from '../src/theme/tokens';
+import { colors, spacing, typography } from '../src/theme/tokens';
+
+// Settings: account actions and About, styled like Profile (navy backdrop,
+// glass cards, icon rows). The name is shown on Profile and can no longer be
+// edited; the daily reminder lives on its own screen (app/reminder.tsx),
+// opened from Profile.
 
 const APP_VERSION = Constants.expoConfig?.version ?? '';
+const CARD_RADIUS = 16;
 
 // Opened from About; the policy page is served by the same API as the data.
 function openPrivacyPolicy() {
@@ -64,68 +60,8 @@ function confirmSignOut(): Promise<boolean> {
   });
 }
 
-// architecture.md's Notifications section: daily reminder time is always
-// user-chosen, never a fixed default — see src/utils/reminders.ts.
-function formatReminderTime(settings: ReminderSettings): string {
-  if (settings.hour === null || settings.minute === null) return 'Not set';
-  const period = settings.hour >= 12 ? 'PM' : 'AM';
-  const hour12 = settings.hour % 12 === 0 ? 12 : settings.hour % 12;
-  return `${hour12}:${settings.minute.toString().padStart(2, '0')} ${period}`;
-}
-
-// settings-code.html's toggle is a custom-styled switch (gradient track
-// when on, not a flat color), which RN's built-in Switch can't reproduce —
-// it only supports flat trackColor per state. Built as a local Pressable +
-// LinearGradient to match the reference exactly, matching the pill-toggle
-// dimensions from the HTML precisely: track 48x28 (w-12 h-7), thumb 20x20
-// (w-5 h-5), 4px inset (p-1), 20px thumb travel (translate-x-5) — kept
-// local to this file since no other screen uses this component today.
-function ReminderToggle({
-  value,
-  onValueChange,
-}: {
-  value: boolean;
-  onValueChange: (next: boolean) => void;
-}) {
-  return (
-    <Pressable
-      onPress={() => onValueChange(!value)}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
-      accessibilityLabel="Daily reminder"
-      hitSlop={8}
-      style={styles.toggleTrack}
-    >
-      {value ? (
-        <LinearGradient
-          colors={[colors.primaryContainer, colors.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-        />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, styles.toggleTrackOff]} />
-      )}
-      <View style={[styles.toggleThumb, value && styles.toggleThumbOn]} />
-    </Pressable>
-  );
-}
-
-const LOADING_SETTINGS: ReminderSettings = { enabled: false, hour: null, minute: null };
-
 export default function SettingsScreen() {
-  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(LOADING_SETTINGS);
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getReminderSettings().then(setReminderSettings);
-  }, []);
-
-  const { session, signOut } = useAuth();
-  const email = session?.user.email ?? null;
-  const firstName = accountFirstName(session?.user);
-  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const { signOut } = useAuth();
   const leaving = useSingleFlight();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -157,55 +93,9 @@ export default function SettingsScreen() {
     );
   }
 
-  const REMINDER_SCHEDULE_ERROR = "Couldn't schedule the reminder. Please try again.";
-
-  async function handleToggleChange(nextEnabled: boolean) {
-    if (!nextEnabled) {
-      const next = { ...reminderSettings, enabled: false };
-      const result = await applyReminderSchedule(next);
-      if (!result.ok) {
-        setPermissionError(REMINDER_SCHEDULE_ERROR);
-        return;
-      }
-      await saveReminderSettings(next);
-      setReminderSettings(next);
-      setPermissionError(null);
-      return;
-    }
-
-    const result = await requestNotificationPermission();
-    if (result === 'unavailable') {
-      setPermissionError("Reminders need a development build and aren't available in Expo Go.");
-      return;
-    }
-    if (result === 'denied') {
-      setPermissionError(
-        "Reminders are off — notification permission was denied. You can allow it from your device's app settings."
-      );
-      return;
-    }
-    setPermissionError(null);
-    // Don't flip `enabled` until a time is actually chosen — this is the
-    // "never default to a fixed time" requirement in practice.
-    setPickerVisible(true);
-  }
-
-  async function handleConfirmTime(hour: number, minute: number) {
-    const next: ReminderSettings = { enabled: true, hour, minute };
-    const result = await applyReminderSchedule(next);
-    setPickerVisible(false);
-    if (!result.ok) {
-      // Nothing was saved, so the card keeps showing what is really scheduled.
-      setPermissionError(REMINDER_SCHEDULE_ERROR);
-      return;
-    }
-    setPermissionError(null);
-    await saveReminderSettings(next);
-    setReminderSettings(next);
-  }
-
   return (
     <View style={styles.root}>
+      <ScreenBackdrop />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable
@@ -215,75 +105,24 @@ export default function SettingsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <MaterialIcons name="arrow-back" size={24} color={colors.onSurface} />
+            <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
           </Pressable>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerTitle} accessibilityRole="header">
+            Settings
+          </Text>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* settings-code.html: absolute -top-12 -left-12 w-64 h-64
-              rounded-full bg-primary-container/10 blur-3xl — same flat-
-              circle approximation for backdrop-blur glow already used for
-              Home/Player's background glow, since RN has no CSS blur. */}
-          <View style={styles.backgroundGlow} />
-
-          <GlassCard radius={radii.lg} style={styles.card}>
-            <View style={styles.reminderRow}>
-              <View>
-                <Text style={styles.cardTitle}>Daily Reminder</Text>
-                <Pressable
-                  onPress={() => reminderSettings.enabled && setPickerVisible(true)}
-                  disabled={!reminderSettings.enabled}
-                  hitSlop={8}
-                >
-                  <Text style={styles.reminderTime}>{formatReminderTime(reminderSettings)}</Text>
-                </Pressable>
-              </View>
-              <ReminderToggle value={reminderSettings.enabled} onValueChange={handleToggleChange} />
-            </View>
-            {permissionError && <Text style={styles.permissionErrorText}>{permissionError}</Text>}
-            <Text style={styles.reminderTip}>{REMINDER_TIP}</Text>
-          </GlassCard>
-
-          {/* No Account section in settings-code.html: these reuse the card and
-              row styles already on this screen. */}
-          <GlassCard radius={radii.lg} style={styles.card}>
-            <Text style={styles.sectionLabel}>Account</Text>
-            <View
-              style={[styles.aboutRow, styles.accountRow]}
-              accessible
-              accessibilityLabel={`Email ${email ?? 'not available'}`}
-            >
-              <Text style={styles.cardTitle}>Email</Text>
-              <Text style={styles.emailValue} numberOfLines={1} ellipsizeMode="middle">
-                {email ?? ''}
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => setNameModalVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Edit your first name"
-              style={[styles.aboutRow, styles.accountRow]}
-            >
-              <Text style={styles.cardTitle}>First name</Text>
-              <View style={styles.nameEdit}>
-                <Text style={styles.nameValue} numberOfLines={1}>
-                  {firstName ?? 'Add your name'}
-                </Text>
-                <MaterialIcons name="edit" size={24} color={colors.onSurfaceVariant} />
-              </View>
-            </Pressable>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <PreviewGlass radius={CARD_RADIUS}>
             <Pressable
               onPress={() => router.push('/change-password')}
               accessibilityRole="button"
               accessibilityLabel="Change password"
-              style={[styles.aboutRow, styles.accountRow]}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
-              <Text style={styles.cardTitle}>Change password</Text>
-              <MaterialIcons name="chevron-right" size={24} color={colors.onSurfaceVariant} />
+              <Ionicons name="key-outline" size={22} color={colors.onSurfaceVariant} />
+              <Text style={styles.rowLabel}>Change password</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceVariant} />
             </Pressable>
             <Pressable
               onPress={handleSignOut}
@@ -291,75 +130,58 @@ export default function SettingsScreen() {
               accessibilityRole="button"
               accessibilityLabel="Sign out"
               accessibilityState={{ disabled: leaving.running, busy: leaving.running }}
-              style={[styles.aboutRow, styles.accountRow]}
+              style={({ pressed }) => [styles.row, styles.rowDivider, pressed && styles.rowPressed]}
             >
-              <Text style={styles.cardTitle}>Sign out</Text>
-              {leaving.running ? (
-                <ActivityIndicator color={colors.onSurfaceVariant} />
-              ) : (
-                <MaterialIcons name="logout" size={24} color={colors.onSurfaceVariant} />
-              )}
+              <Ionicons name="log-out-outline" size={22} color={colors.onSurfaceVariant} />
+              <Text style={styles.rowLabel}>Sign out</Text>
+              {leaving.running && <ActivityIndicator color={colors.onSurfaceVariant} />}
             </Pressable>
-          </GlassCard>
+          </PreviewGlass>
 
-          <GlassCard radius={radii.lg} style={styles.card}>
+          <PreviewGlass radius={CARD_RADIUS}>
             <Pressable
               onPress={handleDeleteAccount}
               disabled={deleting}
               accessibilityRole="button"
               accessibilityLabel="Delete account"
               accessibilityState={{ disabled: deleting }}
-              style={styles.aboutRow}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
-              <Text style={styles.cardTitle}>Delete account</Text>
-              {deleting ? (
-                <ActivityIndicator color={colors.error} />
-              ) : (
-                <MaterialIcons name="delete-outline" size={24} color={colors.error} />
-              )}
+              <Ionicons name="trash-outline" size={22} color={colors.error} />
+              <Text style={[styles.rowLabel, styles.danger]}>Delete account</Text>
+              {deleting && <ActivityIndicator color={colors.error} />}
             </Pressable>
-            {deleteError && <Text style={styles.permissionErrorText}>{deleteError}</Text>}
-          </GlassCard>
+            {deleteError && <Text style={styles.deleteError}>{deleteError}</Text>}
+          </PreviewGlass>
 
-          <GlassCard radius={radii.lg} style={styles.card}>
-            <View style={styles.aboutRow}>
-              <Text style={styles.cardTitle}>About</Text>
-              <Text style={styles.versionText}>Version {APP_VERSION}</Text>
+          <PreviewGlass radius={CARD_RADIUS}>
+            <View style={styles.row} accessible accessibilityLabel={`About, version ${APP_VERSION}`}>
+              <Ionicons name="information-circle-outline" size={22} color={colors.onSurfaceVariant} />
+              <Text style={styles.rowLabel}>About</Text>
+              <Text style={styles.rowValue}>Version {APP_VERSION}</Text>
             </View>
             <Pressable
               onPress={openPrivacyPolicy}
               accessibilityRole="link"
               accessibilityLabel="Privacy Policy"
-              style={[styles.aboutRow, styles.privacyRow]}
+              style={({ pressed }) => [styles.row, styles.rowDivider, pressed && styles.rowPressed]}
             >
-              <Text style={styles.cardTitle}>Privacy Policy</Text>
-              <MaterialIcons name="open-in-new" size={24} color={colors.onSurfaceVariant} />
+              <Ionicons name="shield-checkmark-outline" size={22} color={colors.onSurfaceVariant} />
+              <Text style={styles.rowLabel}>Privacy Policy</Text>
+              <Ionicons name="open-outline" size={18} color={colors.onSurfaceVariant} />
             </Pressable>
-          </GlassCard>
+          </PreviewGlass>
         </ScrollView>
       </SafeAreaView>
-
-      <TimePickerModal
-        visible={pickerVisible}
-        initialHour={reminderSettings.hour}
-        initialMinute={reminderSettings.minute}
-        onConfirm={handleConfirmTime}
-        onCancel={() => setPickerVisible(false)}
-      />
-
-      <EditNameModal
-        visible={nameModalVisible}
-        initialName={firstName}
-        onClose={() => setNameModalVisible(false)}
-      />
     </View>
   );
 }
 
+// Rows match Profile's (src/features/profile/ProfileScreen.tsx).
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
     flex: 1,
@@ -368,147 +190,56 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.base,
-    paddingHorizontal: spacing.marginMobile,
+    paddingHorizontal: spacing.gutter,
     height: 64,
   },
   backButton: {
     width: 44,
     height: 44,
-    marginLeft: -spacing.base,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
-    lineHeight: typography.headlineLgMobile.lineHeight,
-    color: colors.onSurface,
+    ...text.name,
+    color: '#ffffff',
   },
   content: {
-    paddingHorizontal: spacing.marginMobile,
+    paddingHorizontal: spacing.gutter,
     paddingTop: spacing.base * 2,
     paddingBottom: spacing.base * 4,
     gap: spacing.base * 3,
   },
-  backgroundGlow: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: -48,
-    left: -48,
-    width: 256,
-    height: 256,
-    borderRadius: 128,
-    backgroundColor: colors.primaryContainer,
-    opacity: 0.1,
-  },
-  card: {
-    padding: spacing.base * 2.5,
-  },
-  reminderRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingHorizontal: spacing.base * 2,
+    gap: spacing.base * 1.5,
   },
-  cardTitle: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    lineHeight: typography.bodyLg.lineHeight,
-    fontWeight: '600',
+  rowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: accents.glassBorder,
+  },
+  rowPressed: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  rowLabel: {
+    ...typography.bodyMd,
     color: colors.onSurface,
+    flex: 1,
   },
-  reminderTime: {
-    fontFamily: typography.headlineLg.fontFamily,
-    fontSize: typography.headlineLg.fontSize,
-    lineHeight: typography.headlineLg.lineHeight,
-    fontWeight: '700',
-    color: colors.primary,
-    marginTop: 4,
-  },
-  toggleTrack: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    padding: 4,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  toggleTrackOff: {
-    borderRadius: 14,
-    backgroundColor: colors.surfaceVariant,
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.onPrimary,
-    transform: [{ translateX: 0 }],
-  },
-  toggleThumbOn: {
-    transform: [{ translateX: 20 }],
-  },
-  reminderTip: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+  rowValue: {
+    ...text.body,
     color: colors.onSurfaceVariant,
-    marginTop: spacing.base * 1.5,
   },
-  permissionErrorText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+  danger: {
     color: colors.error,
-    marginTop: spacing.base * 1.5,
   },
-  aboutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionLabel: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
-    color: colors.onSurfaceVariant,
-  },
-  accountRow: {
-    minHeight: 48,
-  },
-  // Read-only, so it uses the quiet color rather than the editable accent.
-  emailValue: {
-    flexShrink: 1,
-    marginLeft: spacing.base * 2,
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
-    color: colors.onSurfaceVariant,
-  },
-  // Shrinks and truncates so a 30-char name can't push the label off the row.
-  nameEdit: {
-    flexShrink: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.base,
-    marginLeft: spacing.base * 2,
-  },
-  nameValue: {
-    flexShrink: 1,
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  privacyRow: {
-    marginTop: spacing.gutter,
-    minHeight: 48,
-  },
-  versionText: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
-    fontWeight: '400',
-    color: colors.onSurfaceVariant,
+  deleteError: {
+    ...text.body,
+    color: colors.error,
+    paddingHorizontal: spacing.base * 2,
+    paddingBottom: spacing.base * 2,
   },
 });

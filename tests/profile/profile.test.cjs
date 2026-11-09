@@ -36,15 +36,52 @@ test('the reminder row shows the time, or "Off"', () => {
   assert.equal(p.reminderLabel(null), 'Off');
 });
 
-test('the rows link only to existing screens, in order, and there is no Help row', () => {
+test('Profile has only Settings and Daily reminder; the reminder row opens the Reminder screen', () => {
   assert.deepEqual(
     p.PROFILE_ROWS.map((r) => r.key),
-    ['settings', 'reminder', 'password', 'privacy']
+    ['settings', 'reminder']
   );
   const targets = Object.fromEntries(p.PROFILE_ROWS.map((r) => [r.key, r.target]));
   assert.deepEqual(targets.settings, { kind: 'route', href: '/settings' });
-  assert.deepEqual(targets.reminder, { kind: 'route', href: '/settings' });
-  assert.deepEqual(targets.password, { kind: 'route', href: '/change-password' });
-  assert.deepEqual(targets.privacy, { kind: 'privacy' });
-  assert.ok(!p.PROFILE_ROWS.some((r) => /help/i.test(r.label)));
+  assert.deepEqual(targets.reminder, { kind: 'route', href: '/reminder' });
+  assert.ok(!p.PROFILE_ROWS.some((r) => /help|password|privacy|sign out/i.test(r.label)));
+});
+
+const fs = require('node:fs');
+const path = require('node:path');
+const repo = path.join(__dirname, '..', '..');
+const read = (f) => fs.readFileSync(path.join(repo, f), 'utf8');
+
+test('Profile no longer has Change password, Privacy Policy or Sign out', () => {
+  const src = read('src/features/profile/ProfileScreen.tsx');
+  assert.ok(!/signOut|openPrivacyPolicy|change-password/.test(src));
+});
+
+test('Settings keeps the account actions and drops Email, First name and the reminder card', () => {
+  const src = read('app/settings.tsx');
+  for (const must of [
+    "onPress={() => router.push('/change-password')}",
+    'onPress={handleSignOut}',
+    'onPress={handleDeleteAccount}',
+    'onPress={openPrivacyPolicy}',
+    'if (await confirmSignOut()) await signOut();',
+    'const result = await deleteMyData();',
+  ]) assert.ok(src.includes(must), must);
+  assert.ok(!/EditNameModal|TimePickerModal|>Email<|First name|Daily Reminder|backgroundGlow/.test(src));
+});
+
+test('the Reminder screen is registered inside the signed-in guard and uses the same wording', () => {
+  const layout = read('app/_layout.tsx');
+  const guard = layout.slice(layout.indexOf("guard={status === 'signedIn'}"));
+  assert.ok(guard.slice(0, guard.indexOf('</Stack.Protected>')).includes('<Stack.Screen name="reminder" />'));
+  assert.ok(read('app/reminder.tsx').includes('reminderLabel(reminderSettings)'));
+});
+
+test("ScreenBackdrop's painting prop is optional and no screen passes it yet", () => {
+  assert.ok(read('src/features/profile/ScreenBackdrop.tsx').includes('painting?: ImageSourcePropType'));
+  for (const f of ['app/settings.tsx', 'app/reminder.tsx', 'src/features/profile/ProfileScreen.tsx']) {
+    const src = read(f);
+    assert.ok(src.includes('<ScreenBackdrop />'), f);
+    assert.ok(!src.includes('painting='), f);
+  }
 });
