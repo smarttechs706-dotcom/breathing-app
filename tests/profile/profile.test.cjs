@@ -77,11 +77,31 @@ test('the Reminder screen is registered inside the signed-in guard and uses the 
   assert.ok(read('app/reminder.tsx').includes('reminderLabel(reminderSettings)'));
 });
 
-test("ScreenBackdrop's painting prop is optional and no screen passes it yet", () => {
-  assert.ok(read('src/features/profile/ScreenBackdrop.tsx').includes('painting?: ImageSourcePropType'));
-  for (const f of ['app/settings.tsx', 'app/reminder.tsx', 'src/features/profile/ProfileScreen.tsx']) {
-    const src = read(f);
-    assert.ok(src.includes('<ScreenBackdrop />'), f);
-    assert.ok(!src.includes('painting='), f);
+test('the mist painting is behind Library, Profile, Settings, Reminder and Change password only', () => {
+  const backdrop = read('src/features/profile/ScreenBackdrop.tsx');
+  assert.ok(backdrop.includes('painting?: ImageSourcePropType'));
+  assert.ok(/export const MIST_TINT = 0\.\d+;/.test(backdrop), 'tint in one constant');
+  assert.ok(fs.existsSync(path.join(repo, 'src/features/profile/images/mist-background.jpg')));
+  for (const f of [
+    'src/features/library/LibraryScreen.tsx',
+    'src/features/profile/ProfileScreen.tsx',
+    'app/settings.tsx',
+    'app/reminder.tsx',
+    'app/change-password.tsx',
+  ]) assert.ok(read(f).includes('<ScreenBackdrop painting={MIST_BACKGROUND} />'), f);
+  for (const f of ['src/features/home/HomeScreen.tsx', 'app/(tabs)/insights.tsx', 'app/session-player.tsx']) {
+    assert.ok(!read(f).includes('MIST_BACKGROUND'), f);
   }
+});
+
+test('Change password keeps its form, validation and API call, without the shared AuthScreen', () => {
+  const src = read('app/change-password.tsx');
+  for (const must of [
+    'validatePasswordChange({ currentPassword, newPassword, confirmPassword })',
+    'await changePassword(getAuth(), email, { currentPassword, newPassword })',
+    'onPress={submit}',
+    'onSubmitEditing={submitUnlessWaiting}',
+    "router.replace('/settings')",
+  ]) assert.ok(src.includes(must), must);
+  assert.ok(!src.includes('<AuthScreen'));
 });

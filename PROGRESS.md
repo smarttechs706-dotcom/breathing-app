@@ -4827,3 +4827,22 @@ Profile's row; both read "Off" or the time, e.g. "8:00 PM" (`reminderLabel`).
 New `src/features/profile/ScreenBackdrop.tsx` draws the navy gradient for all
 three screens and has an unused optional `painting` prop for a later image with
 a dark fade. All moved handlers are byte-for-byte unchanged.
+
+## Polish: mist backdrop, Change password, Reminder toggle, glass disabled buttons (2026-11-10, branch feat/home-redesign)
+
+`ScreenBackdrop` now draws `images/mist-background.jpg` (853 x 1844, 51 KB, from
+the untracked `assets/design-reference/as mist-background.png`) under a
+#0a1028 tint (`MIST_TINT = 0.45`, raised from 0.40 after the phone check) and a
+fade to solid #00051a at the bottom. Used behind Library, Profile, Settings,
+Reminder and Change password (not Home, Insights or the session player).
+Change password now has the Settings header (back arrow, white title) and a
+glass card around its fields; its form, validation and API call are unchanged
+(next round moves it back onto a restyled shared `AuthScreen`). Reminder: the
+toggle is a light thumb on a faint track when off and a white thumb on solid
+`inversePrimary` when on; the duplicate "Daily reminder" label in the card is
+gone. Session player: disabled Begin Journey and Done are translucent navy
+glass with a muted label instead of faded blue. Phone-checked lowest contrast:
+Library 6.9:1 (top and scrolled), Profile 5.1:1 (was 4.8:1 at tint 0.40),
+Settings 6.2:1, Reminder 7.9:1, Change password 6.8:1 (keyboard leaves all
+fields and the button visible), pre-mood with Begin Journey disabled 7.1:1.
+The disabled Done button is checked by source only (needs a full session).

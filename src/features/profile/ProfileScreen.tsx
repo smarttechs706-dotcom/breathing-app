@@ -29,7 +29,7 @@ import {
   type ProfileRow,
   type ReminderState,
 } from './profileModel';
-import { BACKDROP_BOTTOM, ScreenBackdrop } from './ScreenBackdrop';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdrop';
 
 // Profile tab: who you are, your real stats, and two rows: Settings (account
 // actions, About) and Daily reminder (its own screen). Change password,
@@ -86,7 +86,7 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
 
   return (
     <View style={styles.root}>
-      <ScreenBackdrop />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: tabBarHeight + spacing.base * 3 }]}

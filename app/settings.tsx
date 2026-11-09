@@ -20,7 +20,7 @@ import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { PreviewGlass } from '../src/features/home/PreviewGlass';
 import { accents, text } from '../src/features/home/styles';
-import { BACKDROP_BOTTOM, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import {
   confirmDelete,
   DELETE_FAILURE,
@@ -95,7 +95,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenBackdrop />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable

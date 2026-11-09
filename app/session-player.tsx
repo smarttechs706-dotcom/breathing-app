@@ -36,6 +36,8 @@ import {
 } from '../src/utils/sessionClock';
 
 const KEEP_AWAKE_TAG = 'breathe-session';
+// Disabled Begin Journey / Done: translucent navy glass with a hairline border.
+const GLASS_BUTTON_FILL = 'rgba(10,16,40,0.55)';
 
 // ============================================================================
 // FLAGGED CONFLICT (per instruction: flag rather than silently pick one)
@@ -602,15 +604,21 @@ export default function SessionPlayerScreen() {
                     onPress={handleBeginJourney}
                     disabled={preMood === null}
                     accessibilityState={{ disabled: preMood === null }}
-                    style={preMood === null && styles.buttonDisabled}
+                    style={preMood === null && styles.disabledPress}
                   >
                     <LinearGradient
-                      colors={[colors.inversePrimary, colors.primaryContainer]}
+                      colors={
+                        preMood === null
+                          ? [GLASS_BUTTON_FILL, GLASS_BUTTON_FILL]
+                          : [colors.inversePrimary, colors.primaryContainer]
+                      }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
-                      style={styles.beginButton}
+                      style={[styles.beginButton, preMood === null && styles.glassButton]}
                     >
-                      <Text style={styles.beginButtonText}>Begin Journey</Text>
+                      <Text style={[styles.beginButtonText, preMood === null && styles.glassButtonText]}>
+                        Begin Journey
+                      </Text>
                     </LinearGradient>
                   </Pressable>
                 </View>
@@ -731,13 +739,13 @@ export default function SessionPlayerScreen() {
                   style={[
                     styles.doneButton,
                     saving && styles.doneButtonDisabled,
-                    postMood === null && styles.buttonDisabled,
+                    postMood === null && styles.glassButton,
                   ]}
                 >
                   {saving ? (
                     <ActivityIndicator color={colors.onSurface} />
                   ) : (
-                    <Text style={styles.doneButtonText}>
+                    <Text style={[styles.doneButtonText, postMood === null && styles.glassButtonText]}>
                       {saveError ? 'Try Again' : 'Done'}
                     </Text>
                   )}
@@ -871,8 +879,17 @@ const styles = StyleSheet.create({
   moodHintPost: {
     marginTop: spacing.base * 3,
   },
-  buttonDisabled: {
-    opacity: 0.4,
+  // Disabled buttons: glass fill and hairline border instead of a faded colour.
+  disabledPress: {
+    opacity: 1,
+  },
+  glassButton: {
+    backgroundColor: GLASS_BUTTON_FILL,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  glassButtonText: {
+    color: 'rgba(255,255,255,0.6)',
   },
   moodSelector: {
     maxWidth: 360,

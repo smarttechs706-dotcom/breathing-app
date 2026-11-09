@@ -1,16 +1,22 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 
-// Shared background for Profile, Settings and the Reminder screen: the deep
-// navy used across the redesign (the tab pill's navy at the top to the navy at
-// the bottom of Home's paintings).
+// Shared background for Library, Profile, Settings, Reminder and Change
+// password: the deep navy used across the redesign (the tab pill's navy at the
+// top to the navy at the bottom of Home's paintings).
 //
-// `painting` is a slot for later and is not used by any screen yet: when
-// given, the image fills the screen behind a dark fade so the glass cards stay
-// readable. Screens only need to pass the prop; nothing else changes.
+// `painting`, when given, fills the screen behind a navy tint (MIST_TINT) and a
+// fade to solid BACKDROP_BOTTOM at the bottom, so the glass cards stay readable.
+// Without it, only the navy gradient is drawn.
 
 export const BACKDROP_TOP = '#0a1028';
 export const BACKDROP_BOTTOM = '#00051a';
+
+// The dark navy mist painting (853 x 1844, from assets/design-reference/).
+export const MIST_BACKGROUND: ImageSourcePropType = require('./images/mist-background.jpg');
+
+// Strength of the #0a1028 tint over the painting, 0 to 1. Tune here.
+export const MIST_TINT = 0.45;
 
 export function ScreenBackdrop({ painting }: { painting?: ImageSourcePropType }) {
   return (
@@ -19,9 +25,10 @@ export function ScreenBackdrop({ painting }: { painting?: ImageSourcePropType })
       {painting && (
         <>
           <Image source={painting} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={0} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(10,16,40,${MIST_TINT})` }]} />
           <LinearGradient
-            colors={['rgba(10,16,40,0.55)', 'rgba(10,16,40,0.75)', 'rgba(0,5,26,0.92)']}
-            locations={[0, 0.4, 1]}
+            colors={['rgba(0,5,26,0)', BACKDROP_BOTTOM]}
+            locations={[0.6, 1]}
             style={StyleSheet.absoluteFill}
           />
         </>

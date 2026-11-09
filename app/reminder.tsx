@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,7 +8,7 @@ import { TimePickerModal } from '../src/components/TimePickerModal';
 import { PreviewGlass } from '../src/features/home/PreviewGlass';
 import { text } from '../src/features/home/styles';
 import { reminderLabel } from '../src/features/profile/profileModel';
-import { BACKDROP_BOTTOM, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import {
   applyReminderSchedule,
   REMINDER_TIP,
@@ -27,13 +26,8 @@ import { colors, spacing, typography } from '../src/theme/tokens';
 
 const CARD_RADIUS = 16;
 
-// settings-code.html's toggle is a custom-styled switch (gradient track
-// when on, not a flat color), which RN's built-in Switch can't reproduce —
-// it only supports flat trackColor per state. Built as a local Pressable +
-// LinearGradient to match the reference exactly, matching the pill-toggle
-// dimensions from the HTML precisely: track 48x28 (w-12 h-7), thumb 20x20
-// (w-5 h-5), 4px inset (p-1), 20px thumb travel (translate-x-5) — kept
-// local to this file since no other screen uses this component today.
+// A local pill switch (track 48x28, thumb 20x20, 20px travel). Off: a light
+// thumb on a faint track. On: a white thumb on a solid blue track.
 function ReminderToggle({
   value,
   onValueChange,
@@ -50,16 +44,7 @@ function ReminderToggle({
       hitSlop={8}
       style={styles.toggleTrack}
     >
-      {value ? (
-        <LinearGradient
-          colors={[colors.primaryContainer, colors.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-        />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, styles.toggleTrackOff]} />
-      )}
+      <View style={[StyleSheet.absoluteFill, value ? styles.toggleTrackOn : styles.toggleTrackOff]} />
       <View style={[styles.toggleThumb, value && styles.toggleThumbOn]} />
     </Pressable>
   );
@@ -125,7 +110,7 @@ export default function ReminderScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenBackdrop />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable
@@ -146,7 +131,6 @@ export default function ReminderScreen() {
           <PreviewGlass radius={CARD_RADIUS} style={styles.card}>
             <View style={styles.reminderRow}>
               <View>
-                <Text style={styles.cardTitle}>Daily reminder</Text>
                 <Pressable
                   onPress={() => reminderSettings.enabled && setPickerVisible(true)}
                   disabled={!reminderSettings.enabled}
@@ -213,14 +197,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  cardTitle: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-  },
   reminderTime: {
     ...typography.headlineLgMobile,
     color: colors.primary,
-    marginTop: 4,
   },
   toggleTrack: {
     width: 48,
@@ -232,16 +211,23 @@ const styles = StyleSheet.create({
   },
   toggleTrackOff: {
     borderRadius: 14,
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  toggleTrackOn: {
+    borderRadius: 14,
+    backgroundColor: colors.inversePrimary,
   },
   toggleThumb: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.onPrimary,
+    backgroundColor: colors.onSurfaceVariant,
     transform: [{ translateX: 0 }],
   },
   toggleThumbOn: {
+    backgroundColor: '#ffffff',
     transform: [{ translateX: 20 }],
   },
   reminderTip: {

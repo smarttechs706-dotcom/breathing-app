@@ -22,6 +22,7 @@ import type { Session } from '../../types/models';
 import { FadeIn, PressableScale, STAGGER_MS, useReducedMotion } from '../home/motion';
 import { PreviewAvatar } from '../home/PreviewAvatar';
 import { accents, text } from '../home/styles';
+import { MIST_BACKGROUND, ScreenBackdrop } from '../profile/ScreenBackdrop';
 import {
   BADGE_ICON,
   CATEGORIES,
@@ -109,11 +110,7 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[BACKGROUND_TOP, BACKGROUND_BOTTOM]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <PreviewAvatar size={40} />

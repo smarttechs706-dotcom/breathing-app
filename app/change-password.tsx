@@ -1,5 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import type { TextInput } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AUTH_MESSAGES } from '../src/auth/authErrors';
 import { useAuth } from '../src/auth/AuthProvider';
@@ -11,10 +22,23 @@ import {
 import { getAuth } from '../src/auth/supabase';
 import { useCooldown } from '../src/auth/useCooldown';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
-import { AuthScreen } from '../src/components/auth/AuthScreen';
 import { FormMessage } from '../src/components/auth/FormMessage';
 import { GradientButton } from '../src/components/auth/GradientButton';
 import { PasswordField } from '../src/components/auth/PasswordField';
+import { PreviewGlass } from '../src/features/home/PreviewGlass';
+import { text } from '../src/features/home/styles';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
+import { spacing, colors } from '../src/theme/tokens';
+
+// Change password, styled like Settings (mist backdrop, back arrow and white
+// title, a glass card around the fields). The form, its validation and the
+// API call are unchanged; the shared auth components are used as before.
+
+// Same as AuthScreen's back button with backTo="/settings".
+function goBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/settings');
+}
 
 export default function ChangePasswordScreen() {
   const { session } = useAuth();
@@ -62,7 +86,30 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <AuthScreen title="Change password" backTo="/settings">
+    <View style={styles.root}>
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <KeyboardAvoidingView style={styles.safeArea} behavior="padding">
+          <View style={styles.header}>
+            <Pressable
+              onPress={goBack}
+              hitSlop={8}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
+            </Pressable>
+            <Text style={styles.headerTitle} accessibilityRole="header">
+              Change password
+            </Text>
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <PreviewGlass radius={16} style={styles.card}>
       <PasswordField
         label="Current password"
         value={currentPassword}
@@ -105,6 +152,48 @@ export default function ChangePasswordScreen() {
         running={running}
         disabled={secondsLeft > 0}
       />
-    </AuthScreen>
+            </PreviewGlass>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
+
+// Header matches app/settings.tsx.
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BACKDROP_BOTTOM,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.base,
+    paddingHorizontal: spacing.gutter,
+    height: 64,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    ...text.name,
+    color: '#ffffff',
+  },
+  content: {
+    paddingHorizontal: spacing.gutter,
+    paddingTop: spacing.base * 2,
+    paddingBottom: spacing.base * 4,
+  },
+  card: {
+    padding: spacing.base * 2.5,
+    gap: spacing.gutter,
+  },
+});
