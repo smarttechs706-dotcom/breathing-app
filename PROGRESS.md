@@ -4935,3 +4935,33 @@ The Expo developer-menu introduction came back after `pm clear` reset its
 Follow-ups: white accent sweep (links, values, spinners); time picker restyle;
 custom three-bar Insights tab icon; Home extension; font round (Fraunces for
 large titles); wordmark alignment (left on onboarding, centred on Log in).
+
+## White accent sweep and Fraunces titles (2026-11-10, branch feat/home-redesign)
+
+White sweep (0b3cbec): the light periwinkle (colors.primary) became true white
+#ffffff on the auth links (now bold via displayLg, no underline), "Enable
+reminders", the Retry text links (Featured card, Home header, Profile), the
+reminder time and "Off" value, and the loading spinners. New role
+`text.linkBold` in `src/features/home/styles.ts`. Filled Retry buttons,
+gradients, TextField's cursor, MoodTrendChart and the old unused screens kept
+their colours. Styles only; every file identical outside its styles.
+
+Fraunces (dc1c2ad): `@expo-google-fonts/fraunces` 0.4.1, only the 500 Medium
+file (+72.5 KB) imported from its sub-path in `app/_layout.tsx` and registered
+as `fontFamilies.display`. New role `typography.displayTitle` (no fontWeight;
+fontWeight is now optional in the role type). `text.name` and `text.pageTitle`
+use it at 24/36, the session player title and "Session Complete" at 28/40, and
+the 28 sp onboarding and auth titles got 40 line height. `_layout.tsx` now
+continues with the system font if a font fails to load (it used to stay on the
+loading view forever). Phone-checked on Home, Library, Insights, Profile,
+Settings and Daily reminder: serif loaded, nothing clipped, titles 16-18:1.
+Metro had to be restarted (it had hung with 0.6-0.7 GB free memory).
+
+The time picker restyle (`src/components/TimePickerModal.tsx`) is built and
+held, not committed.
+
+Follow-ups: Plus Jakarta Sans is imported from its main entry, which bundles
+every weight; `npm audit` shows 20 existing vulnerabilities (1 critical) to
+review before launch; page titles possibly 26 sp; the backend privacy page
+title still says "Breathe"; three-bar Insights tab icon; wordmark alignment
+(left on onboarding, centred on Log in); Home extension image.
