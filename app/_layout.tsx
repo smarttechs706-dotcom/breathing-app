@@ -1,3 +1,7 @@
+// Fraunces for large titles: only this one weight's file is bundled (the
+// package's main entry would pull in every weight). To change the weight,
+// change this import line only; it is registered as fontFamilies.display.
+import { Fraunces_500Medium as FrauncesDisplayFile } from '@expo-google-fonts/fraunces/500Medium';
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_600SemiBold,
@@ -13,7 +17,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../src/api/client';
 import { AuthProvider, useAuth } from '../src/auth/AuthProvider';
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
-import { colors } from '../src/theme/tokens';
+import { colors, fontFamilies } from '../src/theme/tokens';
 import { removeLegacyIdentity } from '../src/utils/legacyCleanup';
 import { initNotificationChannel, initNotificationHandler } from '../src/utils/reminders';
 
@@ -71,10 +75,11 @@ export default function RootLayout() {
   // Fail fast and visibly on a misconfigured release build; a no-op in dev.
   getApiBaseUrl();
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
+    [fontFamilies.display]: FrauncesDisplayFile,
   });
 
   useEffect(() => {
@@ -83,7 +88,9 @@ export default function RootLayout() {
     void removeLegacyIdentity();
   }, []);
 
-  if (!fontsLoaded) {
+  // A font that fails to load must not leave the app on a blank screen: with
+  // an error, carry on and let the system font stand in.
+  if (!fontsLoaded && !fontError) {
     // Keep the same dark background so there's no flash of a different
     // color while the DESIGN.md typeface loads.
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;

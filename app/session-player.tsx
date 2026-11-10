@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   sessionTitle: {
-    ...typography.headlineLgMobile,
+    ...typography.displayTitle,
     color: colors.onSurface,
   },
   sessionDescription: {
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   completeHeadline: {
-    ...typography.headlineLgMobile,
+    ...typography.displayTitle,
     color: colors.onSurface,
   },
   mindfulMinutes: {

@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   title: {
     ...text.name,
     fontSize: 28,
-    lineHeight: 36,
+    lineHeight: 40,
     color: '#ffffff',
     textAlign: 'center',
   },

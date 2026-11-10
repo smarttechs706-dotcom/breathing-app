@@ -60,7 +60,9 @@ export type ColorToken = keyof typeof colors;
 interface TypographyStyle {
   fontFamily: string;
   fontSize: number;
-  fontWeight: '400' | '500' | '600' | '700';
+  // Optional: a role on a single-weight font file (displayTitle) sets none, so
+  // Android never synthesises a weight on top of it.
+  fontWeight?: '400' | '500' | '600' | '700';
   lineHeight: number;
   letterSpacing?: number;
 }
@@ -73,12 +75,22 @@ export const fontFamilies = {
   regular: 'PlusJakartaSans_400Regular',
   semiBold: 'PlusJakartaSans_600SemiBold',
   bold: 'PlusJakartaSans_700Bold',
+  // Fraunces (soft serif) for large titles only. Registered under this name in
+  // app/_layout.tsx, which picks the file (weight): currently 500 Medium.
+  display: 'FrauncesDisplay',
 } as const;
 
 // fontSize/lineHeight converted from DESIGN.md's px values to RN's unitless
 // numbers. letterSpacing converted from DESIGN.md's em values to px
 // (em * fontSize), since React Native's letterSpacing is a px number, not em.
 export const typography = {
+  // Large titles (Fraunces). No fontWeight: the weight is the loaded file.
+  // Line height has ~4 dp more room than Plus Jakarta's roles for the serif.
+  displayTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 28,
+    lineHeight: 40,
+  },
   displayLg: {
     fontFamily: fontFamilies.bold,
     fontSize: 48,

@@ -138,9 +138,9 @@ test('chart: Before is a larger slate ring drawn under the white After dot, so e
   assert.ok(ring > -1 && dot > ring, 'Before ring is drawn before the After dot');
 });
 
-test('Library and Insights page titles use the shared 24/32 pageTitle', () => {
+test('Library and Insights page titles use the shared 24 sp pageTitle (Fraunces, 36 line height)', () => {
   const styles = read('src/features/home/styles.ts');
-  assert.ok(styles.includes('pageTitle: { ...typography.headlineLgMobile, fontSize: 24, lineHeight: 32 }'));
+  assert.ok(styles.includes('pageTitle: { ...typography.displayTitle, fontSize: 24, lineHeight: 36 }'));
   assert.ok(read('src/features/library/LibraryScreen.tsx').includes('...text.pageTitle'));
 });
 
