@@ -57,7 +57,8 @@ const PRESS_MS = 160;
 const PRESS_SCALE = 0.96;
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 
-const ACTIVE_TINT = colors.primary;
+// True white for the active tab's icon and label.
+const ACTIVE_TINT = '#ffffff';
 const INACTIVE_TINT = `${colors.onSurfaceVariant}A6`; // ~65%
 // 95% so large text scrolling behind the pill does not show through.
 const PILL_FILL = 'rgba(10,16,40,0.95)';
