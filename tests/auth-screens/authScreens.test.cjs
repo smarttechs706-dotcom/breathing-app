@@ -66,6 +66,44 @@ const MUST = {
   ],
 };
 
+// Onboarding (restyle only): handlers, navigation, reminder calls and the time
+// picker wiring stay as they were.
+Object.assign(MUST, {
+  'app/onboarding/welcome.tsx': [
+    'await setOnboardingComplete();',
+    "router.replace('/signup');",
+    '<Pressable onPress={skipToSignUp} hitSlop={8}>',
+    "onPress={() => router.push('/onboarding/how-it-works')}",
+  ],
+  'app/onboarding/how-it-works.tsx': [
+    'await setOnboardingComplete();',
+    "router.replace('/signup');",
+    '<Pressable onPress={skipToSignUp} hitSlop={8} style={styles.skipButton}>',
+    "onPress={() => router.push('/onboarding/build-habit')}",
+  ],
+  'app/onboarding/build-habit.tsx': [
+    'const result = await requestNotificationPermission();',
+    'const result = await applyReminderSchedule(settings);',
+    'await saveReminderSettings(settings);',
+    "[{ text: 'OK', onPress: finishOnboarding }]",
+    '<Pressable onPress={finishOnboarding} hitSlop={8}>',
+    'onPress={finishOnboarding}',
+    '<Pressable onPress={handleEnableReminders} hitSlop={8} style={styles.secondaryButton}>',
+    'onConfirm={handleConfirmTime}',
+    'onCancel={handleCancelTime}',
+  ],
+});
+
+test('onboarding: mist backdrop, no panels or glows, sentence-case buttons, no direct font settings', () => {
+  for (const f of ['app/onboarding/welcome.tsx', 'app/onboarding/how-it-works.tsx', 'app/onboarding/build-habit.tsx']) {
+    const src = read(f);
+    assert.ok(src.includes('<ScreenBackdrop painting={MIST_BACKGROUND} />'), f);
+    assert.ok(!/GlassCard|PreviewGlass|backgroundGlow|GradientText|local-florist|colors\.background\b/.test(src), f);
+    assert.ok(!/fontFamily:|fontWeight:|textTransform: 'uppercase'/.test(src), f);
+    assert.ok(!/>NEXT<|Get Started|Enable Reminders/.test(src), f);
+  }
+});
+
 for (const [file, snippets] of Object.entries(MUST)) {
   test(`${file} keeps its handlers, calls and navigation`, () => {
     const src = read(file);

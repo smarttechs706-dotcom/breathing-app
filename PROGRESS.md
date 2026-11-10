@@ -4875,3 +4875,31 @@ and tests only. Follow-ups: field borders a little stronger; the main button on
 Sign up and Change password sits at or under the keyboard edge; a small
 wordmark for the empty top bar on Log in; contrast of the session player's
 enabled Begin Journey gradient.
+
+## Auth tweaks and onboarding restyle (2026-11-10, branch feat/home-redesign)
+
+Auth tweaks (commit 0a67677): `TextField` border 12% to 20% white;
+`AuthScreen` section gap 40 to 24 dp and less top/bottom padding so the main
+button clears the keyboard on Sign up and Change password; a "Breathease"
+wordmark (white 80%, 18 sp, headlineLgMobile) in the top bar when a screen has
+no back arrow (Log in only), with no new prop and no screen file changes. No
+logic line added (comparison script: every auth file identical outside JSX and
+styles).
+
+Onboarding (welcome, how-it-works, build-habit) restyled in the same look: the
+mist backdrop, no panels and no glow circles (the GlassCard step cards are now
+plain rows with an outlined icon circle; the flame illustration's ring and
+circle are outlines only), white headlines, the "Breathease" wordmark in place
+of the flower icon, and the auth button style (inversePrimary to
+onPrimaryFixedVariant, white sentence-case label). Copy: "Next", "Get started",
+"Enable reminders". `BreathOrb` and the floating flame are kept. Every handler,
+onPress, router call and TimePickerModal handler is unchanged (comparison
+script: all three files identical outside JSX and styles; no changed line
+contains router., await, onPress= or set...().
+
+Checked by code and tests only (`tests/auth-screens/`): onboarding shows only
+before the onboarding flag is set, and the Log in wordmark and Sign up spacing
+only while signed out, so the first real view of all of them is the fresh
+install from the EAS build. Follow-ups: check all three onboarding screens and
+the auth tweaks on that build (contrast over the mist, keyboard clearance on
+Sign up); contrast of the session player's enabled Begin Journey gradient.

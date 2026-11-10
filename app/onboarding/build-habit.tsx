@@ -6,6 +6,8 @@ import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TimePickerModal } from '../../src/components/TimePickerModal';
+import { text } from '../../src/features/home/styles';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
 import {
@@ -15,24 +17,17 @@ import {
   saveReminderSettings,
 } from '../../src/utils/reminders';
 
-// Screen 3/3 — matches assets/design-reference/onboarding-3-build-habit-code.html
-// + onboarding-3-build-habit-screenshot.png.
+// Screen 3/3. Same look as the sign-in screens: the mist backdrop, a white
+// headline, the shared primary button style and "Enable reminders" as a link.
+// No panels or glow circles; the floating flame illustration keeps its ring
+// and circle as outlines only.
 //
 // Deviation (flagged, not silent): the reference's illustration is a
-// hotlinked <img> of a mini "Deep Exhale" session-card mockup showing fake
-// vital-sign readouts ("64 bpm", "98%", "Low" stress). CLAUDE.md's house
-// rules explicitly forbid reintroducing real/simulated biometric data
-// (heart rate, blood oxygen, stress %) — this app uses manual mood
-// check-ins only. Built a streak/flame illustration instead (matching the
-// headline's daily-habit theme and Home's existing streak-card flame icon)
-// inside the same circular glass panel + pulsing float treatment the
-// reference specifies, rather than reproducing that biometric mockup.
+// hotlinked <img> of a session-card mockup showing fake vital-sign readouts.
+// CLAUDE.md forbids reintroducing biometric data, so this is a streak/flame
+// illustration matching the headline's daily-habit theme.
 //
-// Button copy: the actual reference/screenshot only has "Get Started"
-// (primary) + "Enable reminders" (secondary text link) — there's no
-// separate "Skip for now" button on this screen (only the shared "Skip"
-// header present on screens 1-2, absent here per the reference). Both
-// "Get Started" and "Enable reminders" end at Sign up, since accounts are
+// Both "Get started" and "Enable reminders" end at Sign up, since accounts are
 // required; "Enable reminders" asks for the permission and a time first.
 export default function BuildHabitScreen() {
   const float = useRef(new Animated.Value(0)).current;
@@ -110,11 +105,11 @@ export default function BuildHabitScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.backgroundGlow} />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <MaterialIcons name="local-florist" size={22} color={colors.primary} />
+          <Text style={styles.wordmark}>Breathease</Text>
           <Pressable onPress={finishOnboarding} hitSlop={8}>
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
@@ -129,9 +124,11 @@ export default function BuildHabitScreen() {
           </Animated.View>
 
           <View style={styles.textArea}>
-            <Text style={styles.headline}>One reset a day changes the rest of it.</Text>
+            <Text style={styles.headline} accessibilityRole="header">
+              One reset a day changes the rest of it.
+            </Text>
             <Text style={styles.body}>
-              We'll remind you at the moments you actually need it — not a
+              We'll remind you at the moments you actually need it. Not a
               bedtime ritual you'll forget.
             </Text>
             <Text style={styles.tip}>{REMINDER_TIP}</Text>
@@ -143,27 +140,18 @@ export default function BuildHabitScreen() {
             onPress={finishOnboarding}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
           >
-            {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
-                2026-09-19 primaryContainer -> inversePrimary gradient with
-                onPrimaryFixed text computed to only ~2.6:1 contrast at the
-                gradient's darker end — below the 4.5:1 AA minimum. Swapped
-                to inversePrimary -> onPrimaryFixedVariant (both stops dark
-                enough that white text stays >=6.47:1 across the whole
-                gradient — see AUDIT-2.md for the full before/after math)
-                with white text, matching Home/Library/Player's identical
-                fix. */}
             <LinearGradient
               colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 1, y: 0 }}
               style={styles.primaryButtonGradient}
             >
-              <Text style={styles.primaryButtonText}>Get Started</Text>
+              <Text style={styles.primaryButtonText}>Get started</Text>
             </LinearGradient>
           </Pressable>
 
           <Pressable onPress={handleEnableReminders} hitSlop={8} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Enable Reminders</Text>
+            <Text style={styles.secondaryButtonText}>Enable reminders</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -182,21 +170,7 @@ export default function BuildHabitScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  // Approximates the mockup's `radial-gradient(circle at top right, #1a1a3a,
-  // #111415 70%)` with the same soft-glow-circle pattern used elsewhere.
-  backgroundGlow: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: '20%',
-    left: '50%',
-    marginLeft: -180,
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: colors.primaryContainer,
-    opacity: 0.08,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
     flex: 1,
@@ -209,11 +183,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.marginMobile,
     height: 56,
   },
+  wordmark: {
+    ...typography.headlineLgMobile,
+    fontSize: 18,
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.8)',
+  },
   skipText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
+    ...text.link,
     color: colors.onSurfaceVariant,
   },
   content: {
@@ -221,7 +198,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.marginMobile,
-    gap: spacing.sectionGap,
+    gap: spacing.base * 5,
   },
   illustrationWrap: {
     alignItems: 'center',
@@ -235,48 +212,46 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${colors.primary}33`,
   },
+  // Outline only: no lighter fill.
   illustrationCircle: {
     width: 192,
     height: 192,
     borderRadius: 96,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   textArea: {
     alignItems: 'center',
-    gap: spacing.gutter,
+    gap: spacing.base * 1.5,
   },
   headline: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
-    lineHeight: typography.headlineLgMobile.lineHeight,
-    color: colors.onSurface,
+    ...text.name,
+    fontSize: 28,
+    lineHeight: 36,
+    color: '#ffffff',
     textAlign: 'center',
   },
   body: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
+    ...text.body,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,
   },
   tip: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
+    ...text.meta,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,
   },
   actions: {
     paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.gutter,
-    paddingBottom: spacing.sectionGap,
-    gap: spacing.gutter,
+    paddingTop: spacing.base * 2,
+    paddingBottom: spacing.base * 4,
+    gap: spacing.base * 2,
   },
   primaryButton: {
     width: '100%',
@@ -288,29 +263,24 @@ const styles = StyleSheet.create({
   primaryButtonGradient: {
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 52,
     paddingVertical: spacing.base * 2,
     borderRadius: radii.full,
   },
   primaryButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
-    textTransform: 'uppercase',
-    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Get Started button's
-    // LinearGradient comment above for the full before/after math.
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
     color: '#ffffff',
   },
   secondaryButton: {
+    minHeight: 48,
     paddingVertical: spacing.base,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
-    textTransform: 'uppercase',
+    ...text.link,
     color: colors.primary,
   },
 });

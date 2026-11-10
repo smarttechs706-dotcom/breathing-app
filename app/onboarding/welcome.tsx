@@ -1,24 +1,20 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BreathOrb } from '../../src/components/BreathOrb';
-import { GradientText } from '../../src/components/GradientText';
+import { text } from '../../src/features/home/styles';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
 
-// Screen 1/3 — matches assets/design-reference/onboarding-1-welcome-code.html
-// + onboarding-1-welcome-screenshot.png.
-//
-// Deviation (flagged, not silent): the reference's central visual is an
-// <img> hotlinked from lh3.googleusercontent.com (a Google AI Studio/
-// "Stitch" design-tool preview URL, not an asset this project owns) inside
-// a pulsing radial "orb-glow" div. Same situation already resolved for
-// Home's hero image — reusing the established `BreathOrb` component (a
-// local SVG built off DESIGN.md's own "large, central sphere that pulses
-// with a soft glow" spec) instead of bundling an unowned hotlinked image.
+// Screen 1/3. Same look as the sign-in screens: the mist backdrop, a white
+// headline, the "Breathease" wordmark in the top bar and the shared primary
+// button style (inversePrimary to onPrimaryFixedVariant, white sentence-case
+// label, >=6.47:1 per AUDIT-2.md). No panels or glow circles. The central
+// visual is the app's own `BreathOrb` (the reference's hotlinked image is not
+// an asset this project owns).
 async function skipToSignUp() {
   await setOnboardingComplete();
   router.replace('/signup');
@@ -27,11 +23,11 @@ async function skipToSignUp() {
 export default function WelcomeScreen() {
   return (
     <View style={styles.root}>
-      <View style={styles.backgroundGlow} />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <MaterialIcons name="local-florist" size={22} color={colors.primary} />
+          <Text style={styles.wordmark}>Breathease</Text>
           <Pressable onPress={skipToSignUp} hitSlop={8}>
             <Text style={styles.skipText}>Skip</Text>
           </Pressable>
@@ -43,15 +39,12 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={styles.textArea}>
-            <GradientText
-              colors={[colors.primary, colors.primaryContainer]}
-              style={styles.headline}
-            >
+            <Text style={styles.headline} accessibilityRole="header">
               A reset between meetings, not another hour-long ritual.
-            </GradientText>
+            </Text>
             <Text style={styles.body}>
-              Built for busy workdays — short guided breathing sessions you
-              can actually fit before your next call.
+              Built for busy workdays, with short guided breathing sessions you
+              can fit in before your next call.
             </Text>
           </View>
 
@@ -59,23 +52,13 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/onboarding/how-it-works')}
             style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
           >
-            {/* CONTRAST FIX (2026-09-20, AUDIT-2.md Medium finding): the
-                2026-09-19 primaryContainer -> inversePrimary gradient with
-                onPrimaryFixed text computed to only ~2.6:1 contrast at the
-                gradient's darker end — below the 4.5:1 AA minimum. Swapped
-                to inversePrimary -> onPrimaryFixedVariant (both stops dark
-                enough that white text stays >=6.47:1 across the whole
-                gradient — see AUDIT-2.md for the full before/after math)
-                with white text, matching Home/Library/Player's identical
-                fix. */}
             <LinearGradient
               colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 1, y: 0 }}
               style={styles.nextButtonGradient}
             >
               <Text style={styles.nextButtonText}>Next</Text>
-              <MaterialIcons name="arrow-forward" size={18} color="#ffffff" />
             </LinearGradient>
           </Pressable>
         </View>
@@ -87,23 +70,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  // DESIGN.md: background is never flat black — approximates the mockup's
-  // `linear-gradient(180deg, #0a0b10 0%, #111415 100%)` + orb-glow the same
-  // way Home/Library/Insights already do (a single soft glow circle), for
-  // consistency with the app's established background treatment.
-  backgroundGlow: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: '18%',
-    left: '50%',
-    marginLeft: -220,
-    width: 440,
-    height: 440,
-    borderRadius: 220,
-    backgroundColor: colors.primaryContainer,
-    opacity: 0.07,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
     flex: 1,
@@ -115,11 +82,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.marginMobile,
     height: 56,
   },
+  wordmark: {
+    ...typography.headlineLgMobile,
+    fontSize: 18,
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.8)',
+  },
   skipText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
+    ...text.link,
     color: colors.onSurfaceVariant,
   },
   content: {
@@ -127,7 +97,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.marginMobile,
-    gap: spacing.sectionGap,
+    gap: spacing.base * 5,
   },
   orbArea: {
     alignItems: 'center',
@@ -135,19 +105,19 @@ const styles = StyleSheet.create({
   },
   textArea: {
     alignItems: 'center',
-    gap: spacing.gutter,
+    gap: spacing.base * 1.5,
   },
   headline: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
-    lineHeight: typography.headlineLgMobile.lineHeight,
+    ...text.name,
+    fontSize: 28,
+    lineHeight: 36,
+    color: '#ffffff',
     textAlign: 'center',
   },
   body: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
+    ...text.body,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,
@@ -160,19 +130,16 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   nextButtonGradient: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.base,
+    minHeight: 52,
     paddingVertical: spacing.base * 2,
     borderRadius: radii.full,
   },
   nextButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    // CONTRAST FIX (2026-09-20, AUDIT-2.md) — see the Next button's
-    // LinearGradient comment above for the full before/after math.
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
     color: '#ffffff',
   },
 });
