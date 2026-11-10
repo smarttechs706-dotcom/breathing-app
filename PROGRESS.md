@@ -4903,3 +4903,35 @@ only while signed out, so the first real view of all of them is the fresh
 install from the EAS build. Follow-ups: check all three onboarding screens and
 the auth tweaks on that build (contrast over the mist, keyboard clearance on
 Sign up); contrast of the session player's enabled Begin Journey gradient.
+
+## Tab bar white, page titles, Insights redesign (2026-11-10, branch feat/home-redesign)
+
+Tab bar (873e933): the active tab's icon and label are true white #ffffff; the
+highlight was already a neutral white fill. Page titles: a shared
+`text.pageTitle` (headlineLgMobile at 24/32) in `src/features/home/styles.ts`,
+used by Library and Insights (were 28/36); Settings, Change password, Reminder
+and Profile unchanged.
+
+Insights redesign: `src/features/insights/` on the mist backdrop with
+PreviewGlass cards. Calm shift ring (average postMood minus preMood over the
+returned 30 days, one decimal, signed; the white arc fills 0 to +4, clamped; a
+zero or negative shift shows an empty ring with the number), Mood journey
+(Before slate ring, After white dot, per local day of this Sunday-to-Saturday
+week, gaps on days without data, nothing interpolated), Consistency dots and
+"Streak: N days", and three tiles (Streak with "Best: N days", Sessions last 7
+days, Mindful minutes all time). totalSessions and monthOverMonthDelta are left
+out. Colours: white for emphasis, a muted slate for Before, the button indigo
+for accents; no light blue. `app/(tabs)/insights.tsx` is a thin wrapper whose
+data loading, error and retry are byte-for-byte as before; src/api and
+src/state unchanged. Tests: `tests/insights/` (also run under TZ=Asia/Dubai:
+21:30 UTC counts on the next local day). The server's streak is in UTC days and
+is shown as is. Phone-checked, lowest contrast 6.2:1. Honest limits with one
+check-in (Sunday 8 Nov, shift 0.0): an empty ring, one overlapping Before/After
+point, one done dot; the full look needs more sessions.
+
+The Expo developer-menu introduction came back after `pm clear` reset its
+"seen" flag (dev build only).
+
+Follow-ups: white accent sweep (links, values, spinners); time picker restyle;
+custom three-bar Insights tab icon; Home extension; font round (Fraunces for
+large titles); wordmark alignment (left on onboarding, centred on Log in).
