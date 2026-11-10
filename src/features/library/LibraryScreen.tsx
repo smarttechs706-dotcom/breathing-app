@@ -130,7 +130,7 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
           </View>
         ) : sessions === null ? (
           <View style={styles.centerState}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color="#ffffff" />
           </View>
         ) : (
           <ScrollView

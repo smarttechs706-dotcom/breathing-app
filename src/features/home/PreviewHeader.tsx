@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   retry: {
-    ...text.link,
-    color: colors.primary,
+    ...text.linkBold,
+    color: '#ffffff',
   },
 });

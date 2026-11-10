@@ -24,7 +24,7 @@ export function AuthLink({ label, onPress, prompt, running = false, disabled = f
       style={styles.link}
     >
       {running ? (
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color="#ffffff" />
       ) : (
         <Text style={styles.text}>
           {prompt ? <Text style={styles.prompt}>{prompt} </Text> : null}
@@ -43,17 +43,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   text: {
+    ...typography.bodyMd,
     textAlign: 'center',
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
   },
   prompt: {
     color: colors.onSurfaceVariant,
   },
+  // Bold, true white link text at the surrounding 16 sp size.
   label: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    color: colors.primary,
+    ...typography.displayLg,
+    fontSize: typography.bodyMd.fontSize,
+    lineHeight: typography.bodyMd.lineHeight,
+    letterSpacing: 0,
+    color: '#ffffff',
   },
   blocked: {
     color: colors.onSurfaceVariant,

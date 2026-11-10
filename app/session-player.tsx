@@ -482,7 +482,7 @@ export default function SessionPlayerScreen() {
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <TopBar onExitPress={handleExitPress} onSettingsPress={handleSettingsPress} />
           <View style={styles.centerState}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color="#ffffff" />
           </View>
         </SafeAreaView>
       </View>

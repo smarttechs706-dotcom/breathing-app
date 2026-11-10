@@ -43,7 +43,7 @@ export function FeaturedSessionCard({ state }: { state: FeaturedState }) {
       <GlassCard radius={radii.DEFAULT} style={styles.card}>
         <View style={styles.stateBody}>
           {state.kind === 'loading' ? (
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color="#ffffff" />
           ) : (
             <>
               <Text style={styles.stateText} numberOfLines={2}>
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   retry: {
-    ...text.link,
-    color: colors.primary,
+    ...text.linkBold,
+    color: '#ffffff',
   },
 });

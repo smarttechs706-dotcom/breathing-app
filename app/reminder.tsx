@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   },
   reminderTime: {
     ...typography.headlineLgMobile,
-    color: colors.primary,
+    color: '#ffffff',
   },
   toggleTrack: {
     width: 48,

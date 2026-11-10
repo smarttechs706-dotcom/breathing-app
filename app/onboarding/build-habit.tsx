@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    ...text.link,
-    color: colors.primary,
+    ...text.linkBold,
+    color: '#ffffff',
   },
 });

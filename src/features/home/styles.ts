@@ -15,6 +15,8 @@ export const text = {
   meta: { ...typography.bodyMd, fontSize: 14, lineHeight: 20 },
   sectionTitle: { ...typography.headlineLgMobile, fontSize: 18, lineHeight: 24 },
   link: { ...typography.labelSm, fontSize: 14, lineHeight: 20, letterSpacing: 0 },
+  // Text links (Retry, Enable reminders): bold, true white set by the caller.
+  linkBold: { ...typography.displayLg, fontSize: 14, lineHeight: 20, letterSpacing: 0 },
   cardTitle: { ...typography.labelSm, fontSize: 13, lineHeight: 18, letterSpacing: 0 },
   cardMeta: { ...typography.bodyMd, fontSize: 12, lineHeight: 16 },
   body: { ...typography.bodyMd, fontSize: 14, lineHeight: 20 },

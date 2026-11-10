@@ -86,7 +86,7 @@ export function NowForYou({ state, enterDelay }: { state: NowState; enterDelay: 
       ) : (
         <View style={styles.placeholder}>
           {state.kind === 'loading' ? (
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color="#ffffff" />
           ) : (
             <Text style={styles.placeholderText}>
               {state.kind === 'error'
