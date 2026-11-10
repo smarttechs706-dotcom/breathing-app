@@ -1,6 +1,7 @@
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
+import { text } from '../../features/home/styles';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 
 export interface TextFieldProps extends TextInputProps {
@@ -9,15 +10,18 @@ export interface TextFieldProps extends TextInputProps {
   trailing?: ReactNode;
 }
 
-// DESIGN.md "Inputs": a darker glass variant, same as the name modal's field.
+// Dark input on the navy background: a faint fill, hairline border that gets
+// lighter while focused, white text, sentence-case label. The focus border is
+// visual only; any onFocus/onBlur a screen passes is still called.
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
   { label, error, trailing, style, ...inputProps },
   ref
 ) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.wrapper}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.field, error ? styles.fieldError : null]}>
+      <View style={[styles.field, focused && styles.fieldFocused, error ? styles.fieldError : null]}>
         <TextInput
           ref={ref}
           accessibilityLabel={label}
@@ -25,6 +29,14 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
           selectionColor={colors.primary}
           style={[styles.input, style]}
           {...inputProps}
+          onFocus={(e) => {
+            setFocused(true);
+            inputProps.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            inputProps.onBlur?.(e);
+          }}
         />
         {trailing}
       </View>
@@ -42,37 +54,33 @@ const styles = StyleSheet.create({
     gap: spacing.base,
   },
   label: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
-    textTransform: 'uppercase',
+    ...text.meta,
     color: colors.onSurfaceVariant,
   },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 52,
+    minHeight: 56,
     borderRadius: radii.DEFAULT,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  fieldFocused: {
+    borderColor: 'rgba(185,195,255,0.55)',
   },
   fieldError: {
     borderColor: colors.error,
   },
   input: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 56,
     paddingHorizontal: spacing.base * 2,
-    color: colors.onSurface,
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
+    ...typography.bodyMd,
+    color: '#ffffff',
   },
   error: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    lineHeight: typography.labelSm.lineHeight,
+    ...text.meta,
     color: colors.error,
   },
 });

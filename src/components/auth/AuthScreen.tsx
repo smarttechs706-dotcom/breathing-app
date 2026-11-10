@@ -4,14 +4,14 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, spacing, typography } from '../../theme/tokens';
-import { GradientText } from '../GradientText';
+import { text } from '../../features/home/styles';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../features/profile/ScreenBackdrop';
+import { colors, spacing } from '../../theme/tokens';
 
-// Same top bar and headline treatment as Onboarding, so the auth screens read
-// as the next step of that flow. Two differences on purpose, from the phone:
-// content starts at a fixed height so the title stays put between screens, and
-// the glow sits in the corner like Settings, since a large one cuts across
-// form fields with a visible edge.
+// Shared layout for the sign-in screens and Change password: the mist backdrop
+// (same as Profile and Settings), with the title, fields, button and links
+// sitting directly on it, centred under the top bar. No card or panel. KeyboardAvoidingView and the ScrollView keep the focused
+// field and the button reachable when the keyboard is open.
 interface AuthScreenProps extends PropsWithChildren {
   title: string;
   subtitle?: string;
@@ -22,8 +22,6 @@ interface AuthScreenProps extends PropsWithChildren {
 }
 
 export function AuthScreen({ title, subtitle, footer, backTo, children }: AuthScreenProps) {
-  const logo = <MaterialIcons name="local-florist" size={22} color={colors.primary} />;
-
   function goBack() {
     if (!backTo) return;
     if (router.canGoBack()) router.back();
@@ -32,27 +30,22 @@ export function AuthScreen({ title, subtitle, footer, backTo, children }: AuthSc
 
   return (
     <View style={styles.root}>
-      <View style={styles.backgroundGlow} />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
           <View style={styles.topBar}>
             {backTo ? (
-              <>
-                <Pressable
-                  onPress={goBack}
-                  hitSlop={8}
-                  style={styles.backButton}
-                  accessibilityRole="button"
-                  accessibilityLabel="Go back"
-                >
-                  <MaterialIcons name="arrow-back" size={24} color={colors.onSurface} />
-                </Pressable>
-                {logo}
-              </>
-            ) : (
-              logo
-            )}
+              <Pressable
+                onPress={goBack}
+                hitSlop={8}
+                style={styles.backButton}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <MaterialIcons name="arrow-back" size={24} color={colors.onSurface} />
+              </Pressable>
+            ) : null}
           </View>
 
           <ScrollView
@@ -61,12 +54,9 @@ export function AuthScreen({ title, subtitle, footer, backTo, children }: AuthSc
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <GradientText
-                colors={[colors.primary, colors.primaryContainer]}
-                style={styles.title}
-              >
+              <Text style={styles.title} accessibilityRole="header">
                 {title}
-              </GradientText>
+              </Text>
               {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             </View>
 
@@ -83,18 +73,7 @@ export function AuthScreen({ title, subtitle, footer, backTo, children }: AuthSc
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  backgroundGlow: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    top: -128,
-    left: -128,
-    width: 256,
-    height: 256,
-    borderRadius: 128,
-    backgroundColor: colors.primaryContainer,
-    opacity: 0.1,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
     flex: 1,
@@ -105,46 +84,46 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.marginMobile,
+    paddingHorizontal: spacing.gutter,
     height: 56,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    marginLeft: -spacing.base,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Centred in the space under the top bar; scrolls when the keyboard is open.
   scroll: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.sectionGap,
-    paddingBottom: spacing.sectionGap,
-    gap: spacing.sectionGap,
+    paddingTop: spacing.base * 2,
+    paddingBottom: spacing.base * 5,
+    gap: spacing.base * 5,
   },
   header: {
     alignItems: 'center',
-    gap: spacing.gutter,
+    gap: spacing.base,
   },
   title: {
-    fontFamily: typography.headlineLgMobile.fontFamily,
-    fontSize: typography.headlineLgMobile.fontSize,
-    fontWeight: typography.headlineLgMobile.fontWeight,
-    lineHeight: typography.headlineLgMobile.lineHeight,
+    ...text.name,
+    fontSize: 28,
+    lineHeight: 36,
+    color: '#ffffff',
     textAlign: 'center',
   },
   subtitle: {
-    fontFamily: typography.bodyMd.fontFamily,
-    fontSize: typography.bodyMd.fontSize,
-    lineHeight: typography.bodyMd.lineHeight,
+    ...text.body,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,
   },
   body: {
-    gap: spacing.gutter,
+    gap: spacing.base * 3,
   },
   footer: {
     alignItems: 'center',

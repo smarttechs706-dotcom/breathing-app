@@ -4846,3 +4846,32 @@ Library 6.9:1 (top and scrolled), Profile 5.1:1 (was 4.8:1 at tint 0.40),
 Settings 6.2:1, Reminder 7.9:1, Change password 6.8:1 (keyboard leaves all
 fields and the button visible), pre-mood with Begin Journey disabled 7.1:1.
 The disabled Done button is checked by source only (needs a full session).
+
+## Auth screens restyle (2026-11-10, branch feat/home-redesign)
+
+The shared `src/components/auth/AuthScreen.tsx` (Log in, Sign up, Forgot
+password, Check email, the email-link screens, Reset password, Offline restore
+and Change password) now sits on the mist backdrop (`ScreenBackdrop` with
+`MIST_BACKGROUND`, same tint and fade as Profile and Settings) with no card or
+lighter panel: white title, muted subtitle, fields, button and links directly
+on the image, centred under the top bar; the flower logo and corner glow are
+gone. `TextField`: faint dark fill (4% white), 12% white hairline border, a
+lighter periwinkle border while focused, sentence-case label, white text.
+`GradientButton`: sentence-case label on the darker inversePrimary to
+onPrimaryFixedVariant gradient (the lighter primaryContainer end measured only
+3.8:1, now 7.2-7.4:1); cooldown state is navy glass. `(auth)/_layout.tsx`
+background is #00051a. Change password is back on the shared `AuthScreen`
+(file identical to f60b802). Logic proof: every auth screen and component is
+identical to the last commit outside its JSX and styles, except `TextField`'s
+new `focused` state, the one logic-adjacent line (its onFocus/onBlur wrappers
+still call any handler a screen passes; none do today). Tests:
+`tests/auth-screens/`. Phone-checked over the mist, lowest contrast: Log in
+7.4:1, Sign up 7.3:1 (error text 8.4:1), Forgot password 7.4:1, Change password
+7.2:1. Sign up's validation view was seen by an unplanned tap on Create account
+with empty fields (validation only, nothing sent). Check email, Forgot
+password's "sent" state, Reset password, Signed in, the auth callback and
+Offline restore need a real email or link token, so they are checked by code
+and tests only. Follow-ups: field borders a little stronger; the main button on
+Sign up and Change password sits at or under the keyboard edge; a small
+wordmark for the empty top bar on Log in; contrast of the session player's
+enabled Begin Journey gradient.

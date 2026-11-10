@@ -87,21 +87,10 @@ test('the mist painting is behind Library, Profile, Settings, Reminder and Chang
     'src/features/profile/ProfileScreen.tsx',
     'app/settings.tsx',
     'app/reminder.tsx',
-    'app/change-password.tsx',
+    // The sign-in screens and Change password get it through the shared AuthScreen.
+    'src/components/auth/AuthScreen.tsx',
   ]) assert.ok(read(f).includes('<ScreenBackdrop painting={MIST_BACKGROUND} />'), f);
   for (const f of ['src/features/home/HomeScreen.tsx', 'app/(tabs)/insights.tsx', 'app/session-player.tsx']) {
     assert.ok(!read(f).includes('MIST_BACKGROUND'), f);
   }
-});
-
-test('Change password keeps its form, validation and API call, without the shared AuthScreen', () => {
-  const src = read('app/change-password.tsx');
-  for (const must of [
-    'validatePasswordChange({ currentPassword, newPassword, confirmPassword })',
-    'await changePassword(getAuth(), email, { currentPassword, newPassword })',
-    'onPress={submit}',
-    'onSubmitEditing={submitUnlessWaiting}',
-    "router.replace('/settings')",
-  ]) assert.ok(src.includes(must), must);
-  assert.ok(!src.includes('<AuthScreen'));
 });
