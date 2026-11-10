@@ -80,10 +80,19 @@ test('AuthScreen: mist backdrop, no card or panel, no flower logo or corner glow
   assert.ok(!/local-florist|backgroundGlow|GradientText/.test(src));
 });
 
+test('AuthScreen: "Breathease" wordmark only when there is no back arrow; tighter spacing', () => {
+  const src = read('src/components/auth/AuthScreen.tsx');
+  assert.ok(/\{backTo \? \([\s\S]*?\) : \([\s\S]*?Breathease[\s\S]*?\)\}/.test(src), 'wordmark in the no-backTo branch');
+  assert.ok(src.includes("color: 'rgba(255,255,255,0.8)'"));
+  assert.ok(src.includes('gap: spacing.base * 3,'));
+  // No new prop: the screens are unchanged.
+  assert.ok(!/brand|wordmark\?:/.test(src.slice(src.indexOf('interface AuthScreenProps'), src.indexOf('export function AuthScreen'))));
+});
+
 test('TextField: faint dark fill, hairline border, lighter on focus; callers\' onFocus/onBlur still run', () => {
   const src = read('src/components/auth/TextField.tsx');
   assert.ok(src.includes("backgroundColor: 'rgba(255,255,255,0.04)'"));
-  assert.ok(src.includes("borderColor: 'rgba(255,255,255,0.12)'"));
+  assert.ok(src.includes("borderColor: 'rgba(255,255,255,0.2)'"));
   assert.ok(src.includes('fieldFocused'));
   assert.ok(src.includes('inputProps.onFocus?.(e);') && src.includes('inputProps.onBlur?.(e);'));
 });

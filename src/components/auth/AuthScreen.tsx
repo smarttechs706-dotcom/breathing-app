@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { text } from '../../features/home/styles';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../features/profile/ScreenBackdrop';
-import { colors, spacing } from '../../theme/tokens';
+import { colors, spacing, typography } from '../../theme/tokens';
 
 // Shared layout for the sign-in screens and Change password: the mist backdrop
 // (same as Profile and Settings), with the title, fields, button and links
@@ -45,7 +45,12 @@ export function AuthScreen({ title, subtitle, footer, backTo, children }: AuthSc
               >
                 <MaterialIcons name="arrow-back" size={24} color={colors.onSurface} />
               </Pressable>
-            ) : null}
+            ) : (
+              // Screens without a back arrow (Log in) show the app's name instead.
+              <Text style={styles.wordmark} accessibilityRole="header">
+                Breathease
+              </Text>
+            )}
           </View>
 
           <ScrollView
@@ -84,24 +89,34 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.gutter,
     height: 56,
   },
+  // Left-aligned in the centred top bar.
   backButton: {
+    marginRight: 'auto',
     width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  wordmark: {
+    ...typography.headlineLgMobile,
+    fontSize: 18,
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.8)',
+  },
   // Centred in the space under the top bar; scrolls when the keyboard is open.
+  // Tight enough that the main button clears the keyboard on taller forms.
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.base * 2,
-    paddingBottom: spacing.base * 5,
-    gap: spacing.base * 5,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.base * 2,
+    gap: spacing.base * 3,
   },
   header: {
     alignItems: 'center',
