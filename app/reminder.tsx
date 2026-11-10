@@ -84,7 +84,7 @@ export default function ReminderScreen() {
     }
     if (result === 'denied') {
       setPermissionError(
-        "Reminders are off — notification permission was denied. You can allow it from your device's app settings."
+        "Reminders are off because notification permission was denied. You can allow it in your phone's app settings."
       );
       return;
     }
