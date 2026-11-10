@@ -20,8 +20,9 @@ import {
   View,
 } from 'react-native';
 
+import { text } from '../features/home/styles';
+import { MIST_BACKGROUND, ScreenBackdrop } from '../features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../theme/tokens';
-import { GlassCard } from './GlassCard';
 
 const PERIODS = ['AM', 'PM'] as const;
 type Period = (typeof PERIODS)[number];
@@ -52,7 +53,8 @@ function to24Hour(hour12: number, period: Period): number {
 }
 
 const ITEM_HEIGHT = 40;
-const VISIBLE_ROWS = 7; // matches time-picker-reference.png's row count
+// Five rows: the selected one plus two fading rows above and below.
+const VISIBLE_ROWS = 5;
 const PADDING_ROWS = Math.floor(VISIBLE_ROWS / 2);
 const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
 
@@ -207,9 +209,10 @@ const WheelColumn = forwardRef(WheelColumnInner) as <T>(
   props: WheelColumnProps<T> & { ref?: Ref<WheelColumnHandle<T>> }
 ) => ReactElement;
 
-// Scrolling wheel picker matching time-picker-reference.png: three columns
-// (hour / minute / AM-PM), a highlighted band across the middle row, rows
-// above/below fading and shrinking with distance from center. Built from
+// Scrolling wheel picker: three columns (hour / minute / AM-PM) on the mist
+// backdrop, full screen, with no card, overlay or highlight shape. The middle
+// row is pure white and largest; rows above/below fade and shrink with
+// distance from center (opacity and scale only). Built from
 // ScrollView + snapToInterval + Animated (no new dependency, no native
 // package — see PROGRESS.md for why that matters this session). Replaces
 // the earlier pill-row picker.
@@ -269,13 +272,14 @@ export function TimePickerModal({
       navigationBarTranslucent
       onRequestClose={onCancel}
     >
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <GlassCard radius={radii.lg} style={styles.card}>
-            <Text style={styles.title}>Choose a reminder time</Text>
+        <Pressable onPress={(e) => e.stopPropagation()} style={styles.content}>
+            <Text style={styles.title} accessibilityRole="header">
+              Choose a reminder time
+            </Text>
 
             <View style={styles.wheelRow}>
-              <View style={styles.highlightBand} />
               <WheelColumn
                 key={`hour-${openToken}`}
                 ref={hourRef}
@@ -300,21 +304,20 @@ export function TimePickerModal({
             </View>
 
             <View style={styles.actions}>
-              <Pressable onPress={onCancel} hitSlop={8} style={styles.cancelButton}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={handleConfirm}>
+              <Pressable onPress={handleConfirm} style={styles.confirmPress}>
                 <LinearGradient
                   colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  end={{ x: 1, y: 0 }}
                   style={styles.confirmButton}
                 >
                   <Text style={styles.confirmButtonText}>Confirm</Text>
                 </LinearGradient>
               </Pressable>
+              <Pressable onPress={onCancel} hitSlop={8} style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
             </View>
-          </GlassCard>
         </Pressable>
       </Pressable>
     </Modal>
@@ -322,44 +325,29 @@ export function TimePickerModal({
 }
 
 const styles = StyleSheet.create({
+  // Full screen over the mist backdrop; tapping outside the content cancels,
+  // as before. No dim overlay.
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.marginMobile,
   },
-  card: {
-    // Solid base under GlassCard's translucent tint + blur: Android's blur is
-    // weak, so without this the Settings cards behind the modal show through it.
-    backgroundColor: colors.surfaceContainerHigh,
+  content: {
     width: '100%',
     maxWidth: 360,
-    padding: spacing.base * 3,
-    gap: spacing.base * 1.5,
+    alignItems: 'stretch',
   },
   title: {
-    fontFamily: typography.bodyLg.fontFamily,
-    fontSize: typography.bodyLg.fontSize,
-    fontWeight: '600',
-    color: colors.onSurface,
+    ...text.pageTitle,
+    color: '#ffffff',
     textAlign: 'center',
-    marginBottom: spacing.base * 0.5,
+    marginBottom: spacing.base * 5,
   },
   wheelRow: {
     flexDirection: 'row',
     height: WHEEL_HEIGHT,
-  },
-  highlightBand: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: ITEM_HEIGHT * PADDING_ROWS,
-    height: ITEM_HEIGHT,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primaryContainer,
-    opacity: 0.16,
-    pointerEvents: 'none',
+    gap: spacing.base * 2,
   },
   wheelColumn: {
     flex: 1,
@@ -370,40 +358,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // 15 sp (68% of the previous 22 sp). The selected row is full white at full
+  // scale; the rows around it are the same white at lower opacity and scale.
   wheelItemText: {
-    fontFamily: typography.headlineLg.fontFamily,
-    fontSize: 22,
-    fontWeight: '600',
-    color: colors.onSurface,
+    ...typography.headlineLgMobile,
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#ffffff',
   },
   actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    marginTop: spacing.base * 5,
     gap: spacing.base * 2,
-    marginTop: spacing.base,
   },
-  cancelButton: {
-    paddingVertical: spacing.base,
-    paddingHorizontal: spacing.base,
-  },
-  cancelButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
-    color: colors.onSurfaceVariant,
+  confirmPress: {
+    width: '100%',
+    borderRadius: radii.full,
   },
   confirmButton: {
-    paddingHorizontal: spacing.base * 3,
-    paddingVertical: spacing.base * 1.25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    paddingVertical: spacing.base * 2,
     borderRadius: radii.full,
   },
   confirmButtonText: {
-    fontFamily: typography.labelSm.fontFamily,
-    fontSize: typography.labelSm.fontSize,
-    fontWeight: typography.labelSm.fontWeight,
-    letterSpacing: typography.labelSm.letterSpacing,
+    ...typography.headlineLgMobile,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#ffffff',
+  },
+  cancelButton: {
+    alignSelf: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.base * 2,
+  },
+  cancelButtonText: {
+    ...text.link,
     color: '#ffffff',
   },
 });
