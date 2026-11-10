@@ -130,7 +130,8 @@ test('screen: no light blue, white spinner, copy without long dashes, totals lef
 });
 
 test('chart: Before is a larger slate ring drawn under the white After dot, so equal points both show', () => {
-  const src = read('src/features/insights/MoodJourneyChart.tsx');
+  // Normalised so the check works whether git checked the file out with LF or CRLF.
+  const src = read('src/features/insights/MoodJourneyChart.tsx').replace(/\r\n/g, '\n');
   const ring = src.indexOf('stroke={INSIGHT_COLORS.before}\n                  strokeWidth');
   const dot = src.indexOf('fill={INSIGHT_COLORS.emphasis} />');
   assert.ok(/r=\{7\}[\s\S]*?fill="none"[\s\S]*?stroke=\{INSIGHT_COLORS\.before\}/.test(src));
