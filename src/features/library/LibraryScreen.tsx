@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     height: 64,
   },
   title: {
-    ...typography.headlineLgMobile,
+    ...text.pageTitle,
     color: '#ffffff',
   },
   content: {

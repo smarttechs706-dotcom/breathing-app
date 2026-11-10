@@ -6,6 +6,8 @@ import { colors, typography } from '../../theme/tokens';
 export const text = {
   greeting: { ...typography.bodyMd, fontSize: 14, lineHeight: 20 },
   name: { ...typography.displayLg, fontSize: 24, lineHeight: 32, letterSpacing: -0.24 },
+  // Page titles in a screen header (Library, Insights). One place to change.
+  pageTitle: { ...typography.headlineLgMobile, fontSize: 24, lineHeight: 32 },
   dayLetter: { ...typography.labelSm, letterSpacing: 0 },
   streak: { ...typography.labelSm, fontSize: 14, lineHeight: 20, letterSpacing: 0 },
   eyebrow: { ...typography.labelSm },
