@@ -14,13 +14,7 @@ const model = loadTs('src/features/session/sessionModel.ts');
 const repo = path.join(__dirname, '..', '..');
 const SESSION_IDS = ['deep-exhale', 'morning-reset', 'calm-focus', 'stress-relief', 'wind-down', 'box-breathing'];
 
-test('painting is full before, about 35% while breathing, about 80% after', () => {
-  assert.equal(model.paintingOpacity('pre-mood'), 1);
-  assert.equal(model.paintingOpacity('active'), 0.35);
-  assert.equal(model.paintingOpacity('post-mood'), 0.8);
-});
-
-test('painting is 1.8:1 and content starts 60% of the way down it', () => {
+test('the top spacer keeps the old 1.8:1 area and content starts 60% of the way down it', () => {
   // This phone: 392.7 dp wide, 36 dp top inset.
   assert.equal(Math.round(model.paintingHeight(392.7)), 218);
   assert.equal(model.contentSpacer(392.7, 36), 31);
@@ -49,15 +43,6 @@ test('every mood icon exists in the bundled Ionicons font', () => {
   }
 });
 
-test('all six sessions have a painting, every file exists, and the two maps agree', () => {
-  for (const id of SESSION_IDS) assert.ok(model.hasSessionImage(id), id);
-  const imagesSource = fs.readFileSync(path.join(repo, 'src/features/session/sessionImages.ts'), 'utf8');
-  for (const [id, file] of Object.entries(model.SESSION_IMAGE_FILES)) {
-    assert.ok(fs.existsSync(path.join(repo, 'src/features/session/images', file)), `missing ${file}`);
-    assert.ok(imagesSource.includes(`'${id}': require('./images/${file}')`), `sessionImages.ts lacks ${id}`);
-  }
-});
-
 test('breathing circle: phase word only (no logo), Animated only, same 1 -> 1.15 breath, reduced motion holds still', () => {
   const src = fs.readFileSync(path.join(repo, 'src/features/session/BreathCircle.tsx'), 'utf8');
   assert.ok(!/waves|Ionicons|MaterialIcons/.test(src), 'no icon inside the circle');
@@ -71,30 +56,17 @@ test('breathing circle: phase word only (no logo), Animated only, same 1 -> 1.15
   assert.ok(fs.existsSync(path.join(repo, 'src/components/BreathingRing.tsx')), 'old ring stays in the repo');
 });
 
-test('a session without a painting (or no session yet) gets the plain navy background', () => {
-  assert.equal(model.hasSessionImage('some-new-session'), false);
-  assert.equal(model.hasSessionImage(null), false);
-});
-
-test('with a portrait, it shows on every phase: 80% before, 45% breathing, 70% after; no top painting', () => {
-  assert.deepEqual(model.backdropOpacities('pre-mood', true), { top: 0, portrait: 0.8 });
-  assert.deepEqual(model.backdropOpacities('active', true), { top: 0, portrait: 0.45 });
-  assert.deepEqual(model.backdropOpacities('post-mood', true), { top: 0, portrait: 0.7 });
-});
-
-test('without a portrait, the top painting is the fallback (100% / 35% / 80%)', () => {
-  assert.deepEqual(model.backdropOpacities('pre-mood', false), { top: 1, portrait: 0 });
-  assert.deepEqual(model.backdropOpacities('active', false), { top: 0.35, portrait: 0 });
-  assert.deepEqual(model.backdropOpacities('post-mood', false), { top: 0.8, portrait: 0 });
-});
-
-test('all six sessions have a portrait, every file exists, and the two maps agree', () => {
-  for (const id of SESSION_IDS) assert.ok(model.hasSessionPortrait(id), id);
-  assert.equal(model.hasSessionPortrait('some-new-session'), false);
-  assert.equal(model.hasSessionPortrait(null), false);
-  const imagesSource = fs.readFileSync(path.join(repo, 'src/features/session/sessionImages.ts'), 'utf8');
-  for (const [id, file] of Object.entries(model.SESSION_PORTRAIT_FILES)) {
-    assert.ok(fs.existsSync(path.join(repo, 'src/features/session/images', file)), `missing ${file}`);
-    assert.ok(imagesSource.includes(`'${id}': require('./images/${file}')`), `sessionImages.ts lacks portrait ${id}`);
+test('the per-session paintings are gone: no images, no maps, no Image in the backdrop', () => {
+  const dir = path.join(repo, 'src/features/session/images');
+  for (const id of SESSION_IDS) {
+    for (const file of [`session-${id}.jpg`, `session-${id}-portrait.jpg`]) {
+      assert.ok(!fs.existsSync(path.join(dir, file)), `${file} still exists`);
+    }
   }
+  assert.ok(!fs.existsSync(path.join(repo, 'src/features/session/sessionImages.ts')));
+  for (const name of ['SESSION_IMAGE_FILES', 'SESSION_PORTRAIT_FILES', 'hasSessionImage', 'backdropOpacities']) {
+    assert.equal(model[name], undefined, name);
+  }
+  const backdrop = fs.readFileSync(path.join(repo, 'src/features/session/SessionBackdrop.tsx'), 'utf8');
+  assert.ok(!/\bImage\b|sessionImages|SESSION_IMAGES|SESSION_PORTRAITS/.test(backdrop));
 });
