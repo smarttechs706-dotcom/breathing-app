@@ -77,12 +77,13 @@ test('the Reminder screen is registered inside the signed-in guard and uses the 
   assert.ok(read('app/reminder.tsx').includes('reminderLabel(reminderSettings)'));
 });
 
-test('the mist painting is behind Library, Profile, Settings, Reminder and Change password only', () => {
+test('the mist painting is behind Home, Library, Profile, Settings, Reminder and Change password only', () => {
   const backdrop = read('src/features/profile/ScreenBackdrop.tsx');
   assert.ok(backdrop.includes('painting?: ImageSourcePropType'));
   assert.ok(/export const MIST_TINT = 0\.\d+;/.test(backdrop), 'tint in one constant');
   assert.ok(fs.existsSync(path.join(repo, 'src/features/profile/images/mist-background.jpg')));
   for (const f of [
+    'src/features/home/HomeScreen.tsx',
     'src/features/library/LibraryScreen.tsx',
     'src/features/profile/ProfileScreen.tsx',
     'app/settings.tsx',
@@ -90,7 +91,7 @@ test('the mist painting is behind Library, Profile, Settings, Reminder and Chang
     // The sign-in screens and Change password get it through the shared AuthScreen.
     'src/components/auth/AuthScreen.tsx',
   ]) assert.ok(read(f).includes('<ScreenBackdrop painting={MIST_BACKGROUND} />'), f);
-  for (const f of ['src/features/home/HomeScreen.tsx', 'app/(tabs)/insights.tsx', 'app/session-player.tsx']) {
+  for (const f of ['app/(tabs)/insights.tsx', 'app/session-player.tsx']) {
     assert.ok(!read(f).includes('MIST_BACKGROUND'), f);
   }
 });

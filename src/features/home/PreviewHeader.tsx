@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../../theme/tokens';
-import type { EmptyDayFill } from './backgrounds';
 import { PreviewAvatar } from './PreviewAvatar';
 import { accents, text } from './styles';
 import { greetingForHour } from './timeOfDay';
@@ -62,13 +61,7 @@ type WeekState =
   | { kind: 'error'; message: string; onRetry: () => void }
   | { kind: 'ready'; days: ActivityDay[]; streak: number; sessionsLast7Days: number };
 
-export function WeekRow({
-  state,
-  emptyFill = 'default',
-}: {
-  state: WeekState;
-  emptyFill?: EmptyDayFill;
-}) {
+export function WeekRow({ state }: { state: WeekState }) {
   if (state.kind === 'error') {
     return (
       <View style={styles.weekRow}>
@@ -102,12 +95,7 @@ export function WeekRow({
             <View key={i} style={styles.dayColumn}>
               <Text style={styles.dayLetter}>{letter}</Text>
               <View
-                style={[
-                  styles.dot,
-                  day?.done ? styles.dotDone : styles.dotEmpty,
-                  !day?.done && emptyFill === 'solid' && styles.dotEmptySolid,
-                  !day?.done && emptyFill === 'faint' && styles.dotEmptyFaint,
-                ]}
+                style={[styles.dot, day?.done ? styles.dotDone : styles.dotEmpty]}
               >
                 {day?.done && <Ionicons name="checkmark" size={12} color="#ffffff" />}
               </View>
@@ -199,12 +187,6 @@ const styles = StyleSheet.create({
   dotEmpty: {
     backgroundColor: accents.dayEmpty,
     borderColor: accents.dayEmptyBorder,
-  },
-  dotEmptySolid: {
-    backgroundColor: accents.dayEmptySolid,
-  },
-  dotEmptyFaint: {
-    backgroundColor: accents.dayEmptyFaint,
   },
   streakPill: {
     flexDirection: 'row',

@@ -1,14 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  AppState,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type LayoutChangeEvent,
-} from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../api/apiErrors';
@@ -19,16 +11,13 @@ import { useRefreshOnNewCheckin } from '../../state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../../state/sessionsCache';
 import { colors, spacing } from '../../theme/tokens';
 import type { Session } from '../../types/models';
-import { horizonOnScreen, SCENES } from './backgrounds';
+import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../profile/ScreenBackdrop';
 import { FeaturedSessionCard } from './FeaturedSessionCard';
 import { FadeIn, STAGGER_MS } from './motion';
 import { NowForYou } from './NowForYou';
 import { pickFeatured, pickNowForYou } from './picks';
 import { GreetingRow, WeekRow } from './PreviewHeader';
-import { PreviewOrb } from './PreviewOrb';
 import { text } from './styles';
-import { TimeOfDayBackground } from './TimeOfDayBackground';
-import { backgroundPhaseForHour, type DayPhase } from './timeOfDay';
 import { weekActivity } from './weekActivity';
 
 // Used only when no tab-bar height is passed in (the dev preview route, which
@@ -36,17 +25,13 @@ import { weekActivity } from './weekActivity';
 // app/(tabs)/_layout.tsx, so the layout sits where it does on Home.
 const TAB_BAR_CONTENT_HEIGHT = 84;
 
-// The Featured card's top edge stays at least this far below the horizon.
-const CARD_BELOW_HORIZON = 40;
-// The orb's own box (PreviewOrb BOX).
-const ORB_AREA_MIN = 200;
-
-// Dev-only: each long-press on the greeting moves to the next scene, and after
-// night back to following the clock (null).
-const SCENE_CYCLE: (DayPhase | null)[] = ['morning', 'afternoon', 'evening', 'night', null];
+// The horizon band between the week row and the Featured card: full width,
+// 2.5 : 1 (about 164 dp tall on a 411 dp phone). Empty space for now; the
+// looping video goes here in a later step.
+const BAND_ASPECT = 2.5;
 
 // Re-reads the clock on focus, once a minute, and when the app comes back to
-// the foreground, so greeting and scene change at the boundary (midnight too).
+// the foreground, so the greeting changes at the boundary (midnight too).
 function useLocalHour(): number {
   const [hour, setHour] = useState(() => new Date().getHours());
   useFocusEffect(
@@ -75,19 +60,7 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
   const insets = useSafeAreaInsets();
   const hour = useLocalHour();
   const signedIn = status === 'signedIn';
-  const { width: windowW, height: windowH } = useWindowDimensions();
-  // Dev-only scene override from the hidden long-press; null follows the clock.
-  const [phaseOverride, setPhaseOverride] = useState<DayPhase | null>(null);
-  const cycleScene = useCallback(
-    () => setPhaseOverride((p) => SCENE_CYCLE[(SCENE_CYCLE.indexOf(p) + 1) % SCENE_CYCLE.length]),
-    []
-  );
-  // Bottom of the greeting + week block inside the scroll content.
-  const [headerBottom, setHeaderBottom] = useState(0);
-  const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    setHeaderBottom(y + height);
-  }, []);
+  const { width: windowW } = useWindowDimensions();
 
   // Session history: real check-ins, the server's streak and 7-day count.
   // null = loading (first fetch, or a retry in flight).
@@ -178,42 +151,26 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
       : ({ kind: 'loading' } as const);
 
   const displayName = accountFirstName(authSession?.user) ?? homeGreeting(null);
-  const phase = phaseOverride ?? backgroundPhaseForHour(hour);
   const bottomSpace = tabBarHeight ?? TAB_BAR_CONTENT_HEIGHT + insets.bottom;
-
-  // The orb area grows at least enough to put the Featured card's top edge
-  // CARD_BELOW_HORIZON under the horizon (window coordinates: the scroll
-  // content starts below the top inset). On a short phone the page scrolls.
-  const horizonY = horizonOnScreen(phase, windowW, windowH);
-  const orbAreaMin =
-    headerBottom > 0
-      ? Math.max(ORB_AREA_MIN, horizonY + CARD_BELOW_HORIZON - insets.top - headerBottom)
-      : ORB_AREA_MIN;
 
   return (
     <View style={styles.root}>
-      <TimeOfDayBackground phase={phase} />
+      <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomSpace + spacing.base * 3 }]}
           showsVerticalScrollIndicator={false}
         >
-          <View onLayout={onHeaderLayout}>
+          <View>
             <FadeIn>
-              <GreetingRow
-                hour={hour}
-                displayName={displayName}
-                onLongPressGreeting={__DEV__ ? cycleScene : undefined}
-              />
+              <GreetingRow hour={hour} displayName={displayName} />
             </FadeIn>
             <FadeIn delay={STAGGER_MS}>
-              <WeekRow state={weekState} emptyFill={SCENES[phase].emptyDays} />
+              <WeekRow state={weekState} />
             </FadeIn>
           </View>
 
-          <View style={[styles.orbArea, { minHeight: orbAreaMin }]}>
-            <PreviewOrb backing={SCENES[phase].orbBacking === true} />
-          </View>
+          <View style={[styles.band, { height: Math.round(windowW / BAND_ASPECT) }]} />
 
           <View style={styles.lower}>
             <FadeIn delay={STAGGER_MS * 2}>
@@ -230,7 +187,7 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: BACKDROP_BOTTOM,
   },
   centered: {
     alignItems: 'center',
@@ -248,11 +205,9 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
   },
-  // Takes the space between the week row and the cards, like the reference.
-  orbArea: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // Full width (the scroll content has no side padding).
+  band: {
+    marginVertical: spacing.base * 2,
   },
   lower: {
     paddingHorizontal: spacing.gutter,

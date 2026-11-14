@@ -32,11 +32,8 @@ export const accents = {
   playButton: colors.inversePrimary,
   dayDone: `${colors.primaryContainer}B3`,
   dayDoneBorder: 'rgba(255,255,255,0.35)',
-  // Empty days, per scene (Scene.emptyDays): a light tint by default, solid at
-  // night so painted stars don't show through, faint on the bright afternoon.
+  // Empty days: a light tint.
   dayEmpty: 'rgba(16,24,56,0.3)',
-  dayEmptySolid: 'rgba(16,24,56,0.7)',
-  dayEmptyFaint: 'rgba(16,24,56,0.15)',
   dayEmptyBorder: 'rgba(255,255,255,0.16)',
   // Light glass (cards, streak pill) and the blue glass avatar.
   glassFill: 'rgba(150,170,235,0.13)',
