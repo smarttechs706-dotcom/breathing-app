@@ -32,9 +32,13 @@ export const accents = {
   playButton: colors.inversePrimary,
   dayDone: `${colors.primaryContainer}B3`,
   dayDoneBorder: 'rgba(255,255,255,0.35)',
-  // Empty days: a light tint.
-  dayEmpty: 'rgba(16,24,56,0.3)',
-  dayEmptyBorder: 'rgba(255,255,255,0.16)',
+  // Empty days: a thin white ring, no fill.
+  dayEmpty: 'transparent',
+  dayEmptyBorder: 'rgba(255,255,255,0.6)',
+  // Home's streak flame over the hero's sunset: a deep orange-red (the sky
+  // behind it is light peach, so orange and amber wash out). The "0 days"
+  // text is plain white.
+  streakFlame: '#dc2626',
   // Light glass (cards, streak pill) and the blue glass avatar.
   glassFill: 'rgba(150,170,235,0.13)',
   glassBorder: 'rgba(255,255,255,0.16)',

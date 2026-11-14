@@ -110,7 +110,7 @@ export function WeekRow({ state }: { state: WeekState }) {
           accessible
           accessibilityLabel={`Current streak ${streakLabel(state.streak)}`}
         >
-          <Ionicons name="flame" size={16} color={accents.flame} />
+          <Ionicons name="flame" size={16} color={accents.streakFlame} />
           <Text style={styles.streakText}>{streakLabel(state.streak)}</Text>
         </View>
       )}
@@ -134,9 +134,10 @@ const styles = StyleSheet.create({
   greetingText: {
     flexShrink: 1,
   },
+  // White so it reads over the hero video's sky.
   greeting: {
     ...text.greeting,
-    color: colors.onSurfaceVariant,
+    color: '#ffffff',
   },
   nameRow: {
     flexDirection: 'row',
@@ -168,9 +169,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.base * 0.75,
   },
+  // White on the hero video. Weight comes from text.dayLetter (labelSm,
+  // SemiBold): there is no Medium role in tokens.ts.
   dayLetter: {
     ...text.dayLetter,
-    color: colors.onSurfaceVariant,
+    color: '#ffffff',
   },
   dot: {
     width: DAY_DOT,
@@ -201,7 +204,7 @@ const styles = StyleSheet.create({
   },
   streakText: {
     ...text.streak,
-    color: accents.streakText,
+    color: '#ffffff',
   },
   weekErrorText: {
     flexShrink: 1,

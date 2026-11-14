@@ -1,7 +1,15 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  AppState,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../api/apiErrors';
 import { fetchInsights, fetchSessions, type InsightsResponse } from '../../api/client';
@@ -16,7 +24,8 @@ import { FeaturedSessionCard } from './FeaturedSessionCard';
 import { FadeIn, STAGGER_MS } from './motion';
 import { NowForYou } from './NowForYou';
 import { pickFeatured, pickNowForYou } from './picks';
-import { HorizonBand } from './HorizonBand';
+import { heroHeight } from './heroLayout';
+import { HomeHero } from './HomeHero';
 import { GreetingRow, WeekRow } from './PreviewHeader';
 import { text } from './styles';
 import { weekActivity } from './weekActivity';
@@ -26,9 +35,14 @@ import { weekActivity } from './weekActivity';
 // app/(tabs)/_layout.tsx, so the layout sits where it does on Home.
 const TAB_BAR_CONTENT_HEIGHT = 84;
 
-// The horizon band between the week row and the Featured card: full width,
-// 2.5 : 1 (about 164 dp tall on a 411 dp phone), the same shape as its video.
-const BAND_ASPECT = 2.5;
+// Layout (see styles): the full-bleed hero video sits behind the status bar,
+// greeting and week row; a flexible gap takes the free space; the cards sit
+// low, a fixed BOTTOM_GAP above the tab bar. The gap is at least GAP_MIN, and
+// also keeps the Featured card from rising more than CARD_OVERLAP into the
+// hero's faded bottom on a short screen (it scrolls instead).
+const GAP_MIN = 16;
+const CARD_OVERLAP = 40;
+const BOTTOM_GAP = spacing.base * 3;
 
 // Re-reads the clock on focus, once a minute, and when the app comes back to
 // the foreground, so the greeting changes at the boundary (midnight too).
@@ -60,7 +74,13 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
   const insets = useSafeAreaInsets();
   const hour = useLocalHour();
   const signedIn = status === 'signedIn';
-  const { width: windowW } = useWindowDimensions();
+  const { height: windowH } = useWindowDimensions();
+  // Bottom of the greeting + week block inside the scroll content.
+  const [headerBottom, setHeaderBottom] = useState(0);
+  const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    setHeaderBottom(y + height);
+  }, []);
 
   // Session history: real check-ins, the server's streak and 7-day count.
   // null = loading (first fetch, or a retry in flight).
@@ -152,16 +172,22 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
 
   const displayName = accountFirstName(authSession?.user) ?? homeGreeting(null);
   const bottomSpace = tabBarHeight ?? TAB_BAR_CONTENT_HEIGHT + insets.bottom;
+  const heroH = heroHeight(windowH);
+  const gapMin = headerBottom > 0 ? Math.max(GAP_MIN, heroH - CARD_OVERLAP - headerBottom) : GAP_MIN;
 
   return (
     <View style={styles.root}>
       <ScreenBackdrop painting={MIST_BACKGROUND} />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.safeArea}>
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomSpace + spacing.base * 3 }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: insets.top, paddingBottom: bottomSpace + BOTTOM_GAP },
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          <View>
+          <HomeHero height={heroH} />
+          <View onLayout={onHeaderLayout}>
             <FadeIn>
               <GreetingRow hour={hour} displayName={displayName} />
             </FadeIn>
@@ -170,7 +196,7 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
             </FadeIn>
           </View>
 
-          <HorizonBand height={Math.round(windowW / BAND_ASPECT)} style={styles.band} />
+          <View style={[styles.gap, { minHeight: gapMin }]} />
 
           <View style={styles.lower}>
             <FadeIn delay={STAGGER_MS * 2}>
@@ -179,7 +205,7 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
             <NowForYou state={nowState} enterDelay={STAGGER_MS * 3} />
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -205,9 +231,11 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
   },
-  // Full width (the scroll content has no side padding).
-  band: {
-    marginVertical: spacing.base * 2,
+  // Takes all the free space between the header and the cards, so the cards
+  // sit low with a small, fixed gap above the tab bar. On a short screen it
+  // shrinks to its minimum and the page scrolls.
+  gap: {
+    flexGrow: 1,
   },
   lower: {
     paddingHorizontal: spacing.gutter,

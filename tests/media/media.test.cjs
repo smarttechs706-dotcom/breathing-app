@@ -15,8 +15,9 @@ const repo = path.join(__dirname, '..', '..');
 const MEDIA = {
   'assets/videos/breathing-background-loop.mp4':
     'd8eaa1c82989122de900d9c57795ae9b7f997a90fb0da341ea9e78fe97b71b37',
+  // The slightly brighter version (2026-11-14).
   'assets/videos/home-horizon-band-loop.mp4':
-    'd9a532f9206b416c15eff8ca709b991ab21cba1c5b55aaf4b7ac6e6bf953e011',
+    '2dc37f3003aa0d64a888880c7cd5aeb289a59b1d03e9ba89406420bd3b2e6615',
   'assets/audio/home-ambient-loop.m4a':
     '13acf1fae19442a8d255e4d11dc9bbb69f31ee75bc1b6d11ec410d58221b2e17',
 };
@@ -63,7 +64,16 @@ function readMp4(file) {
   return info;
 }
 
+const SIZES = {
+  'assets/videos/breathing-background-loop.mp4': 1319788,
+  'assets/videos/home-horizon-band-loop.mp4': 889406,
+  'assets/audio/home-ambient-loop.m4a': 118023,
+};
+
 test('the three media files are byte-for-byte the delivered files', () => {
+  for (const [file, size] of Object.entries(SIZES)) {
+    assert.equal(fs.statSync(path.join(repo, file)).size, size, file);
+  }
   for (const [file, sha] of Object.entries(MEDIA)) {
     const data = fs.readFileSync(path.join(repo, file));
     assert.equal(crypto.createHash('sha256').update(data).digest('hex'), sha, file);
@@ -115,17 +125,30 @@ test('LoopingVideo: mounted only while focused, foreground and motion allowed; r
   assert.ok(motion.includes('running: allowed && focused && foreground'));
 });
 
-test('Home: the band plays the horizon video in a TextureView (it sits in a ScrollView)', () => {
-  const band = fs.readFileSync(path.join(repo, 'src/features/home/HorizonBand.tsx'), 'utf8');
-  assert.ok(band.includes("require('../../../assets/videos/home-horizon-band-loop.mp4')"));
-  assert.ok(band.includes('<LoopingVideo source={SOURCE} surfaceType="textureView" />'));
-  // Light edges: each fade covers 12% of the band; no tint or dim layer.
-  assert.ok(band.includes('export const BAND_EDGE_FADE = 0.12;'));
-  assert.ok(!/rgba\(|backgroundColor|opacity:/.test(band), 'no tint over the video');
+test('Home: the hero plays the horizon video in a TextureView (it sits in a ScrollView)', () => {
+  const heroSrc = fs.readFileSync(path.join(repo, 'src/features/home/HomeHero.tsx'), 'utf8');
+  assert.ok(heroSrc.includes("require('../../../assets/videos/home-horizon-band-loop.mp4')"));
+  assert.ok(heroSrc.includes('<LoopingVideo source={SOURCE} surfaceType="textureView" />'));
+  // One eased SVG fade at the bottom only, in the backdrop's own colours across
+  // the width; no top fade and no tint or dim layer over the video.
+  assert.ok(heroSrc.includes("from './heroLayout'"));
+  assert.ok(heroSrc.includes("from 'react-native-svg'"));
+  assert.ok(heroSrc.includes('<Mask id="hero-mask"'));
+  assert.ok(!/TOP_COLORS|TOP_FADE/.test(heroSrc), 'no top fade');
+  // No tint over the video apart from the very light top shade (TOP_SHADE).
+  assert.ok(!/backgroundColor|opacity:/.test(heroSrc), 'no tint over the video');
+  assert.equal((heroSrc.match(/rgba\(/g) || []).length, 1, 'only the top shade uses rgba');
+  assert.ok(heroSrc.includes('`rgba(${SHADE_RGB},${s.alpha.toFixed(4)})`'));
+  const block = heroSrc.slice(
+    heroSrc.indexOf('export const HERO_BOTTOM_COLORS'),
+    heroSrc.indexOf('];', heroSrc.indexOf('export const HERO_BOTTOM_COLORS'))
+  );
+  assert.ok((block.match(/color: '#[0-9a-f]{6}'/g) || []).length >= 6, 'at least 6 bottom colour samples');
+  assert.ok(!fs.existsSync(path.join(repo, 'src/features/home/HorizonBand.tsx')));
   const home = fs.readFileSync(path.join(repo, 'src/features/home/HomeScreen.tsx'), 'utf8');
-  assert.ok(home.includes('<HorizonBand height={Math.round(windowW / BAND_ASPECT)}'));
+  assert.ok(home.includes('<HomeHero height={heroH} />'));
   // No sound or video controls anywhere on Home.
-  assert.ok(!/volume-(high|mute|off)|Switch|nativeControls=\{true\}/.test(home + band));
+  assert.ok(!/volume-(high|mute|off)|Switch|nativeControls=\{true\}/.test(home + heroSrc));
 });
 
 test('app.json: video and audio plugins with background playback and recording off', () => {

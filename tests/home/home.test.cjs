@@ -188,8 +188,105 @@ test('Home uses the shared mist backdrop; the time-of-day scenes and the orb are
   assert.ok(fs.existsSync(path.join(repo, 'src/features/home/images/deep-exhale.jpg')));
 });
 
-test('the horizon band space is full width at 2.5 : 1 (164 dp on a 411 dp phone)', () => {
+test('spacing: hero behind the header, one flexible gap, cards low with a fixed gap above the tab bar', () => {
   const home = fs.readFileSync(path.join(repo, 'src/features/home/HomeScreen.tsx'), 'utf8');
-  assert.ok(home.includes('const BAND_ASPECT = 2.5;'));
-  assert.equal(Math.round(411 / 2.5), 164);
+  assert.ok(home.includes('const GAP_MIN = 16;'));
+  assert.ok(home.includes('const CARD_OVERLAP = 40;'));
+  assert.ok(home.includes('const BOTTOM_GAP = spacing.base * 3;'));
+  assert.ok(home.includes('paddingBottom: bottomSpace + BOTTOM_GAP'));
+  assert.ok(/gap: \{\s*flexGrow: 1,\s*\}/.test(home));
+  // The hero runs behind the status bar: the top inset is content padding, not a SafeAreaView edge.
+  assert.ok(home.includes('paddingTop: insets.top'));
+  assert.ok(!home.includes('SafeAreaView'));
+  // Order: hero (absolute, behind), header, gap, cards.
+  const order = [
+    '<HomeHero height={heroH} />',
+    '<View onLayout={onHeaderLayout}>',
+    '<View style={[styles.gap, { minHeight: gapMin }]} />',
+    '<View style={styles.lower}>',
+  ];
+  let at = -1;
+  for (const part of order) {
+    const next = home.indexOf(part, at + 1);
+    assert.ok(next > at, `${part} out of order`);
+    at = next;
+  }
+  assert.ok(!/HorizonBand|BAND_ASPECT|bottomGap/.test(home));
+  // Still scrollable.
+  assert.ok(/content: \{\s*flexGrow: 1,\s*\}/.test(home));
+});
+
+const hero = loadTs('src/features/home/heroLayout.ts');
+
+test('hero height: about 42% of the screen (383 dp on this phone), clamped 300-440', () => {
+  assert.equal(hero.heroHeight(2408 / 2.625), 383);
+  assert.equal(hero.heroHeight(640), 300);
+  assert.equal(hero.heroHeight(1200), 440);
+});
+
+test('hero video: covers the hero completely and keeps the sun in view on 320-480 dp screens', () => {
+  for (const w of [320, 360, 393, 411.43, 430, 480]) {
+    for (const winH of [640, 760, 917.3, 1000]) {
+      const h = hero.heroHeight(winH);
+      const f = hero.heroVideoFrame(w, h);
+      assert.ok(f.left <= 1e-9 && f.left + f.width >= w - 1e-9, `covers width at ${w}x${winH}`);
+      assert.ok(f.top <= 1e-9 && f.top + f.height >= h - 1e-9, `covers height at ${w}x${winH}`);
+      const sun = (f.left + hero.SUN_X * f.scale) / w;
+      assert.ok(sun >= 0.55 && sun <= 0.85, `sun at ${sun.toFixed(2)} across at ${w}x${winH}`);
+    }
+  }
+  // This phone: 1.96x upscale, 43% of the width visible.
+  const f = hero.heroVideoFrame(411.43, 383);
+  assert.ok(Math.abs((383 * 2.625) / 512 - 1.96) < 0.01);
+  assert.ok(Math.abs(411.43 / f.scale / 1280 - 0.43) < 0.01);
+});
+
+test('hero bottom fade is eased: solid at the edge, clear at the inner end; no top fade', () => {
+  const { edgeAlpha, ALPHA_OFFSETS, BOTTOM_FADE } = hero;
+  assert.equal(hero.TOP_FADE, undefined);
+  assert.equal(BOTTOM_FADE, 0.4);
+  assert.ok(ALPHA_OFFSETS.length >= 5, 'at least 5 alpha stops');
+  assert.equal(edgeAlpha(0), 1);
+  assert.ok(Math.abs(edgeAlpha(1)) < 1e-12);
+  assert.ok(Math.abs(edgeAlpha(0.5) - 0.5) < 1e-12);
+  // Ease-in-out: changes slowly at both ends, fastest in the middle.
+  const step = (a, b) => edgeAlpha(a) - edgeAlpha(b);
+  assert.ok(step(0, 1 / 6) < step(1 / 3, 1 / 2));
+  assert.ok(step(5 / 6, 1) < step(1 / 2, 2 / 3));
+  for (let i = 0; i < 6; i++) assert.ok(edgeAlpha(i / 6) > edgeAlpha((i + 1) / 6));
+});
+
+test('hero top shade: very light (0.10), eased over at least 5 stops, clear at the horizon', () => {
+  const stops = hero.topShadeStops();
+  assert.ok(hero.TOP_SHADE <= 0.12);
+  assert.ok(stops.length >= 5);
+  assert.ok(Math.abs(stops[0].alpha - hero.TOP_SHADE) < 1e-12);
+  assert.ok(Math.abs(stops[stops.length - 1].alpha) < 1e-12);
+  for (let i = 1; i < stops.length; i++) assert.ok(stops[i].alpha < stops[i - 1].alpha);
+  // The horizon is 193 dp down on this phone; the shade clears 30 dp below it,
+  // so it still reaches the sun (on the horizon) at about half strength.
+  const f = hero.heroVideoFrame(411.43, 383);
+  assert.ok(Math.abs(hero.horizonOnHero(f) - 193) < 1);
+  assert.equal(hero.SHADE_PAST_HORIZON, 30);
+  assert.ok(Math.abs(hero.shadeHeight(f) - 223) < 1);
+});
+
+test('header over the hero: white greeting and letters, no plates, ring-only empty days, glass pill with white text and a deep red flame', () => {
+  const header = fs.readFileSync(path.join(repo, 'src/features/home/PreviewHeader.tsx'), 'utf8');
+  const styles = fs.readFileSync(path.join(repo, 'src/features/home/styles.ts'), 'utf8');
+  assert.ok(/greeting: \{\s*\.\.\.text\.greeting,\s*color: '#ffffff',\s*\}/.test(header));
+  assert.ok(/dayLetter: \{\s*\.\.\.text\.dayLetter,\s*color: '#ffffff',\s*\}/.test(header));
+  // The week row has no background at all.
+  assert.ok(/days: \{\s*flexDirection: 'row',\s*\}/.test(header));
+  assert.ok(!/weekPlateFill|streakPillFill/.test(header + styles));
+  assert.ok(styles.includes("dayEmpty: 'transparent',"));
+  assert.ok(styles.includes("dayEmptyBorder: 'rgba(255,255,255,0.6)',"));
+  assert.ok(styles.includes("streakFlame: '#dc2626',"));
+  assert.ok(!styles.includes('streakGold'));
+  assert.ok(/streakText: \{\s*\.\.\.text\.streak,\s*color: '#ffffff',\s*\}/.test(header));
+  // The pill keeps its original light glass.
+  assert.ok(/streakPill: \{[\s\S]*?borderColor: accents\.glassBorder,\s*backgroundColor: accents\.glassFill,\s*\}/.test(header));
+  assert.ok(header.includes('<Ionicons name="flame" size={16} color={accents.streakFlame} />'));
+  // Font family and weight only ever come from the typography roles.
+  assert.ok(!/fontFamily:|fontWeight:/.test(header));
 });
