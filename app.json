@@ -48,7 +48,8 @@
           "enableBackgroundPlayback": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "router": {},
