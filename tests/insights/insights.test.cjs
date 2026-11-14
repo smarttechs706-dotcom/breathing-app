@@ -155,3 +155,28 @@ test('the tab keeps its data loading, error and retry exactly as before', () => 
     'onRetry={load}',
   ]) assert.ok(src.includes(must), must);
 });
+
+// --- Calm shift wording ------------------------------------------------------
+
+test('spokenShift says plus or minus, never + or -', () => {
+  const m = loadTs('src/features/insights/insightsModel.ts', { stubs: { '../home/weekActivity': { localDateKey: () => '' } } });
+  assert.equal(m.spokenShift(1.2), 'plus 1.2');
+  assert.equal(m.spokenShift(-0.5), 'minus 0.5');
+  assert.equal(m.spokenShift(0), '0.0');
+  assert.equal(m.spokenShift(4), 'plus 4.0');
+  for (const v of [1.2, -0.5, 0, -4]) assert.ok(!/[+\-–—]/.test(m.spokenShift(v)), String(v));
+});
+
+test('Calm shift card: label, explanation line, no-sessions line and screen reader text', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src/features/insights/InsightsScreen.tsx'), 'utf8');
+  assert.ok(src.includes("'Mood change per session'"));
+  assert.ok(src.includes('`Before to after, on a 1 to 5 scale. Average of ${sessionCount(shift.count)} in the last 30 days.`'));
+  assert.ok(src.includes("'Complete a session to see how breathing shifts your mood.'"), 'no-sessions line unchanged');
+  assert.ok(src.includes('`Calm shift: ${spokenShift(shift.value)}, mood change per session, over ${sessionCount(shift.count)} in the last 30 days`'));
+  assert.ok(src.includes('accessibilityLabel={shiftSpoken}'));
+  assert.ok(!src.includes('Average mood change'), 'old label gone');
+  const lines = src.split(/\r?\n/).filter((l) => /shiftCaption|shiftNote|shiftSpoken|Mood change|Before to after/.test(l));
+  for (const l of lines) assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(l), l);
+});

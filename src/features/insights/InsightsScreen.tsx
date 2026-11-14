@@ -18,6 +18,7 @@ import {
   minutesValue,
   moodJourney,
   sessionCount,
+  spokenShift,
   weekDots,
 } from './insightsModel';
 import { MoodJourneyChart } from './MoodJourneyChart';
@@ -87,9 +88,15 @@ function Loaded({ insights, tabBarHeight }: { insights: InsightsResponse; tabBar
   const streak = insights.streak.currentStreak;
 
   const shiftCaption =
-    shift.count === 0 ? 'Complete a session to see how breathing shifts your mood.' : 'Average mood change';
+    shift.count === 0 ? 'Complete a session to see how breathing shifts your mood.' : 'Mood change per session';
   const shiftNote =
-    shift.count === 0 ? null : `Based on ${sessionCount(shift.count)} in the last 30 days.`;
+    shift.count === 0
+      ? null
+      : `Before to after, on a 1 to 5 scale. Average of ${sessionCount(shift.count)} in the last 30 days.`;
+  const shiftSpoken =
+    shift.count === 0 || shift.value === null
+      ? 'Calm shift: no sessions yet'
+      : `Calm shift: ${spokenShift(shift.value)}, mood change per session, over ${sessionCount(shift.count)} in the last 30 days`;
 
   return (
     <ScrollView
@@ -102,9 +109,7 @@ function Loaded({ insights, tabBarHeight }: { insights: InsightsResponse; tabBar
           <View
             style={styles.ringRow}
             accessible
-            accessibilityLabel={
-              shift.count === 0 ? 'Calm shift: no sessions yet' : `Calm shift: ${shift.label}, average mood change`
-            }
+            accessibilityLabel={shiftSpoken}
           >
             <CalmShiftRing fill={shift.fill} label={shift.label} caption={shiftCaption} />
           </View>

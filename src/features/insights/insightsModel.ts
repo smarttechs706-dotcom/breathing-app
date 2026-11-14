@@ -43,6 +43,14 @@ export function signedLabel(value: number): string {
   return '0.0';
 }
 
+// The shift as screen readers should say it: "plus 1.2", "minus 0.5", "0.0".
+// Never "+" or "-", which some readers skip or read as "dash".
+export function spokenShift(value: number): string {
+  if (value > 0) return `plus ${value.toFixed(1)}`;
+  if (value < 0) return `minus ${Math.abs(value).toFixed(1)}`;
+  return '0.0';
+}
+
 // Average change in mood per session across the returned check-ins (the
 // server sends the last 30 days).
 export function calmShift(checkins: readonly InsightCheckin[]): CalmShift {
