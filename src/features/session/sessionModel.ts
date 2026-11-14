@@ -72,20 +72,30 @@ export function contentSpacer(screenWidth: number, topInset: number): number {
   return Math.max(0, Math.round(paintingHeight(screenWidth) * CONTENT_START - topInset - TOP_BAR_HEIGHT));
 }
 
-// Mood 1-5 (Stressed -> Calm) as weather: storm, rain, cloud, part sun, sun.
-// Outline icons when not selected, filled icons when selected (Ionicons).
-export const MOOD_ICONS: readonly { outline: string; filled: string }[] = [
-  { outline: 'thunderstorm-outline', filled: 'thunderstorm' },
-  { outline: 'rainy-outline', filled: 'rainy' },
-  { outline: 'cloud-outline', filled: 'cloud' },
-  { outline: 'partly-sunny-outline', filled: 'partly-sunny' },
-  { outline: 'sunny-outline', filled: 'sunny' },
+// The five mood levels, stored as 1-5 (unchanged), from stressed to calm.
+// Emoji faces at the user's request (2026-11-15): a deliberate exception to the
+// app's no-emoji rule, for the mood scale only. The faces read in order:
+// clenched (strain) -> worried -> flat -> small smile -> eyes closed, relieved.
+// `word` is what screen readers say and what the caption under the scale shows;
+// on screen only "Stressed" and "Calm" label the two ends.
+export interface MoodLevel {
+  value: 1 | 2 | 3 | 4 | 5;
+  emoji: string;
+  word: string;
+}
+
+export const MOOD_LEVELS: readonly MoodLevel[] = [
+  { value: 1, emoji: '\u{1F623}', word: 'Stressed' }, // persevering face
+  { value: 2, emoji: '\u{1F61F}', word: 'Uneasy' }, // worried face
+  { value: 3, emoji: '\u{1F610}', word: 'Okay' }, // neutral face
+  { value: 4, emoji: '\u{1F642}', word: 'Relaxed' }, // slightly smiling face
+  { value: 5, emoji: '\u{1F60C}', word: 'Calm' }, // relieved face
 ];
 
-// The icon for a saved/selected mood value (clamped to 1-5), or null when no
+// The level for a saved/selected mood value (clamped to 1-5), or null when no
 // mood has been chosen yet.
-export function moodIcon(mood: number | null, variant: 'outline' | 'filled'): string | null {
-  if (mood === null) return null;
-  const index = Math.min(Math.max(Math.round(mood), 1), MOOD_ICONS.length) - 1;
-  return MOOD_ICONS[index][variant];
+export function moodLevel(mood: number | null): MoodLevel | null {
+  if (mood === null || !Number.isFinite(mood)) return null;
+  const index = Math.min(Math.max(Math.round(mood), 1), MOOD_LEVELS.length) - 1;
+  return MOOD_LEVELS[index];
 }

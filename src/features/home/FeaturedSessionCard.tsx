@@ -8,6 +8,7 @@ import { PressableScale } from './motion';
 import { PreviewGlass as GlassCard } from './PreviewGlass';
 import { accents, text } from './styles';
 import { formatMinutes } from './weekActivity';
+import { patternLabel, patternLine } from '../session/breathPattern';
 
 // The app's own session illustrations, keyed by real session id. A session
 // without one gets a plain tile rather than someone else's picture.
@@ -60,14 +61,16 @@ export function FeaturedSessionCard({ state }: { state: FeaturedState }) {
   }
 
   const { session } = state;
-  const meta = `${formatMinutes(session.durationSec)} · ${session.category}`;
+  // The pattern label comes from the same phaseConfig the breathing timer uses.
+  const meta = `${formatMinutes(session.durationSec)} · ${session.category} · ${patternLabel(session.phaseConfig)}`;
+  const spokenMeta = `${formatMinutes(session.durationSec)}, ${session.category}, ${patternLine(session.phaseConfig)}`;
   const image = IMAGES[session.id];
 
   return (
     <PressableScale
       onPress={() => openSession(session.id)}
       accessibilityRole="button"
-      accessibilityLabel={`Featured session, ${session.title}, ${meta}. Start`}
+      accessibilityLabel={`Featured session, ${session.title}, ${spokenMeta}. Start`}
     >
       <GlassCard radius={radii.DEFAULT} style={styles.card}>
         <View style={styles.row}>

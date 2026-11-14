@@ -4,12 +4,18 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { colors, typography } from '../../theme/tokens';
 import { useReducedMotion } from '../home/motion';
+import type { BreathPhase } from './breathPattern';
 
 // The breathing screen's circle: a solid indigo-to-navy centre holding the
 // phase word, soft periwinkle halo rings that grow and shrink with the breath,
-// and one thin fixed outer ring. The halos use the same 1 -> 1.15 scale and
-// the same phase timings as src/components/BreathingRing.tsx (which stays as
-// it is). With reduced motion the halos stay still; only the word changes.
+// and one thin fixed outer ring. The halos use the same 1 -> 1.15 scale as
+// src/components/BreathingRing.tsx (which stays as it is). The circle has no
+// clock of its own: the session player's one clock tells it which phase it is
+// in and how far through (breathPattern.breathAt), and it grows over the
+// in-breath, shrinks over the out-breath and holds still otherwise, for the
+// time left in that phase. So the word, the line under it, the circle and the
+// session end can never drift apart, also across pause and resume. With
+// reduced motion the halos stay still; only the word changes.
 
 // All colours in one place for quick tuning. Taken from the token range
 // inversePrimary (#3c55bf) -> onPrimaryFixedVariant (#1f3ba6) -> onPrimaryFixed
@@ -35,52 +41,45 @@ function sentenceCase(label: string): string {
 
 export function BreathCircle({
   label,
-  inhaleSec,
-  holdSec,
-  exhaleSec,
-  restSec,
+  phase,
+  step,
+  phaseElapsedMs,
+  phaseDurationMs,
   paused,
 }: {
   label: string;
-  inhaleSec: number;
-  holdSec: number;
-  exhaleSec: number;
-  restSec: number;
+  phase: BreathPhase;
+  // Changes exactly when the phase changes (breathPattern.breathAt).
+  step: number;
+  phaseElapsedMs: number;
+  phaseDurationMs: number;
   paused: boolean;
 }) {
   const reduced = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
+  // Read when a phase starts or the session resumes, not on every tick.
+  const timing = useRef({ phaseElapsedMs, phaseDurationMs });
+  timing.current = { phaseElapsedMs, phaseDurationMs };
 
-  // Same loop as BreathingRing: grow over the inhale, hold, shrink over the
-  // exhale, rest. Stopped while paused or with reduced motion.
+  // Grow over the in-breath and shrink over the out-breath, for the time left
+  // in the phase; hold still during a hold or rest. Stopped while paused (the
+  // circle stays where it was) and still with reduced motion.
   useEffect(() => {
-    if (paused || reduced !== false) {
-      if (reduced !== false) scale.setValue(1);
+    if (reduced !== false) {
+      scale.setValue(1);
       return;
     }
-    const loop = () => {
-      Animated.sequence([
-        Animated.timing(scale, {
-          toValue: BREATH_SCALE,
-          duration: inhaleSec * 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.delay(holdSec * 1000),
-        Animated.timing(scale, {
-          toValue: 1,
-          duration: exhaleSec * 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.delay(restSec * 1000),
-      ]).start(({ finished }) => {
-        if (finished) loop();
-      });
-    };
-    loop();
-    return () => scale.stopAnimation();
-  }, [scale, inhaleSec, holdSec, exhaleSec, restSec, paused, reduced]);
+    if (paused || (phase !== 'inhale' && phase !== 'exhale')) return;
+    const left = Math.max(0, timing.current.phaseDurationMs - timing.current.phaseElapsedMs);
+    const anim = Animated.timing(scale, {
+      toValue: phase === 'inhale' ? BREATH_SCALE : 1,
+      duration: left,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [scale, phase, step, paused, reduced]);
 
   const centre = SIZE * CENTRE;
 

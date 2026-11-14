@@ -1,18 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { MOOD_LABELS } from '../../components/MoodSelector';
 import { colors, radii, spacing } from '../../theme/tokens';
 import { accents, text } from '../home/styles';
-import { MOOD_ICONS, moodIcon } from './sessionModel';
+import { MOOD_LEVELS, moodLevel } from './sessionModel';
 
-// The session player's mood picker: the same 1-5 scale, track, labels and
-// accessibility as src/components/MoodSelector.tsx (which stays as it is), with
-// weather icons instead of emoji. Selected: solid blue circle, white filled
-// icon. Not selected: glass circle, muted outline icon.
-
-type IconName = keyof typeof Ionicons.glyphMap;
+// The session player's mood picker: a 1-5 scale from stressed to calm on a
+// track that fills up to the chosen level. Each level is an emoji face
+// (sessionModel.MOOD_LEVELS), a deliberate exception to the app's no-emoji
+// rule for this component only, at the user's request (2026-11-15). On
+// screen only the two ends are labelled ("Stressed", "Calm"); screen readers
+// hear each level's word. After a choice, a small caption under the scale
+// names the chosen level. Selected: solid blue circle. Nothing animates.
 
 export function MoodScale({
   value,
@@ -23,7 +22,8 @@ export function MoodScale({
   onChange: (value: number) => void;
   style?: StyleProp<ViewStyle>;
 }) {
-  const filledPercent = value === null ? 0 : ((value - 1) / (MOOD_ICONS.length - 1)) * 100;
+  const filledPercent = value === null ? 0 : ((value - 1) / (MOOD_LEVELS.length - 1)) * 100;
+  const chosen = moodLevel(value);
 
   return (
     <View style={style}>
@@ -36,25 +36,22 @@ export function MoodScale({
           style={[styles.trackFill, { width: `${filledPercent}%` }]}
         />
         <View style={styles.row}>
-          {MOOD_ICONS.map((icon, index) => {
-            const moodValue = index + 1;
-            const selected = moodValue === value;
+          {MOOD_LEVELS.map((level) => {
+            const selected = level.value === value;
             return (
               <Pressable
-                key={moodValue}
-                onPress={() => onChange(moodValue)}
+                key={level.value}
+                onPress={() => onChange(level.value)}
                 style={[styles.bubble, selected && styles.bubbleSelected]}
                 // 40 dp circle + 4 dp each side = 48 dp touch target.
                 hitSlop={4}
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
-                accessibilityLabel={`${MOOD_LABELS[index]}, ${moodValue} of ${MOOD_ICONS.length}`}
+                accessibilityLabel={`${level.word}, ${level.value} of ${MOOD_LEVELS.length}`}
               >
-                <Ionicons
-                  name={(selected ? icon.filled : icon.outline) as IconName}
-                  size={20}
-                  color={selected ? '#ffffff' : colors.onSurfaceVariant}
-                />
+                <Text style={styles.emoji} accessible={false} importantForAccessibility="no">
+                  {level.emoji}
+                </Text>
               </Pressable>
             );
           })}
@@ -64,18 +61,39 @@ export function MoodScale({
         <Text style={styles.label}>Stressed</Text>
         <Text style={styles.label}>Calm</Text>
       </View>
+      {/* The chosen level's name. The line is always there (empty until a
+          choice) so nothing below it moves when it appears. */}
+      <Text
+        style={styles.caption}
+        accessibilityLiveRegion="polite"
+        accessibilityElementsHidden={chosen === null}
+        importantForAccessibility={chosen === null ? 'no-hide-descendants' : 'auto'}
+      >
+        {chosen?.word ?? ''}
+      </Text>
     </View>
   );
 }
 
-// A mood shown on its own (Session Complete's Before -> After row): the outline
-// weather icon, or a dash when no mood has been chosen yet.
+// A mood shown on its own (Session Complete's Before -> After row): the
+// level's emoji, or a plain hyphen when no mood has been chosen yet.
 export function MoodGlyph({ mood, size, color }: { mood: number | null; size: number; color: string }) {
-  const name = moodIcon(mood, 'outline');
-  if (name === null) {
-    return <Text style={[styles.dash, { fontSize: size * 0.8, lineHeight: size, color }]}>–</Text>;
+  const level = moodLevel(mood);
+  if (level === null) {
+    return (
+      <Text
+        style={[styles.dash, { fontSize: size * 0.8, lineHeight: size, color }]}
+        accessibilityLabel="No mood chosen"
+      >
+        -
+      </Text>
+    );
   }
-  return <Ionicons name={name as IconName} size={size} color={color} />;
+  return (
+    <Text style={[styles.emoji, { fontSize: size * 0.9, lineHeight: size }]} accessibilityLabel={level.word}>
+      {level.emoji}
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -115,6 +133,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.inversePrimary,
     borderColor: colors.inversePrimary,
   },
+  // Emoji are drawn by the phone's emoji font; only the size is set here.
+  emoji: {
+    ...text.body,
+    fontSize: 22,
+    lineHeight: 28,
+    textAlign: 'center',
+  },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -123,6 +148,12 @@ const styles = StyleSheet.create({
   label: {
     ...text.meta,
     color: colors.onSurfaceVariant,
+  },
+  caption: {
+    ...text.meta,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginTop: spacing.base,
   },
   dash: {
     ...text.body,

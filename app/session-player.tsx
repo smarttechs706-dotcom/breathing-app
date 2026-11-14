@@ -23,6 +23,14 @@ import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
 import { BreathCircle } from '../src/features/session/BreathCircle';
+import {
+  breathAt,
+  nextTickMs,
+  patternLabel,
+  patternLine,
+  sessionSeconds,
+  type BreathPhase,
+} from '../src/features/session/breathPattern';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
@@ -30,7 +38,8 @@ import { colors, radii, spacing, typography } from '../src/theme/tokens';
 import type { Session } from '../src/types/models';
 import {
   INITIAL_CLOCK,
-  elapsedSeconds,
+  beat as clockBeat,
+  elapsedMs as clockElapsedMs,
   setRunning as setClockRunning,
   type ClockState,
 } from '../src/utils/sessionClock';
@@ -73,9 +82,6 @@ const GLASS_BUTTON_FILL = 'rgba(10,16,40,0.55)';
 // all reflect it) and in PRD.md's table to match — see PROGRESS.md.
 
 type Phase = 'pre-mood' | 'active' | 'post-mood';
-// 4-phase pattern (2026-09-17): BREATHE IN / HOLD / BREATHE OUT / REST,
-// replacing the prior 3-phase inhale/hold/exhale cycle — see sessions.ts.
-type BreathSubPhase = 'inhale' | 'hold' | 'exhale' | 'rest';
 
 function formatDurationBadge(durationSec: number) {
   return `${Math.round(durationSec / 60)} MIN SESSION`;
@@ -209,9 +215,10 @@ export default function SessionPlayerScreen() {
   // untouched selector can never submit a fabricated value.
   const [preMood, setPreMood] = useState<number | null>(null);
   const [postMood, setPostMood] = useState<number | null>(null);
-  const [elapsedSec, setElapsedSec] = useState(0);
+  // Breathed time in ms: the one clock everything on the breathing screen
+  // reads (see the clock effect below).
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [breathSubPhase, setBreathSubPhase] = useState<BreathSubPhase>('inhale');
   // Save state for the real POST /api/checkin call Done triggers. On
   // failure, we stay on this screen with saveError set (preMood/postMood
   // stay in state, untouched) instead of silently discarding the
@@ -244,27 +251,60 @@ export default function SessionPlayerScreen() {
   // session. The clock only runs while the session is `running`: active
   // phase, not paused, this screen focused (Settings pauses it) and the app
   // in the foreground (backgrounding pauses it; it resumes on return).
+  const clockRef = useRef<ClockState>(INITIAL_CLOCK);
   const [appActive, setAppActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => setAppActive(s === 'active'));
+    const sub = AppState.addEventListener('change', (s) => {
+      // Stop the clock at the moment the app leaves the foreground (lock,
+      // app switch), not when the re-render gets round to it: on Android that
+      // can be only after unlock, which used to count the locked time.
+      if (s !== 'active') clockRef.current = setClockRunning(clockRef.current, false, Date.now());
+      setAppActive(s === 'active');
+    });
     return () => sub.remove();
   }, []);
 
   const running = phase === 'active' && !paused && isFocused && appActive;
-  const clockRef = useRef<ClockState>(INITIAL_CLOCK);
+
+  // ONE clock drives the breathing screen: the phase word, the line under it,
+  // the circle and the end are all derived from this breathed time
+  // (breathPattern.breathAt), so they can never drift apart, also across
+  // pause, Settings and backgrounding (the clock only runs while `running`).
+  // The session ends at the last whole out-breath that fits its length
+  // (sessionSeconds). Instead of a fixed interval, the next update is
+  // scheduled for the next phase change, the next whole second or the end.
+  const endMs = session ? sessionSeconds(session.phaseConfig, session.durationSec) * 1000 : 0;
 
   useEffect(() => {
     clockRef.current = setClockRunning(clockRef.current, running, Date.now());
-    if (!running) {
+    const read = () => {
+      const ms = clockElapsedMs(clockRef.current, Date.now());
+      return endMs > 0 ? Math.min(ms, endMs) : ms;
+    };
+    if (!running || !session) {
       // Show the exact value the clock stopped at.
-      setElapsedSec(elapsedSeconds(clockRef.current, Date.now()));
+      setElapsedMs(read());
       return;
     }
-    const id = setInterval(() => {
-      setElapsedSec(elapsedSeconds(clockRef.current, Date.now()));
-    }, 500);
-    return () => clearInterval(id);
-  }, [running]);
+    let id: ReturnType<typeof setTimeout> | undefined;
+    const tick = () => {
+      // Heartbeat: time is only counted up to the last beat after a gap
+      // (sessionClock.beat), so unobserved time never counts. Starting is
+      // idempotent and covers a stop by the AppState listener above that
+      // React merged with the return to the foreground.
+      const now = Date.now();
+      clockRef.current = clockBeat(setClockRunning(clockRef.current, true, now), now);
+      const ms = read();
+      setElapsedMs(ms);
+      if (ms >= endMs) return;
+      const wait = nextTickMs(session.phaseConfig, ms, endMs) - ms;
+      id = setTimeout(tick, Math.max(16, wait));
+    };
+    tick();
+    return () => {
+      if (id !== undefined) clearTimeout(id);
+    };
+  }, [running, session, endMs]);
 
   // Keep the display awake only while the session is actually running (and
   // release on pause / exit / finish / unmount), so a screen timeout can't
@@ -277,37 +317,13 @@ export default function SessionPlayerScreen() {
     };
   }, [running]);
 
-  // Auto-advance to post-mood once the session's full duration has elapsed.
+  // Session Complete as soon as the last whole out-breath has finished.
   useEffect(() => {
-    if (!session) return;
-    if (phase === 'active' && elapsedSec >= session.durationSec) {
+    if (!session || endMs <= 0) return;
+    if (phase === 'active' && elapsedMs >= endMs) {
       setPhase('post-mood');
     }
-  }, [elapsedSec, phase, session]);
-
-  // Breathing sub-phase cycle (inhale -> hold -> exhale -> inhale...),
-  // timed from the session's own phaseConfig. Self-scheduling chain since
-  // each sub-phase has a different duration. Also paused while unfocused —
-  // same reasoning as the elapsed-time timer above.
-  useEffect(() => {
-    if (!running || !session) return;
-    const durations: Record<BreathSubPhase, number> = {
-      inhale: session.phaseConfig.inhale,
-      hold: session.phaseConfig.hold,
-      exhale: session.phaseConfig.exhale,
-      rest: session.phaseConfig.rest,
-    };
-    const nextSubPhase: Record<BreathSubPhase, BreathSubPhase> = {
-      inhale: 'hold',
-      hold: 'exhale',
-      exhale: 'rest',
-      rest: 'inhale',
-    };
-    const id = setTimeout(() => {
-      setBreathSubPhase((cur) => nextSubPhase[cur]);
-    }, durations[breathSubPhase] * 1000);
-    return () => clearTimeout(id);
-  }, [running, breathSubPhase, session]);
+  }, [elapsedMs, phase, session, endMs]);
 
   const exitSession = () => {
     setActiveSessionId(null);
@@ -443,8 +459,7 @@ export default function SessionPlayerScreen() {
 
   const handleBeginJourney = () => {
     clockRef.current = INITIAL_CLOCK;
-    setElapsedSec(0);
-    setBreathSubPhase('inhale');
+    setElapsedMs(0);
     setPhase('active');
   };
 
@@ -532,27 +547,30 @@ export default function SessionPlayerScreen() {
     router.dismissTo('/home');
   };
 
-  const progressPercent = Math.min(
-    (elapsedSec / session.durationSec) * 100,
-    100
-  );
+  const elapsedSec = Math.floor(elapsedMs / 1000);
+  // The session's real length: whole breaths, ending on an out-breath.
+  const totalSec = endMs / 1000;
+  const progressPercent = Math.min((elapsedMs / endMs) * 100, 100);
+  // Mindful minutes from the seconds actually breathed (at least 1).
+  const breathedMinutes = Math.max(1, Math.round(Math.min(elapsedMs, endMs) / 60000));
+  const breath = breathAt(session.phaseConfig, elapsedMs);
 
   // 4-phase pattern (2026-09-17 product decision): exact labels/instruction
   // copy per session — see PROGRESS.md. Deviates from architecture.md:163-168's
   // documented "Inhale.../Hold for 4 seconds" convention; flagged, not silent.
-  const PHASE_LABEL: Record<BreathSubPhase, string> = {
+  const PHASE_LABEL: Record<BreathPhase, string> = {
     inhale: 'BREATHE IN',
     hold: 'HOLD',
     exhale: 'BREATHE OUT',
     rest: 'REST',
   };
-  const phaseLabel = PHASE_LABEL[breathSubPhase];
+  const phaseLabel = PHASE_LABEL[breath.phase];
   const phaseSubLabel =
-    breathSubPhase === 'inhale'
+    breath.phase === 'inhale'
       ? `Breathe in slowly for ${session.phaseConfig.inhale} seconds`
-      : breathSubPhase === 'hold'
+      : breath.phase === 'hold'
         ? `Hold gently for ${session.phaseConfig.hold} seconds`
-        : breathSubPhase === 'exhale'
+        : breath.phase === 'exhale'
           ? `Breathe out slowly for ${session.phaseConfig.exhale} seconds`
           : `Stay relaxed for ${session.phaseConfig.rest} seconds`;
 
@@ -587,6 +605,14 @@ export default function SessionPlayerScreen() {
                   <Text style={styles.sessionTitle}>{session.title}</Text>
                   <Text style={styles.sessionDescription}>
                     {session.description}
+                  </Text>
+                  {/* The session's pattern, from the same phaseConfig the
+                      breathing timer uses, so it always matches. */}
+                  <Text
+                    style={styles.sessionDescription}
+                    accessibilityLabel={patternLine(session.phaseConfig)}
+                  >
+                    {`${patternLabel(session.phaseConfig)} · ${patternLine(session.phaseConfig)}`}
                   </Text>
                 </View>
 
@@ -629,11 +655,11 @@ export default function SessionPlayerScreen() {
               <View style={styles.activeLayout}>
                 <BreathCircle
                   label={phaseLabel}
-                  inhaleSec={session.phaseConfig.inhale}
-                  holdSec={session.phaseConfig.hold}
-                  exhaleSec={session.phaseConfig.exhale}
-                  restSec={session.phaseConfig.rest}
-                  paused={paused}
+                  phase={breath.phase}
+                  step={breath.step}
+                  phaseElapsedMs={breath.phaseElapsedMs}
+                  phaseDurationMs={breath.phaseDurationMs}
+                  paused={!running}
                 />
                 <Text style={styles.phaseSubLabel}>{phaseSubLabel}</Text>
 
@@ -641,7 +667,7 @@ export default function SessionPlayerScreen() {
                   <View style={styles.timeRow}>
                     <Text style={styles.timeText}>{formatTime(elapsedSec)}</Text>
                     <Text style={styles.timeText}>
-                      {formatTime(session.durationSec)}
+                      {formatTime(totalSec)}
                     </Text>
                   </View>
                   <View style={styles.progressTrack}>
@@ -681,7 +707,7 @@ export default function SessionPlayerScreen() {
                   </View>
                   <Text style={styles.completeHeadline}>Session Complete</Text>
                   <Text style={styles.mindfulMinutes}>
-                    {Math.round(session.durationSec / 60)} Mindful Minutes
+                    {breathedMinutes} Mindful Minutes
                   </Text>
                 </View>
 

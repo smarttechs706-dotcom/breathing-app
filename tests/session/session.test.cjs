@@ -22,25 +22,52 @@ test('the top spacer keeps the old 1.8:1 area and content starts 60% of the way 
   assert.equal(model.contentSpacer(320, 120), 0);
 });
 
-test('moods 1-5 map to storm, rain, cloud, part sun, sun', () => {
-  const outline = [1, 2, 3, 4, 5].map((m) => model.moodIcon(m, 'outline'));
-  const filled = [1, 2, 3, 4, 5].map((m) => model.moodIcon(m, 'filled'));
-  assert.deepEqual(outline, ['thunderstorm-outline', 'rainy-outline', 'cloud-outline', 'partly-sunny-outline', 'sunny-outline']);
-  assert.deepEqual(filled, ['thunderstorm', 'rainy', 'cloud', 'partly-sunny', 'sunny']);
+test('moods 1-5: five emoji faces in order from stressed to calm, values unchanged', () => {
+  assert.deepEqual(model.MOOD_LEVELS.map((l) => l.value), [1, 2, 3, 4, 5]);
+  assert.deepEqual(model.MOOD_LEVELS.map((l) => l.emoji), ['\u{1F623}', '\u{1F61F}', '\u{1F610}', '\u{1F642}', '\u{1F60C}']);
+  assert.deepEqual(model.MOOD_LEVELS.map((l) => l.word), ['Stressed', 'Uneasy', 'Okay', 'Relaxed', 'Calm']);
 });
 
-test('no mood chosen yet shows no icon; out-of-range values clamp', () => {
-  assert.equal(model.moodIcon(null, 'outline'), null);
-  assert.equal(model.moodIcon(0, 'outline'), 'thunderstorm-outline');
-  assert.equal(model.moodIcon(9, 'filled'), 'sunny');
+test('no mood chosen yet gives no level; out-of-range values clamp', () => {
+  assert.equal(model.moodLevel(null), null);
+  assert.equal(model.moodLevel(NaN), null);
+  assert.equal(model.moodLevel(0).word, 'Stressed');
+  assert.equal(model.moodLevel(9).word, 'Calm');
+  assert.equal(model.moodLevel(3).emoji, '\u{1F610}');
 });
 
-test('every mood icon exists in the bundled Ionicons font', () => {
-  const glyphs = require(path.join(repo, 'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json'));
-  for (const icon of model.MOOD_ICONS) {
-    assert.ok(icon.outline in glyphs, icon.outline);
-    assert.ok(icon.filled in glyphs, icon.filled);
-  }
+test('mood scale: only the two end labels on screen, the full word for screen readers, values 1-5', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/session/MoodScale.tsx'), 'utf8');
+  // Visible words: exactly "Stressed" and "Calm" at the ends, nothing for the middle three.
+  const visible = [...src.matchAll(/<Text style=\{styles\.label\}>([^<]*)<\/Text>/g)].map((m) => m[1]);
+  assert.deepEqual(visible, ['Stressed', 'Calm']);
+  assert.ok(!/Uneasy|Okay|Relaxed/.test(src.replace(/\/\/.*$/gm, '')), 'no middle words in the component');
+  // Each button reads its word; the emoji itself is not read aloud.
+  assert.ok(src.includes('accessibilityLabel={`${level.word}, ${level.value} of ${MOOD_LEVELS.length}`}'));
+  assert.ok(src.includes('<Text style={styles.emoji} accessible={false} importantForAccessibility="no">'));
+  // Stored values unchanged.
+  assert.ok(src.includes('onPress={() => onChange(level.value)}'));
+  // No weather icons any more.
+  assert.ok(!/Ionicons|MOOD_ICONS|moodIcon\(/.test(src));
+});
+
+test('mood caption: the chosen word under the scale after a tap; its line is reserved so nothing moves', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/session/MoodScale.tsx'), 'utf8');
+  assert.ok(src.includes('const chosen = moodLevel(value);'));
+  assert.ok(/<Text\s+style=\{styles\.caption\}\s+accessibilityLiveRegion="polite"/.test(src));
+  assert.ok(src.includes("{chosen?.word ?? ''}"));
+  assert.ok(src.includes("importantForAccessibility={chosen === null ? 'no-hide-descendants' : 'auto'}"));
+  // Nothing animates (reduced motion has nothing to turn off).
+  assert.ok(!/Animated|useReducedMotion/.test(src));
+});
+
+test('Session Complete Before -> After: the same emoji with its word; a plain hyphen when none', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/session/MoodScale.tsx'), 'utf8');
+  const glyph = src.slice(src.indexOf('export function MoodGlyph'));
+  assert.ok(glyph.includes('accessibilityLabel={level.word}'));
+  assert.ok(glyph.includes('accessibilityLabel="No mood chosen"'));
+  assert.ok(/>\s*-\s*<\/Text>/.test(glyph), 'plain hyphen placeholder');
+  assert.ok(!/[–—]/.test(src), 'no long dashes in the component');
 });
 
 test('breathing circle: phase word only (no logo), Animated only, same 1 -> 1.15 breath, reduced motion holds still', () => {
@@ -106,4 +133,34 @@ test('backdrop: the video only while breathing, one source, crossfade 400 ms, in
   assert.ok(backdrop.includes('const DIM_MS = 400;'));
   assert.ok(/if \(reduced !== false\) \{\s*value\.setValue\(target\);/.test(backdrop), 'instant with reduced motion');
   assert.ok(backdrop.includes('backgroundColor: `rgba(10,16,40,${BREATHING_SCRIM})`'));
+});
+
+test('one clock: the player derives phase, circle and end from breathed time; no second timer', () => {
+  const player = fs.readFileSync(path.join(repo, 'app/session-player.tsx'), 'utf8');
+  assert.ok(player.includes('const breath = breathAt(session.phaseConfig, elapsedMs);'));
+  assert.ok(player.includes('sessionSeconds(session.phaseConfig, session.durationSec) * 1000'));
+  assert.ok(player.includes('nextTickMs(session.phaseConfig, ms, endMs)'));
+  assert.ok(player.includes('if (phase === \'active\' && elapsedMs >= endMs) {'));
+  // The old per-phase timer chain is gone.
+  assert.ok(!/breathSubPhase|BreathSubPhase|setInterval\(/.test(player));
+  // The circle follows the clock and stops whenever the clock stops.
+  assert.ok(/<BreathCircle[\s\S]*?phase=\{breath\.phase\}[\s\S]*?step=\{breath\.step\}[\s\S]*?paused=\{!running\}/.test(player));
+  // Mindful minutes come from the seconds actually breathed.
+  assert.ok(player.includes('{breathedMinutes} Mindful Minutes'));
+  assert.ok(player.includes('Math.round(Math.min(elapsedMs, endMs) / 60000)'));
+  assert.ok(!player.includes('Math.round(session.durationSec / 60)} Mindful Minutes'));
+});
+
+test('BreathCircle: no clock of its own, and its look is byte-for-byte unchanged', () => {
+  const { execFileSync } = require('node:child_process');
+  const now = fs.readFileSync(path.join(repo, 'src/features/session/BreathCircle.tsx'), 'utf8').replace(/\r\n/g, '\n');
+  const before = execFileSync('git', ['show', '72d4f19:src/features/session/BreathCircle.tsx'], { cwd: repo })
+    .toString().replace(/\r\n/g, '\n');
+  assert.ok(!/Animated\.(loop|sequence|delay)/.test(now), 'no own loop');
+  // Colours, sizes and the breath scale.
+  const constants = (t) => t.slice(t.indexOf('export const CIRCLE_COLORS'), t.indexOf('// "BREATHE IN"'));
+  assert.equal(constants(now), constants(before));
+  // Everything drawn, and all styles.
+  const drawn = (t) => t.slice(t.indexOf('  const centre = SIZE * CENTRE;'));
+  assert.equal(drawn(now), drawn(before));
 });

@@ -33,6 +33,7 @@ import {
   type CategoryFilter,
 } from './libraryModel';
 import { CARD_IMAGES } from './libraryImages';
+import { patternLabel, patternLine } from '../session/breathPattern';
 
 // Library tab: search, category chips, Quick Start and one painted 5:2 image
 // card per session. Same behaviour as the previous screen (cache-first
@@ -228,11 +229,13 @@ function SessionCard({
 }) {
   const image = CARD_IMAGES[session.id];
   const duration = formatDuration(session.durationSec);
+  // From the same phaseConfig the breathing timer uses, so it always matches.
+  const pattern = patternLabel(session.phaseConfig);
   return (
     <PressableScale
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${session.title}, ${duration}, ${session.category}. Start`}
+      accessibilityLabel={`${session.title}, ${duration}, ${session.category}, ${patternLine(session.phaseConfig)}. Start`}
     >
       <View style={styles.card}>
         {image ? (
@@ -275,6 +278,8 @@ function SessionCard({
               color={META_COLOR}
             />
             <Text style={styles.cardMetaText}>{session.category}</Text>
+            <View style={styles.cardMetaDivider} />
+            <Text style={styles.cardMetaText}>{pattern}</Text>
           </View>
         </View>
       </View>
