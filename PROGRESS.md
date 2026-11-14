@@ -4965,3 +4965,103 @@ every weight; `npm audit` shows 20 existing vulnerabilities (1 critical) to
 review before launch; page titles possibly 26 sp; the backend privacy page
 title still says "Breathe"; three-bar Insights tab icon; wordmark alignment
 (left on onboarding, centred on Log in); Home extension image.
+
+## Media backgrounds, Home hero, sound, looping picker (2026-11-14, branch feat/media-backgrounds)
+
+Branch off feat/email-auth. Commits, oldest first: 05dd0e9 orb removed
+(onboarding, hidden Player tab); 17be905 Home on the mist backdrop, the four
+time-of-day paintings, scene logic, ambient layers and PreviewOrb (with
+hero-orb.png) deleted; ce04e1e session paintings removed (portraits restored
+later, the six landscapes stay deleted); f50b0bf expo-video + expo-audio and
+the media files; c1d76e9 expo-asset pinned to SDK 57; bcdad05 shared
+LoopingVideo + first Home band; 993b5cc full-bleed Home hero; 24dd41e
+looping time picker; f6f9384 session backdrop; 16a0a55 Home ambient sound.
+
+What changed:
+- Orb gone from the whole app (BreathOrb, PreviewOrb, hero-orb.png).
+  BreathCircle in the session player is untouched. The welcome screen is text
+  only (see open items).
+- Home: no time-of-day pictures; the mist backdrop like the other screens.
+  A full-bleed hero video (assets/videos/home-horizon-band-loop.mp4, the
+  brighter 889,406 B version) from the top of the screen, behind the status
+  bar, greeting and week row, to 41.7% of the screen height (383 dp here,
+  clamped 300-440), scrolling with the content and cropped to keep the sun
+  about 70% across (heroLayout.ts). Only its bottom 40% dissolves into the
+  mist: an SVG mask with a 7-stop cosine ease over 8 mist colours sampled
+  across the width, extended 2 dp past the hero (an SVG rounding gap had shown
+  the video's last row as a thin line, row 1003, dE about 8). A 0.10 navy
+  shade eases to clear 30 dp below the horizon (the sun is effectively
+  undimmed). One flexible gap puts the cards low, 24 dp above the tab bar.
+  Header over the video: white greeting and week letters, empty days as a 60%
+  white ring with no fill, streak pill on its original light glass with white
+  "0 days" and a #dc2626 flame. No plates, fills or shadows behind the text.
+- Session player (SessionBackdrop.tsx, sessionModel.backdropLayers): before
+  the session the session's own portrait at 80%, while breathing no picture
+  but the muted looping breathing-background-loop.mp4 under a 55% navy scrim,
+  Session Complete the portrait at 70%. 400 ms crossfades (instant with
+  reduced motion); the video exists only in the breathing phase (plus its
+  fade-out) and only while focused and in the foreground; loading and error
+  screens plain navy. app/session-player.tsx unchanged.
+- LoopingVideo (src/features/media): muted, loop, mixWithOthers, no controls,
+  screen allowed to sleep, TextureView, mounted only while focused +
+  foreground + reduced motion off, removed on error. Never two videos at once.
+- Home ambient sound (useHomeAmbientSound.ts, ambientSound.ts): the 7 s
+  home-ambient-loop.m4a plays by itself while Home is focused and the app is
+  in the foreground, 2 s cosine fade-in to AMBIENT_TARGET_VOLUME 0.5 (one
+  constant). expo-audio, loop, mixWithOthers, no background playback, silent
+  in silent/vibrate mode; stops and releases on blur or background; failures
+  caught. No button, icon, toggle or stored setting; no audio in the session
+  player.
+- Time picker: hour and minute wheels loop (15 x 12 and 3 x 60 rows, re-centre
+  without animation when a scroll rests); AM/PM unchanged; fade and scale on
+  the native driver. to12Hour, to24Hour and handleConfirm byte-for-byte
+  unchanged (tested against 993b5cc).
+- expo-asset pinned to ~57.0.21: expo-audio's "*" peer made npm install
+  expo-asset 58 at the top level; its module config has no publication
+  version, which SDK 57's Gradle plugin rejects (EAS build 150345a3 failed).
+  Dev client rebuilt as 2efc945b and installed with adb install -r.
+- RECORD_AUDIO: expo-audio requests it by default; recordAudioAndroid false in
+  its plugin and the permission also in android.blockedPermissions. The
+  installed dev client does not request it. Background playback off in both
+  plugins (expo-audio defaults it to on).
+- APK size, assets only (not measured on a built APK): -788,076 B removed
+  (four Home paintings 281,372, hero-orb.png 185,102, six landscapes 321,602;
+  the six portraits went and came back, net 0) and +2,327,217 B added (band
+  video 889,406, breathing video 1,319,788, sound 118,023): about +1.5 MB.
+  Media3 from expo-video/expo-audio adds an estimated 1.5-3 MB on top;
+  measure on the next preview APK.
+
+Measurements (one phone, 1080 x 2408, evening sunset frame; re-check in
+daylight on the preview build). Worst case against the brightest 5% of the
+nearby video background: white week letters about 2.0:1, empty-day rings
+about 1.5:1 (target 3:1), white streak text about 1.8:1, #dc2626 flame about
+2.3:1 (worst) / 2.5:1 (typical), greeting about 3.3:1 (7.6:1 typical); name
+4.3:1 and status bar 6.6:1 pass. Below the 4.5:1 text target where the week
+row and pill sit on the sunset glow; plates and fills were tried and removed
+on request. Hero bottom edge: largest row-to-row dE 1.10 (left), 0.83, 0.70.
+
+Open items:
+- The welcome screen band is NOT built: welcome is text only.
+- The hero's bottom-fade colours are sampled on this phone; check other
+  screen shapes (the plain-gradient Home backdrop is the fallback that
+  matches everywhere).
+- The Home sound is the original 7 s loop taken from the AI-generated video;
+  commercial terms still to confirm (a 40 s synthetic loop was planned but not
+  delivered).
+- The videos are AI-generated: confirm commercial-use terms and keep the
+  prompts and originals.
+- No sound control on Home: accessibility guidance (WCAG 1.4.2) suggests an
+  in-app pause for audio longer than 3 s; decide before launch.
+- Contrast of the header over the sunset (above).
+
+Parked from before, still open: the server's streak is in UTC days, shown as
+is (a Dubai user sees the day change at 04:00); npm audit now shows 19
+vulnerabilities (1 critical) to review before launch; the backend privacy
+page title still says "Breathe"; unused code kept on purpose
+(src/components/BreathingRing.tsx and the hidden Player tab route).
+
+Process: the phone's screen sleeps after 30 s, so loads are one gated step
+(awake + unlocked check, force-stop, open, screenshot only once
+com.smarttech1.breathingapp is in front); stay-on only when allowed for one
+load, then svc power stayon false (stay_on_while_plugged_in = 0). Metro was
+once stopped by Claude Code for low memory; restart without --clear.

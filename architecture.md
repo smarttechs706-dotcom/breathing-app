@@ -198,8 +198,11 @@ navigable screens/routes.**
 
 **Phase 2 — active:**
 - Current phase label centered above the ring (e.g. "Inhale...")
-- Large glowing orb/ring (reuse `BreathingRing.tsx`) with a subtle wind/breath
-  icon inside it
+- Large breathing circle (`src/features/session/BreathCircle.tsx`: indigo disc
+  with halo discs, the phase word inside, no icon). There is no orb anywhere
+  in the app (removed 2026-11-14). Behind it, the looping background video
+  under a 55% navy scrim; before and after the session, the session's own
+  portrait painting instead (see PROGRESS.md, 2026-11-14)
 - Secondary label below the ring for hold instructions (e.g.
   "Hold for 4 seconds") — updates per phase (inhale/hold/exhale) from the
   session's `phaseConfig`
@@ -225,8 +228,8 @@ navigable screens/routes.**
   gear icon (right)
 - **Featured Session section:** "Featured Session" headline + a small "NEW"
   pill badge (top-right of the section, not the card)
-  - Hero card (glassmorphic, full width): the session's illustration/orb
-    centered, session title large (e.g. "Deep Exhale"), 2-3 line description
+  - Hero card (glassmorphic, full width): the session's illustration
+    (no orb; removed 2026-11-14), session title large (e.g. "Deep Exhale"), 2-3 line description
     text below it, a duration pill (e.g. "18 min") + a "Begin" button
     (gradient pill) side by side at the bottom of the card
   - Tapping "Begin" opens Session Player directly at the pre-mood phase for
