@@ -93,6 +93,41 @@ test('ambient sound: one audio track, about 7.2 s', () => {
   assert.ok(Math.abs(info.duration - 7.24) < 0.05, `duration ${info.duration}`);
 });
 
+test('LoopingVideo: muted loop, no controls, never takes audio focus, lets the screen sleep', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/media/LoopingVideo.tsx'), 'utf8');
+  assert.ok(src.includes('p.loop = true;'));
+  assert.ok(src.includes('p.muted = true;'));
+  assert.ok(src.includes("p.audioMixingMode = 'mixWithOthers';"));
+  assert.ok(src.includes('p.keepScreenOnWhilePlaying = false;'));
+  assert.ok(src.includes('nativeControls={false}'));
+  assert.ok(src.includes('allowsPictureInPicture={false}'));
+  assert.ok(!/staysActiveInBackground\s*=\s*true/.test(src));
+});
+
+test('LoopingVideo: mounted only while focused, foreground and motion allowed; removed on error', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/media/LoopingVideo.tsx'), 'utf8');
+  assert.ok(src.includes('const { running } = useAmbientMotion();'));
+  assert.ok(src.includes('if (!running) return null;'));
+  assert.ok(/status === 'error'\) setFailed\(true\)/.test(src));
+  assert.ok(src.includes('if (failed) return null;'));
+  // useAmbientMotion gates on focus, AppState and reduced motion.
+  const motion = fs.readFileSync(path.join(repo, 'src/features/home/motion.tsx'), 'utf8');
+  assert.ok(motion.includes('running: allowed && focused && foreground'));
+});
+
+test('Home: the band plays the horizon video in a TextureView (it sits in a ScrollView)', () => {
+  const band = fs.readFileSync(path.join(repo, 'src/features/home/HorizonBand.tsx'), 'utf8');
+  assert.ok(band.includes("require('../../../assets/videos/home-horizon-band-loop.mp4')"));
+  assert.ok(band.includes('<LoopingVideo source={SOURCE} surfaceType="textureView" />'));
+  // Light edges: each fade covers 12% of the band; no tint or dim layer.
+  assert.ok(band.includes('export const BAND_EDGE_FADE = 0.12;'));
+  assert.ok(!/rgba\(|backgroundColor|opacity:/.test(band), 'no tint over the video');
+  const home = fs.readFileSync(path.join(repo, 'src/features/home/HomeScreen.tsx'), 'utf8');
+  assert.ok(home.includes('<HorizonBand height={Math.round(windowW / BAND_ASPECT)}'));
+  // No sound or video controls anywhere on Home.
+  assert.ok(!/volume-(high|mute|off)|Switch|nativeControls=\{true\}/.test(home + band));
+});
+
 test('app.json: video and audio plugins with background playback and recording off', () => {
   const { expo } = JSON.parse(fs.readFileSync(path.join(repo, 'app.json'), 'utf8'));
   const plugin = (name) => expo.plugins.find((p) => Array.isArray(p) && p[0] === name);

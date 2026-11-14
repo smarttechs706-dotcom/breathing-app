@@ -42,7 +42,7 @@ export function useReducedMotion(): boolean | null {
   return reduced;
 }
 
-// For the ambient background motion (drift, twinkle, shimmer).
+// For ambient background motion (the looping background videos).
 // `allowed`: reduced motion is known to be off (unknown counts as reduced).
 // `running`: allowed, and the screen has focus, and the app is in the
 // foreground. Loops run only while `running`; otherwise they hold still.

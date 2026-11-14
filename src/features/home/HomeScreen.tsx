@@ -16,6 +16,7 @@ import { FeaturedSessionCard } from './FeaturedSessionCard';
 import { FadeIn, STAGGER_MS } from './motion';
 import { NowForYou } from './NowForYou';
 import { pickFeatured, pickNowForYou } from './picks';
+import { HorizonBand } from './HorizonBand';
 import { GreetingRow, WeekRow } from './PreviewHeader';
 import { text } from './styles';
 import { weekActivity } from './weekActivity';
@@ -26,8 +27,7 @@ import { weekActivity } from './weekActivity';
 const TAB_BAR_CONTENT_HEIGHT = 84;
 
 // The horizon band between the week row and the Featured card: full width,
-// 2.5 : 1 (about 164 dp tall on a 411 dp phone). Empty space for now; the
-// looping video goes here in a later step.
+// 2.5 : 1 (about 164 dp tall on a 411 dp phone), the same shape as its video.
 const BAND_ASPECT = 2.5;
 
 // Re-reads the clock on focus, once a minute, and when the app comes back to
@@ -170,7 +170,7 @@ export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
             </FadeIn>
           </View>
 
-          <View style={[styles.band, { height: Math.round(windowW / BAND_ASPECT) }]} />
+          <HorizonBand height={Math.round(windowW / BAND_ASPECT)} style={styles.band} />
 
           <View style={styles.lower}>
             <FadeIn delay={STAGGER_MS * 2}>
