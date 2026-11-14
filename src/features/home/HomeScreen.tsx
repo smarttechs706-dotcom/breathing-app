@@ -26,6 +26,7 @@ import { NowForYou } from './NowForYou';
 import { pickFeatured, pickNowForYou } from './picks';
 import { heroHeight } from './heroLayout';
 import { HomeHero } from './HomeHero';
+import { useHomeAmbientSound } from './useHomeAmbientSound';
 import { GreetingRow, WeekRow } from './PreviewHeader';
 import { text } from './styles';
 import { weekActivity } from './weekActivity';
@@ -72,6 +73,8 @@ function useLocalHour(): number {
 export function HomeScreen({ tabBarHeight }: { tabBarHeight?: number }) {
   const { session: authSession, status } = useAuth();
   const insets = useSafeAreaInsets();
+  // Ambient sound while Home is focused; no control (see useHomeAmbientSound).
+  useHomeAmbientSound();
   const hour = useLocalHour();
   const signedIn = status === 'signedIn';
   const { height: windowH } = useWindowDimensions();

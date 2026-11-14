@@ -172,3 +172,44 @@ test('the breathing video is used only by the session backdrop, through LoopingV
   const backdrop = fs.readFileSync(path.join(repo, 'src/features/session/SessionBackdrop.tsx'), 'utf8');
   assert.ok(backdrop.includes('<LoopingVideo source={BREATHING_VIDEO} surfaceType="textureView" />'));
 });
+
+test('Home sound: expo-audio loop, mixWithOthers, no background, silent mode respected, fails silently', () => {
+  const hook = fs.readFileSync(path.join(repo, 'src/features/home/useHomeAmbientSound.ts'), 'utf8');
+  assert.ok(hook.includes("require('../../../assets/audio/home-ambient-loop.m4a')"));
+  assert.ok(hook.includes("interruptionMode: 'mixWithOthers',"));
+  assert.ok(hook.includes('shouldPlayInBackground: false,'));
+  assert.ok(hook.includes('playsInSilentMode: false,'));
+  assert.ok(hook.includes('player.loop = true;'));
+  assert.ok(hook.includes('player.volume = 0;'));
+  assert.ok(hook.includes('fadeInVolume(elapsed)'));
+  // Stops on blur and in the background: gated on focus and AppState, released on cleanup.
+  assert.ok(hook.includes('useFocusEffect('));
+  assert.ok(hook.includes("setForeground(state === 'active')"));
+  assert.ok(hook.includes('return focused && foreground;'));
+  assert.ok(/player\?\.pause\(\);\s*player\?\.remove\(\);/.test(hook));
+  assert.ok((hook.match(/\} catch \{/g) || []).length >= 2, 'load and playback failures are caught');
+  const home = fs.readFileSync(path.join(repo, 'src/features/home/HomeScreen.tsx'), 'utf8');
+  assert.ok(home.includes('useHomeAmbientSound();'));
+});
+
+test('sound code only on Home; no sound button, icon, toggle or stored setting anywhere', () => {
+  const { execFileSync } = require('node:child_process');
+  // --untracked so new files count too; -F for a fixed string, -E for a pattern.
+  const grep = (mode, pattern) => {
+    try {
+      return execFileSync('git', ['grep', '-l', '--untracked', mode, pattern, '--', 'src', 'app'], { cwd: repo })
+        .toString().trim().split(/\r?\n/).filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+  assert.deepEqual(grep('-E', "from 'expo-audio'|home-ambient-loop"), ['src/features/home/useHomeAmbientSound.ts']);
+  // Only Home calls the hook (the call with its semicolon, not the definition).
+  assert.deepEqual(grep('-F', 'useHomeAmbientSound();'), ['src/features/home/HomeScreen.tsx']);
+  // No audio anywhere in the session player.
+  for (const f of ['app/session-player.tsx', 'src/features/session/SessionBackdrop.tsx', 'src/features/session/BreathCircle.tsx']) {
+    assert.ok(!/expo-audio|AudioPlayer|ambient/i.test(fs.readFileSync(path.join(repo, f), 'utf8')), f);
+  }
+  // No sound control or stored sound setting.
+  assert.deepEqual(grep('-E', 'volume-(high|medium|low|mute|off)|musical-note|soundEnabled|ambientEnabled|muteSound'), []);
+});

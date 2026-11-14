@@ -290,3 +290,28 @@ test('header over the hero: white greeting and letters, no plates, ring-only emp
   // Font family and weight only ever come from the typography roles.
   assert.ok(!/fontFamily:|fontWeight:/.test(header));
 });
+
+// --- Ambient sound (ambientSound.ts) -------------------------------------
+
+const sound = loadTs('src/features/home/ambientSound.ts');
+
+test('ambient fade-in: 0 at the start, the 0.5 target after 2 s, eased, never above the target', () => {
+  assert.equal(sound.AMBIENT_TARGET_VOLUME, 0.5);
+  assert.equal(sound.FADE_IN_MS, 2000);
+  assert.equal(sound.fadeInVolume(0), 0);
+  assert.equal(sound.fadeInVolume(-100), 0);
+  assert.ok(Math.abs(sound.fadeInVolume(2000) - 0.5) < 1e-12);
+  assert.ok(Math.abs(sound.fadeInVolume(9000) - 0.5) < 1e-12);
+  assert.ok(Math.abs(sound.fadeInVolume(1000) - 0.25) < 1e-12);
+  let prev = -1;
+  for (let ms = 0; ms <= 2000; ms += sound.FADE_TICK_MS) {
+    const v = sound.fadeInVolume(ms);
+    assert.ok(v >= prev && v <= 0.5 + 1e-12, `${ms} ms: ${v}`);
+    prev = v;
+  }
+  // Eased: the first and last steps are gentler than the middle ones.
+  const step = (a) => sound.fadeInVolume(a + 100) - sound.fadeInVolume(a);
+  assert.ok(step(0) < step(950) && step(1900) < step(950));
+  // The target is a parameter, so tuning it is one constant.
+  assert.ok(Math.abs(sound.fadeInVolume(2000, 0.3) - 0.3) < 1e-12);
+});
