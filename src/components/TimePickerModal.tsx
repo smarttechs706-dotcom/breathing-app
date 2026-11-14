@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 
 import { text } from '../features/home/styles';
+import { loopCopies, middleRow, recenterRow, wrapIndex } from './wheelLoop';
 import { MIST_BACKGROUND, ScreenBackdrop } from '../features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -91,16 +92,31 @@ interface WheelColumnProps<T> {
    * below, which is what actually positions it on web. */
   initialValue: T;
   onChange: (value: T) => void;
+  /** Hour and minute wheels loop (after 12 comes 1, after 59 comes 00, with
+   * no empty end); AM/PM does not. See wheelLoop.ts. */
+  loop?: boolean;
 }
 
 function WheelColumnInner<T>(
-  { data, initialValue, onChange }: WheelColumnProps<T>,
+  { data, initialValue, onChange, loop = false }: WheelColumnProps<T>,
   ref: Ref<WheelColumnHandle<T>>
 ) {
   const scrollRef = useRef<ElementRef<typeof ScrollView>>(null);
 
   const indexOf = useCallback((value: T) => Math.max(0, data.findIndex((d) => d.value === value)), [data]);
-  const initialIndex = indexOf(initialValue);
+  // A looping wheel shows its list several times over and opens on the middle
+  // copy; a plain one shows it once.
+  const copies = loop ? loopCopies(data.length) : 1;
+  const rows = loop ? Array.from({ length: copies }, () => data).flat() : data;
+  // Row index -> the value shown on that row.
+  const valueAt = useCallback(
+    (row: number) =>
+      loop
+        ? data[wrapIndex(row, data.length)].value
+        : data[Math.min(Math.max(row, 0), data.length - 1)].value,
+    [data, loop]
+  );
+  const initialIndex = loop ? middleRow(indexOf(initialValue), data.length, copies) : indexOf(initialValue);
   const initialOffset = initialIndex * ITEM_HEIGHT;
 
   // Updated synchronously on every scroll event (via the Animated.event
@@ -120,19 +136,17 @@ function WheelColumnInner<T>(
   useImperativeHandle(
     ref,
     () => ({
-      getCurrentValue: () => {
-        const index = Math.round(offsetRef.current / ITEM_HEIGHT);
-        const clamped = Math.min(Math.max(index, 0), data.length - 1);
-        return data[clamped].value;
-      },
+      getCurrentValue: () => valueAt(Math.round(offsetRef.current / ITEM_HEIGHT)),
     }),
-    [data]
+    [valueAt]
   );
 
   const handleScroll = Animated.event<NativeScrollEvent>(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     {
-      useNativeDriver: false,
+      // The fade and scale of every row run on the UI thread; the listener
+      // below still tracks the offset in JS for getCurrentValue().
+      useNativeDriver: true,
       listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
         offsetRef.current = e.nativeEvent.contentOffset.y;
       },
@@ -141,16 +155,24 @@ function WheelColumnInner<T>(
 
   function handleMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const index = Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-    const clamped = Math.min(Math.max(index, 0), data.length - 1);
-    onChange(data[clamped].value);
+    if (loop) {
+      // Jump (no animation) to the same value in the middle copy, so there is
+      // always room to keep scrolling either way. The rows look identical.
+      const centred = recenterRow(index, data.length, copies);
+      if (centred !== index) {
+        const y = centred * ITEM_HEIGHT;
+        scrollRef.current?.scrollTo({ y, animated: false });
+        offsetRef.current = y;
+      }
+    }
+    onChange(valueAt(index));
   }
 
-  function handleItemPress(value: T) {
-    const index = indexOf(value);
-    const y = index * ITEM_HEIGHT;
+  function handleItemPress(row: number) {
+    const y = row * ITEM_HEIGHT;
     scrollRef.current?.scrollTo({ y, animated: true });
     offsetRef.current = y;
-    onChange(value);
+    onChange(valueAt(row));
   }
 
   return (
@@ -166,7 +188,7 @@ function WheelColumnInner<T>(
         contentOffset={{ x: 0, y: initialOffset }}
         contentContainerStyle={{ paddingVertical: ITEM_HEIGHT * PADDING_ROWS }}
       >
-        {data.map((item, index) => {
+        {rows.map((item, index) => {
           const center = index * ITEM_HEIGHT;
           const inputRange = [
             center - ITEM_HEIGHT * 3,
@@ -190,7 +212,7 @@ function WheelColumnInner<T>(
             extrapolate: 'clamp',
           });
           return (
-            <Pressable key={String(item.value)} onPress={() => handleItemPress(item.value)}>
+            <Pressable key={`${index}-${String(item.value)}`} onPress={() => handleItemPress(index)}>
               <Animated.View style={[styles.wheelItem, { opacity, transform: [{ scale }] }]}>
                 <Text style={styles.wheelItemText}>{item.label}</Text>
               </Animated.View>
@@ -286,6 +308,7 @@ export function TimePickerModal({
                 data={HOURS_12}
                 initialValue={initial12.hour12}
                 onChange={() => {}}
+                loop
               />
               <WheelColumn
                 key={`minute-${openToken}`}
@@ -293,6 +316,7 @@ export function TimePickerModal({
                 data={MINUTES}
                 initialValue={initialMin}
                 onChange={() => {}}
+                loop
               />
               <WheelColumn
                 key={`period-${openToken}`}
