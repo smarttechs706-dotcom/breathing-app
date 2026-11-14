@@ -163,3 +163,12 @@ test('app.json: video and audio plugins with background playback and recording o
   assert.equal(plugin('expo-audio')[1].recordAudioAndroid, false);
   assert.ok(expo.android.blockedPermissions.includes('android.permission.RECORD_AUDIO'));
 });
+
+test('the breathing video is used only by the session backdrop, through LoopingVideo', () => {
+  const { execSync } = require('node:child_process');
+  const users = execSync('git grep -l "breathing-background-loop.mp4" -- src app', { cwd: repo })
+    .toString().trim().split(/\r?\n/);
+  assert.deepEqual(users, ['src/features/session/SessionBackdrop.tsx']);
+  const backdrop = fs.readFileSync(path.join(repo, 'src/features/session/SessionBackdrop.tsx'), 'utf8');
+  assert.ok(backdrop.includes('<LoopingVideo source={BREATHING_VIDEO} surfaceType="textureView" />'));
+});
