@@ -17,7 +17,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { fetchInsights, fetchSessions } from '../../src/api/client';
 import { AccountAvatar } from '../../src/components/AccountAvatar';
-import { BreathOrb } from '../../src/components/BreathOrb';
 import { GlassCard } from '../../src/components/GlassCard';
 import { GradientText } from '../../src/components/GradientText';
 import { useActiveSession } from '../../src/state/ActiveSessionContext';
@@ -239,10 +238,6 @@ export default function PlayerScreen() {
                 <View style={[styles.glowBlob, styles.glowBlobPrimary]} />
                 <View style={[styles.glowBlob, styles.glowBlobSecondary]} />
 
-                <View style={styles.orbWrapper}>
-                  <BreathOrb size={140} />
-                </View>
-
                 <Text style={styles.title}>No Session in Progress</Text>
                 <Text style={styles.subtitle}>
                   Select a guided breathing practice from your Library to
@@ -430,9 +425,6 @@ const styles = StyleSheet.create({
     height: 160,
     backgroundColor: colors.secondary,
     opacity: 0.08,
-  },
-  orbWrapper: {
-    marginBottom: spacing.base * 2,
   },
   title: {
     fontFamily: typography.headlineLgMobile.fontFamily,

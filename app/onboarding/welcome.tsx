@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BreathOrb } from '../../src/components/BreathOrb';
 import { text } from '../../src/features/home/styles';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
@@ -12,9 +11,8 @@ import { setOnboardingComplete } from '../../src/utils/onboarding';
 // Screen 1/3. Same look as the sign-in screens: the mist backdrop, a white
 // headline, the "Breathease" wordmark in the top bar and the shared primary
 // button style (inversePrimary to onPrimaryFixedVariant, white sentence-case
-// label, >=6.47:1 per AUDIT-2.md). No panels or glow circles. The central
-// visual is the app's own `BreathOrb` (the reference's hotlinked image is not
-// an asset this project owns).
+// label, >=6.47:1 per AUDIT-2.md). No panels or glow circles. The orb is gone;
+// the Home horizon band video takes its place in a later step.
 async function skipToSignUp() {
   await setOnboardingComplete();
   router.replace('/signup');
@@ -34,10 +32,6 @@ export default function WelcomeScreen() {
         </View>
 
         <View style={styles.content}>
-          <View style={styles.orbArea}>
-            <BreathOrb size={220} />
-          </View>
-
           <View style={styles.textArea}>
             <Text style={styles.headline} accessibilityRole="header">
               A reset between meetings, not another hour-long ritual.
@@ -98,10 +92,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.marginMobile,
     gap: spacing.base * 5,
-  },
-  orbArea: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   textArea: {
     alignItems: 'center',
