@@ -5065,3 +5065,104 @@ Process: the phone's screen sleeps after 30 s, so loads are one gated step
 com.smarttech1.breathingapp is in front); stay-on only when allowed for one
 load, then svc power stayon false (stay_on_while_plugged_in = 0). Metro was
 once stopped by Claude Code for low memory; restart without --clear.
+
+## Breathing patterns, clock fix, mood scale, Calm shift, preview build (2026-11-15, branch feat/media-backgrounds)
+
+App commits (pushed): f142bb7 (patterns, one clock, clock fix, labels, emoji
+mood scale), 5cfff15 (Calm shift wording). Both on feat/media-backgrounds,
+GitHub at 5cfff15.
+
+Per-session breathing patterns and lengths (seconds in-hold-out-rest, length):
+box-breathing 4-4-4-4 300 s, calm-focus 5-0-5-0 300 s, deep-exhale 4-0-8-0
+180 s, morning-reset 4-2-4-0 180 s, stress-relief 4-4-6-0 300 s, wind-down
+4-7-8-0 300 s. App side (f142bb7): pure src/features/session/breathPattern.ts
+(patternLabel "4-7-8", two numbers without a hold "5-5", four with a rest;
+patternLine "Breathe in 4, hold 7, breathe out 8"; cycleSeconds;
+sessionSeconds rounds down to whole breaths and ends on the last out-breath,
+at least one breath; breathAt; nextTickMs). One clock in
+app/session-player.tsx drives the phase word, BreathCircle (no clock of its
+own, look unchanged) and the end; 0-second phases are skipped; Session
+Complete minutes come from the seconds breathed. Labels on Library cards, the
+Featured card ("5 min · Calm · 4-7-8") and the pre-session screen (label plus
+the plain line); screen readers hear the line. Nothing new on the breathing
+screen, Session Complete or Now for you. Tested on the phone with a
+dev-only override in src/api/client.ts (scratchpad patch, applied with git
+apply, removed with git apply -R before committing; never committed).
+Data: the six sessions rows were updated in Supabase through the SQL Editor
+(by hand, so no migration history entry). Backend commit 2be290f on the
+backend's feat/email-auth, NOT pushed: supabase/migrations/
+20261115120000_session_patterns_and_lengths.sql and the rollback
+supabase/rollback/20261115120000_session_patterns_and_lengths.rollback.sql
+(restores all 4-4-8-4 and 600/1080/900/600/720/720). Both scripts stop unless
+exactly 6 rows hold the expected values. Mindful minutes for past check-ins
+are recalculated at the new lengths (get_insights joins each check-in to the
+session's current duration_sec; check-ins store no length).
+
+Lock-time clock fix (f142bb7): locking the screen at 2:00 for a minute
+resumed at 3:00. Cause: the clock was stopped in a useEffect stamped with
+Date.now() when the effect ran; on Android, RN pauses JS timers on
+onHostPause (JavaTimerManager), so the stop could be processed only on
+unlock and the locked minute counted. Present since the F-02 timestamp clock
+(2026-10-09), not new. Fix: src/utils/sessionClock.ts heartbeat (beat() on
+every tick; after a gap over 2.5 s time only counts up to the last beat) and
+the AppState listener stops the clock at the event. The old clock counts
+180 s for that scenario, the new one 120 s (tests/session/sessionClock.test.cjs,
+9 tests; sessionClock had no tests before). Phone-tested by the user.
+
+Emoji mood scale (f142bb7): five faces from stressed to calm (persevering,
+worried, neutral, slightly smiling, relieved), values 1-5 unchanged, only
+"Stressed" and "Calm" on screen, each level's word for screen readers
+(Stressed, Uneasy, Okay, Relaxed, Calm), a caption with the chosen word
+(its line is reserved so nothing moves), the same emoji in Session Complete's
+Before and After row and a plain "-" when none. A deliberate exception to the
+no-emoji rule for this component, at the user's request.
+
+Calm shift wording (5cfff15): label "Mood change per session"; line "Before
+to after, on a 1 to 5 scale. Average of N sessions in the last 30 days.";
+screen readers hear "plus" or "minus" (spokenShift). Unchanged: the formula
+(average of postMood - preMood over the check-ins the server returns, the
+last 30 days), the ring fill (value / 4, clamped, empty at 0 or below) and
+the no-sessions line.
+
+Preview build e3d03034 (commit f142bb7, EAS preview environment with
+EXPO_PUBLIC_API_BASE_URL, EXPO_PUBLIC_SUPABASE_URL and
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY, the two Supabase names added to the
+preview environment only; upload 12.5 MB with .easignore, was 53 MB):
+version code 5, version 1.0.0, universal APK 113.1 MB (118,607,628 bytes,
+Nov 5 preview was 105.9 MB; about 80 MB of it is native code for four CPU
+types, a store AAB would be much smaller), installed 113.2 MB. Installed
+over the dev client with adb install -r (data and sign-in kept). Requested
+permissions: INTERNET, ACCESS_NETWORK_STATE, WAKE_LOCK, VIBRATE,
+MODIFY_AUDIO_SETTINGS, RECEIVE_BOOT_COMPLETED, POST_NOTIFICATIONS,
+USE_BIOMETRIC, USE_FINGERPRINT, c2dm RECEIVE, the app's
+DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION, BIND_GET_INSTALL_REFERRER_SERVICE,
+READ_APP_BADGE and launcher badge permissions. No RECORD_AUDIO, CAMERA,
+storage, READ_MEDIA_* or SYSTEM_ALERT_WINDOW. USE_BIOMETRIC and
+USE_FINGERPRINT come from expo-secure-store's androidx.biometric:biometric
+1.1.0 dependency (merged at build); the app never sets requireAuthentication,
+so both are safe to add to android.blockedPermissions in the next build
+(check sign-in survives a restart afterwards).
+
+Second phone: a real sign-up on a second phone created an account (reported
+by the user).
+
+Still open:
+- Backend commit 2be290f is not pushed.
+- Block USE_BIOMETRIC and USE_FINGERPRINT (app.json) in the next build.
+- The dev client is no longer on the phone; reinstall it (build 2efc945b) to
+  return to development.
+- Phase 7 checklist on the preview build: fresh-install onboarding, real
+  email links (confirm, reset), expired-session 401, held check-in, rapid
+  taps on Done, the Daily Reminder notification, Home hero and sound on the
+  release build, battery and performance, daylight readability of the header
+  over the sunset (week letters about 2:1, rings 1.5:1, streak text 1.8:1,
+  flame 2.3:1, greeting 3.3:1), the hero bottom fade on other screen shapes.
+- EAS production environment still has only EXPO_PUBLIC_API_BASE_URL.
+- Profile picture (stored on the phone only): planned, not started; needs
+  expo-image-picker and expo-image-manipulator and a new build.
+- Welcome screen band not built; Home sound is the original 7 s loop from the
+  AI-generated video; commercial terms for the videos and sound; no in-app
+  sound pause (WCAG 1.4.2).
+- Parked: streak in UTC days, npm audit (19, 1 critical), backend privacy
+  page title "Breathe", account B temporary password, delete the +test2 and
+  +spike-implicit1 accounts.
