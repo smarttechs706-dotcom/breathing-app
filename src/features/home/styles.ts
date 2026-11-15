@@ -20,7 +20,6 @@ export const text = {
   cardTitle: { ...typography.labelSm, fontSize: 13, lineHeight: 18, letterSpacing: 0 },
   cardMeta: { ...typography.bodyMd, fontSize: 12, lineHeight: 16 },
   body: { ...typography.bodyMd, fontSize: 14, lineHeight: 20 },
-  initial: { ...typography.headlineLgMobile, fontSize: 18, lineHeight: 24 },
 } as const;
 
 // Colors the reference uses that tokens.ts has no role for. Kept in one place

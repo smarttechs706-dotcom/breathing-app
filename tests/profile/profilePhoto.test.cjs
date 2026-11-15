@@ -102,8 +102,8 @@ test('Profile only: a tappable picture with Choose photo, Remove photo and Cance
   assert.ok(src.includes('accessibilityLabel={`Profile picture, ${firstName ?? \'Your profile\'}`}'));
   assert.ok(src.includes('accessibilityHint="Choose or remove a photo"'));
   assert.ok(src.includes('onError={() => setPhotoUri(null)}'), 'falls back to the initial if the file fails');
-  // No other screen shows the photo.
-  for (const f of ['src/features/home/PreviewAvatar.tsx', 'src/components/AccountAvatar.tsx', 'app/settings.tsx']) {
+  // No other screen shows the photo (the header avatars are gone since 2026-11-15).
+  for (const f of ['src/components/AccountAvatar.tsx', 'app/settings.tsx']) {
     assert.ok(!read(f).includes('getProfilePhotoUri'), f);
   }
 });

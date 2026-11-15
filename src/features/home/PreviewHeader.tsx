@@ -2,19 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, spacing } from '../../theme/tokens';
-import { PreviewAvatar } from './PreviewAvatar';
 import { accents, text } from './styles';
 import { greetingForHour } from './timeOfDay';
 import { streakLabel, weekSummary, type ActivityDay } from './weekActivity';
 
-// Avatar 48 pt on Home (product decision; the reference measured 40).
 // Day circles 22 px -> 18 pt on 32 pt columns (reference x0.774).
-const AVATAR = 48;
 const DAY_COLUMN = 32;
 const DAY_DOT = 18;
 
-// The greeting row: avatar (opens the Profile tab, which links on to
-// Settings) and the greeting with the name. There is no gear here any more.
+// The greeting row: the greeting with the name, from the left margin (the
+// same 24 dp as the week row below). No avatar since 2026-11-15: the Profile
+// tab in the bottom bar opens Profile, and the picture lives only there.
 // `onLongPressGreeting` is a hidden dev control (see HomeScreen): nothing is
 // drawn for it and nothing moves when it fires.
 export function GreetingRow({
@@ -30,7 +28,6 @@ export function GreetingRow({
   return (
     <View style={styles.greetingRow}>
       <View style={styles.greetingLeft}>
-        <PreviewAvatar size={AVATAR} />
         <Pressable
           style={styles.greetingText}
           onLongPress={onLongPressGreeting}

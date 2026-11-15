@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { InsightsResponse } from '../../api/client';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 import { FadeIn, STAGGER_MS } from '../home/motion';
-import { PreviewAvatar } from '../home/PreviewAvatar';
 import { PreviewGlass } from '../home/PreviewGlass';
 import { text } from '../home/styles';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../profile/ScreenBackdrop';
@@ -46,7 +45,6 @@ export function InsightsScreen({
       <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <PreviewAvatar size={40} />
           <Text style={styles.title} accessibilityRole="header">
             Insights
           </Text>

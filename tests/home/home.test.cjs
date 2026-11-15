@@ -315,3 +315,37 @@ test('ambient fade-in: 0 at the start, the 0.5 target after 2 s, eased, never ab
   // The target is a parameter, so tuning it is one constant.
   assert.ok(Math.abs(sound.fadeInVolume(2000, 0.3) - 0.3) < 1e-12);
 });
+
+// --- Header avatars removed (2026-11-15) -------------------------------------
+
+test('no header avatar on Home, Library or Insights; the picture lives only on Profile', () => {
+  assert.ok(!fs.existsSync(path.join(repo, 'src/features/home/PreviewAvatar.tsx')));
+  for (const f of ['src/features/home/PreviewHeader.tsx', 'src/features/library/LibraryScreen.tsx', 'src/features/insights/InsightsScreen.tsx']) {
+    const src = fs.readFileSync(path.join(repo, f), 'utf8');
+    assert.ok(!/PreviewAvatar|AccountAvatar/.test(src), f);
+  }
+  // The Profile tab is still in the bottom bar, and Profile keeps its tappable circle.
+  assert.ok(fs.readFileSync(path.join(repo, 'app/(tabs)/_layout.tsx'), 'utf8').includes('<Tabs.Screen name="profile"'));
+  assert.ok(fs.readFileSync(path.join(repo, 'src/features/profile/ProfileScreen.tsx'), 'utf8').includes('onPress={openPhotoChoices}'));
+  // The hidden Player tab keeps its AccountAvatar, as decided.
+  assert.ok(fs.readFileSync(path.join(repo, 'app/(tabs)/player.tsx'), 'utf8').includes('<AccountAvatar size={40} />'));
+});
+
+test('Library and Insights headers: still 64 dp, the title is the only child and a header', () => {
+  for (const f of ['src/features/library/LibraryScreen.tsx', 'src/features/insights/InsightsScreen.tsx']) {
+    const src = fs.readFileSync(path.join(repo, f), 'utf8');
+    assert.ok(/<View style=\{styles\.header\}>\s*<Text style=\{styles\.title\} accessibilityRole="header">/.test(src), f);
+    assert.ok(/header: \{[\s\S]*?height: 64,/.test(src), `${f}: height kept`);
+  }
+});
+
+test('Home greeting row: no circle; greeting, name and the sun or moon icon unchanged', () => {
+  const src = fs.readFileSync(path.join(repo, 'src/features/home/PreviewHeader.tsx'), 'utf8');
+  assert.ok(src.includes('<Text style={styles.greeting}>{greetingForHour(hour)}</Text>'));
+  assert.ok(src.includes('<Text style={styles.name} numberOfLines={1}>'));
+  assert.ok(src.includes("name={evening ? 'moon' : 'sunny'}"));
+  assert.ok(!/const AVATAR\b/.test(src));
+  // Same 24 dp margin as the week row.
+  assert.ok(/greetingRow: \{[\s\S]*?paddingHorizontal: spacing\.marginMobile,/.test(src));
+  assert.ok(/weekRow: \{[\s\S]*?paddingHorizontal: spacing\.marginMobile,/.test(src));
+});

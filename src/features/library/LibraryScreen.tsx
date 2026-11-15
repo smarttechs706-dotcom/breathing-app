@@ -20,7 +20,6 @@ import { getCachedSessions, setCachedSessions } from '../../state/sessionsCache'
 import { colors, spacing, typography } from '../../theme/tokens';
 import type { Session } from '../../types/models';
 import { FadeIn, PressableScale, STAGGER_MS, useReducedMotion } from '../home/motion';
-import { PreviewAvatar } from '../home/PreviewAvatar';
 import { accents, text } from '../home/styles';
 import { MIST_BACKGROUND, ScreenBackdrop } from '../profile/ScreenBackdrop';
 import {
@@ -114,7 +113,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
       <ScreenBackdrop painting={MIST_BACKGROUND} />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <PreviewAvatar size={40} />
           <Text style={styles.title} accessibilityRole="header">
             Library
           </Text>
