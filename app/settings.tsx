@@ -20,7 +20,10 @@ import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { PreviewGlass } from '../src/features/home/PreviewGlass';
 import { accents, text } from '../src/features/home/styles';
-import { removeProfilePhoto } from '../src/features/profile/profilePhotoStore';
+import {
+  flushProfilePhotoBeforeSignOut,
+  forgetProfilePhoto,
+} from '../src/features/profile/profilePhotoStore';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import {
   confirmDelete,
@@ -61,6 +64,28 @@ function confirmSignOut(): Promise<boolean> {
   });
 }
 
+const PHOTO_UNSAVED_TITLE = "Your new photo hasn't been saved online yet.";
+const PHOTO_UNSAVED_MESSAGE = 'Sign out anyway? The photo will be lost.';
+
+// Asked only when a new Profile picture could not be uploaded before signing
+// out. Cancel keeps the user signed in with the picture still waiting.
+function confirmLosePhoto(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return Promise.resolve(window.confirm(`${PHOTO_UNSAVED_TITLE}\n\n${PHOTO_UNSAVED_MESSAGE}`));
+  }
+  return new Promise((resolve) => {
+    Alert.alert(
+      PHOTO_UNSAVED_TITLE,
+      PHOTO_UNSAVED_MESSAGE,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Sign out anyway', style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+}
+
 export default function SettingsScreen() {
   const { signOut, session } = useAuth();
   // Shown read-only as the "Account" row (it is no longer on Profile).
@@ -74,9 +99,19 @@ export default function SettingsScreen() {
   const handleSignOut = () =>
     leaving.run(async () => {
       if (await confirmSignOut()) {
-        // Only this user-initiated sign out removes the Profile picture; the
-        // automatic sign-out after a session expires keeps it.
-        removeProfilePhoto(session?.user.id);
+        const userId = session?.user.id;
+        // A new picture still waiting to upload gets up to 5 s; if it is still
+        // not online, ask before losing it. Never waits longer than that.
+        if (
+          (await flushProfilePhotoBeforeSignOut(userId)) === 'unsaved' &&
+          !(await confirmLosePhoto())
+        ) {
+          return;
+        }
+        // Only this user-initiated sign out forgets the Profile picture on this
+        // phone (the account's copy stays); the automatic sign-out after a
+        // session expires keeps it.
+        await forgetProfilePhoto(userId);
         await signOut();
       }
     });

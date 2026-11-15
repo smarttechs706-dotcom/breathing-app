@@ -1,7 +1,7 @@
 import { Alert, Platform } from 'react-native';
 
 import { deleteUserData } from '../api/client';
-import { removeProfilePhoto } from '../features/profile/profilePhotoStore';
+import { forgetProfilePhoto } from '../features/profile/profilePhotoStore';
 import { clearCachedSessions } from '../state/sessionsCache';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
 
@@ -86,8 +86,9 @@ export async function deleteMyData(userId?: string | null): Promise<DeleteResult
     // the next account on this phone sees it as on and can turn it off.
     ...(reminderCancelled ? [clearReminderSettings] : []),
     clearCachedSessions,
-    // This account's Profile picture, kept on this phone only.
-    () => removeProfilePhoto(userId),
+    // This account's Profile picture on this phone (file and sync state). The
+    // account's copy was already deleted by the server, before the account.
+    () => forgetProfilePhoto(userId),
   ];
   for (const clear of clears) {
     try {

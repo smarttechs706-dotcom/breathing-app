@@ -32,7 +32,12 @@ import {
   type ReminderState,
 } from './profileModel';
 import { PhotoSheet } from './PhotoSheet';
-import { chooseProfilePhoto, getProfilePhotoUri, removeProfilePhoto } from './profilePhotoStore';
+import {
+  chooseProfilePhoto,
+  getProfilePhotoUri,
+  removeProfilePhotoEverywhere,
+  syncProfilePhoto,
+} from './profilePhotoStore';
 import { BACKDROP_BOTTOM, BACKDROP_TOP, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdrop';
 
 // Profile tab: who you are, your real stats, and two rows: Settings (account
@@ -52,12 +57,30 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
   const initial = accountInitial(firstName);
   const userId = session?.user.id ?? null;
 
-  // The Profile picture, kept on this phone only (profilePhotoStore.ts). null
-  // = no photo: the circle shows the initial (or a person icon) as before.
+  // The Profile picture: the phone copy, kept in step with the account's copy
+  // (profilePhotoStore.ts, photoSync.ts). null = no photo: the circle shows
+  // the initial (or a person icon) as before.
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   useEffect(() => {
     setPhotoUri(getProfilePhotoUri(userId));
   }, [userId]);
+
+  // On every focus: upload a waiting picture, or fetch the account's copy
+  // (after sign-in, or once a day). Quiet: a failure leaves what is shown.
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId) return undefined;
+      let active = true;
+      void syncProfilePhoto(userId).then((result) => {
+        if (active && (result === 'downloaded' || result === 'removed-locally')) {
+          setPhotoUri(getProfilePhotoUri(userId));
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [userId])
+  );
 
   const choosePhoto = useCallback(async () => {
     if (!userId) return;
@@ -72,16 +95,21 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
   // has closed, so the system photo picker never opens on top of it.
   const [sheetOpen, setSheetOpen] = useState(false);
   const openPhotoChoices = useCallback(() => setSheetOpen(true), []);
+  // Remove photo needs the server: nothing is removed unless the account's
+  // copy is gone, so a removed picture never comes back.
+  const removePhoto = useCallback(async () => {
+    if (!userId) return;
+    const result = await removeProfilePhotoEverywhere(userId);
+    if (result === 'removed') setPhotoUri(null);
+    else Alert.alert("Couldn't remove your photo", 'Check your connection and try again.');
+  }, [userId]);
+
   const onPhotoAction = useCallback(
     (action: 'choose' | 'remove') => {
-      if (action === 'choose') {
-        void choosePhoto();
-      } else {
-        removeProfilePhoto(userId);
-        setPhotoUri(null);
-      }
+      if (action === 'choose') void choosePhoto();
+      else void removePhoto();
     },
-    [choosePhoto, userId]
+    [choosePhoto, removePhoto]
   );
 
   // Stats from the existing GET /api/insights. null = loading.
