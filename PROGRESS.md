@@ -5147,6 +5147,7 @@ Second phone: a real sign-up on a second phone created an account (reported
 by the user).
 
 Still open:
+- Superseded by the section at the end of this file (build 68e986e2, version code 7); items below marked open there may already be done.
 - Backend commit 2be290f is not pushed.
 - Block USE_BIOMETRIC and USE_FINGERPRINT (app.json) in the next build.
 - The dev client is no longer on the phone; reinstall it (build 2efc945b) to
@@ -5166,3 +5167,62 @@ Still open:
 - Parked: streak in UTC days, npm audit (19, 1 critical), backend privacy
   page title "Breathe", account B temporary password, delete the +test2 and
   +spike-implicit1 accounts.
+
+## Profile picture, header avatars, preview build on-device results (2026-11-15/16, branch feat/media-backgrounds)
+
+Commits since the last note (all pushed to GitHub):
+- 2d135df: the email moves from the Profile header to an Account row in
+  Settings.
+- 066da59: Profile picture, chosen from the gallery (Android photo picker,
+  square crop, saved as a 512 px JPEG) and kept on this phone only. Removed
+  on a user-initiated sign-out and on Delete my data, kept on an automatic
+  sign-out when a session expires. app.json blocks CAMERA, READ_MEDIA_*,
+  USE_BIOMETRIC and USE_FINGERPRINT.
+- 533c82f: header avatars removed from Home, Library and Insights (replaces
+  the earlier "avatar 48 on Home, 40 elsewhere" decision). The Profile tab
+  opens Profile, and the picture lives only there. The hidden Player tab
+  keeps its AccountAvatar.
+- 733181a: a small decorative pencil badge on the Profile circle, and an
+  in-app "Profile picture" bottom sheet in place of the system Alert
+  (Choose from gallery, Remove photo only when there is one, Cancel).
+
+Builds: preview f7d2c7ec (version code 6, commit 533c82f, 113.5 MB) and
+preview 68e986e2 (version code 7, commit 733181a, 113.6 MB, sha256
+2623f69d...0fd7). Both installed with adb install -r over the previous
+version (data and sign-in kept).
+
+On-device results, build 68e986e2 (version code 7), passed:
+- Stays signed in after fully closing and reopening the app (first build
+  with USE_BIOMETRIC and USE_FINGERPRINT blocked).
+- Pencil badge on the Profile circle.
+- In-app Profile picture sheet: slides up, closes on the backdrop, Cancel
+  and Back.
+- Choose from gallery.
+- Remove photo.
+- Sign-out removes the photo (by design for now).
+- Daily Reminder notification arrived on time.
+- The forgot-password link opened the app once.
+- Permissions on the installed app verified clean with dumpsys package: 26
+  requested, none of RECORD_AUDIO, CAMERA, READ_MEDIA_*, storage,
+  USE_BIOMETRIC, USE_FINGERPRINT or SYSTEM_ALERT_WINDOW.
+
+Finding: after several password reset requests, the built-in Supabase email
+sender stopped delivering (its rate limit). A custom email sender (SMTP) must
+be set up before launch.
+
+Decision: profile pictures will later be stored on the phone and in the
+cloud, so they come back after sign-out and on a new phone. This needs a
+private storage folder, deletion on Delete my data and Delete account, a
+privacy policy update and the Play Data Safety form. It will be done together
+with Stage 2.
+
+Still open:
+- Delete-account test and its confirmation email (waiting for the email
+  limit to reset).
+- Two-phone password change (needs a second phone).
+- Home greeting readability in daylight (now at the left margin, no avatar).
+- Release-only checks: battery, performance, the hero bottom fade on other
+  screen shapes.
+- Cleanup list: backend privacy page title, package warnings, EAS production
+  Supabase variables (production still has only EXPO_PUBLIC_API_BASE_URL),
+  account B temporary password.
