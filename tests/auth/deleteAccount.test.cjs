@@ -16,7 +16,7 @@ function setup({ deleteFails = false, cancelOk = true } = {}) {
       },
       '../state/sessionsCache': { clearCachedSessions: () => events.push('sessions') },
       '../features/profile/profilePhotoStore': {
-        removeProfilePhoto: (userId) => events.push(`photo ${userId}`),
+        forgetProfilePhoto: async (userId) => events.push(`photo ${userId}`),
       },
       './reminders': {
         applyReminderSchedule: async () => {

@@ -29,6 +29,11 @@ function fakeFs(names = []) {
       files.set(name, uri);
       return uri;
     },
+    writeIn: (bytes, name) => {
+      const uri = `file:///docs/profile-photo/${name}`;
+      files.set(name, uri);
+      return uri;
+    },
   };
 }
 
@@ -90,7 +95,12 @@ test('picker: images only, one photo, square crop; copy is 512 px JPEG at 70%', 
   assert.ok(store.includes('.resize({ width: PHOTO_SIZE })'));
   assert.ok(store.includes('saveAsync({ compress: PHOTO_QUALITY, format: SaveFormat.JPEG })'));
   assert.ok(store.includes('new Directory(Paths.document, PHOTO_FOLDER)'));
-  assert.ok(!/launchCameraAsync|fetch\(|upload/i.test(store.replace(/\/\/.*$/gm, '')), 'no camera, no upload');
+  const code = store.replace(/\/\/.*$/gm, '');
+  // No camera. The account's copy goes only through our API module, never
+  // straight to Supabase or a raw fetch.
+  assert.ok(!/launchCameraAsync/.test(code), 'no camera');
+  assert.ok(!/fetch\(|supabase|\.storage\b/i.test(code), 'no direct network or Supabase calls');
+  assert.ok(code.includes("from '../../api/profilePhoto'"));
 });
 
 test('Profile only: a tappable picture opening the in-app sheet, with spoken labels', () => {
@@ -98,10 +108,18 @@ test('Profile only: a tappable picture opening the in-app sheet, with spoken lab
   // The circle opens the sheet; the sheet's choices keep the old behaviour.
   assert.ok(src.includes('const openPhotoChoices = useCallback(() => setSheetOpen(true), []);'));
   assert.ok(src.includes('hasPhoto={photoUri !== null}'), 'Remove photo only when there is one');
-  assert.ok(/if \(action === 'choose'\) \{\s*void choosePhoto\(\);\s*\} else \{\s*removeProfilePhoto\(userId\);\s*setPhotoUri\(null\);/.test(src));
-  // The system Alert is used only for the failure message now.
-  assert.equal((src.match(/Alert\.alert\(/g) || []).length, 1);
+  assert.ok(src.includes("if (action === 'choose') void choosePhoto();"));
+  assert.ok(src.includes('else void removePhoto();'));
+  // Remove needs the server: the picture leaves the screen only after 'removed'.
+  assert.ok(src.includes('const result = await removeProfilePhotoEverywhere(userId);'));
+  assert.ok(src.includes("if (result === 'removed') setPhotoUri(null);"));
+  assert.ok(src.includes(`else Alert.alert("Couldn't remove your photo", 'Check your connection and try again.');`));
+  // The system Alert is used only for the two failure messages.
+  assert.equal((src.match(/Alert\.alert\(/g) || []).length, 2);
   assert.ok(src.includes(`Alert.alert("Couldn't use that photo", 'Please try a different one.');`));
+  // Sync on every focus; only a download or a removal changes the picture shown.
+  assert.ok(src.includes('void syncProfilePhoto(userId).then((result) => {'));
+  assert.ok(src.includes("if (active && (result === 'downloaded' || result === 'removed-locally')) {"));
   assert.ok(src.includes('accessibilityLabel={`Profile picture, ${firstName ?? \'Your profile\'}`}'));
   assert.ok(src.includes('accessibilityHint="Choose or remove a photo"'));
   assert.ok(src.includes('onError={() => setPhotoUri(null)}'), 'falls back to the initial if the file fails');
@@ -111,11 +129,20 @@ test('Profile only: a tappable picture opening the in-app sheet, with spoken lab
   }
 });
 
-test('cleared on a user-initiated sign out and on Delete my data, never on the automatic sign-out', () => {
+test('forgotten on this phone at a user-initiated sign out and on Delete account, never on the automatic sign-out', () => {
   const settings = read('app/settings.tsx');
-  assert.ok(/if \(await confirmSignOut\(\)\) \{[\s\S]*?removeProfilePhoto\(session\?\.user\.id\);[\s\S]*?await signOut\(\);/.test(settings));
+  // Sign out: try a waiting upload (5 s at most), ask before losing it, then
+  // forget the phone copy and sign out.
+  assert.ok(
+    /if \(await confirmSignOut\(\)\) \{[\s\S]*?\(await flushProfilePhotoBeforeSignOut\(userId\)\) === 'unsaved' &&\s*!\(await confirmLosePhoto\(\)\)[\s\S]*?return;[\s\S]*?await forgetProfilePhoto\(userId\);\s*await signOut\(\);/.test(settings)
+  );
+  assert.ok(settings.includes(`const PHOTO_UNSAVED_TITLE = "Your new photo hasn't been saved online yet.";`));
+  assert.ok(settings.includes("const PHOTO_UNSAVED_MESSAGE = 'Sign out anyway? The photo will be lost.';"));
+  assert.ok(settings.includes("{ text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },"));
+  assert.ok(settings.includes("{ text: 'Sign out anyway', style: 'destructive', onPress: () => resolve(true) },"));
   assert.ok(settings.includes('await deleteMyData(session?.user.id)'));
-  assert.ok(read('src/utils/deleteMyData.ts').includes('() => removeProfilePhoto(userId),'));
+  assert.ok(read('src/utils/deleteMyData.ts').includes('() => forgetProfilePhoto(userId),'));
+  assert.equal(pp.SIGN_OUT_UPLOAD_WAIT_MS, 5000);
   // The automatic sign-out (session expiry) and the launch sweep do not touch it.
   for (const f of ['src/auth/AuthProvider.tsx', 'src/auth/sessionExpiry.ts', 'src/utils/legacyCleanup.ts']) {
     assert.ok(!/profilePhoto|removeProfilePhoto/.test(read(f)), f);
