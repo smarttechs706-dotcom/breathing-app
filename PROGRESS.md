@@ -5226,3 +5226,44 @@ Still open:
 - Cleanup list: backend privacy page title, package warnings, EAS production
   Supabase variables (production still has only EXPO_PUBLIC_API_BASE_URL),
   account B temporary password.
+
+## Phase 7 closed (2026-11-16)
+
+Done: cleanup round.
+- Privacy page title fixed (backend `50e0192`), and the policy rewritten for
+  email accounts for version code 7 (backend `bd8795d`), both pushed on the
+  backend's `feat/email-auth`. Not public until that branch is merged and
+  deployed (release item 1).
+- npm audit reviewed read-only, no action. The only app-side warning is
+  decode-uri-component via expo-router, fixed by SDK 58. The rest (including
+  the one "critical", shell-quote via react-devtools-core) are build and
+  development tools that do not ship in the app. The backend has no warnings
+  outside its dev tools.
+- EAS production now has EXPO_PUBLIC_SUPABASE_URL and
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (attached from preview with
+  env:update), matching preview by hash. EXPO_PUBLIC_API_BASE_URL differs per
+  environment.
+
+To confirm by the owner on the phone:
+- Home greeting readability in daylight.
+- Signing in to the real account after the password reset.
+
+Moved to the store round:
+- Two-phone password change test.
+- Battery and performance.
+- Hero image fade on other screen shapes.
+
+Release list, in order:
+1. Merge `feat/email-auth` into `master` and deploy (explicit approval
+   needed), so the new privacy policy is public.
+2. Verify the production API address the store build will use.
+3. Custom email sender (SMTP), because the built-in Supabase sender is rate
+   limited.
+4. Switch the privacy contact to a dedicated support address.
+5. Decide the minimum age together with the Play target audience
+   declaration.
+6. Play Data Safety form matching the policy.
+7. Cloud profile pictures (private storage, deletion on Delete account,
+   policy update), together with the Stage 2 length chooser.
+8. Recheck npm audit before the store build.
+9. iPhone round.
