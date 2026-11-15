@@ -31,6 +31,26 @@ export const PICKER_OPTIONS = {
   quality: 1,
 };
 
+// The rows of the "Profile picture" sheet (PhotoSheet.tsx), top to bottom.
+// "Remove photo" only when there is a photo to remove.
+export type PhotoSheetAction = 'choose' | 'remove' | 'cancel';
+export interface PhotoSheetRow {
+  action: PhotoSheetAction;
+  label: string;
+  icon: 'images-outline' | 'trash-outline' | 'close-outline';
+  danger: boolean;
+}
+
+export function photoSheetRows(hasPhoto: boolean): PhotoSheetRow[] {
+  return [
+    { action: 'choose', label: 'Choose from gallery', icon: 'images-outline', danger: false },
+    ...(hasPhoto
+      ? [{ action: 'remove' as const, label: 'Remove photo', icon: 'trash-outline' as const, danger: true }]
+      : []),
+    { action: 'cancel', label: 'Cancel', icon: 'close-outline', danger: false },
+  ];
+}
+
 // A safe file-name key for an account id (Supabase ids are UUIDs): lower case
 // letters, digits and hyphens only. Empty for anything unusable, and then
 // nothing is read, written or removed.

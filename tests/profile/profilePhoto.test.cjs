@@ -93,12 +93,15 @@ test('picker: images only, one photo, square crop; copy is 512 px JPEG at 70%', 
   assert.ok(!/launchCameraAsync|fetch\(|upload/i.test(store.replace(/\/\/.*$/gm, '')), 'no camera, no upload');
 });
 
-test('Profile only: a tappable picture with Choose photo, Remove photo and Cancel, and spoken labels', () => {
+test('Profile only: a tappable picture opening the in-app sheet, with spoken labels', () => {
   const src = read('src/features/profile/ProfileScreen.tsx');
-  assert.ok(src.includes("{ text: 'Choose photo', onPress: () => void choosePhoto() }"));
-  assert.ok(src.includes("text: 'Remove photo',"));
-  assert.ok(src.includes("{ text: 'Cancel', style: 'cancel' as const }"));
-  assert.ok(src.includes('...(photoUri'), 'Remove photo only when there is one');
+  // The circle opens the sheet; the sheet's choices keep the old behaviour.
+  assert.ok(src.includes('const openPhotoChoices = useCallback(() => setSheetOpen(true), []);'));
+  assert.ok(src.includes('hasPhoto={photoUri !== null}'), 'Remove photo only when there is one');
+  assert.ok(/if \(action === 'choose'\) \{\s*void choosePhoto\(\);\s*\} else \{\s*removeProfilePhoto\(userId\);\s*setPhotoUri\(null\);/.test(src));
+  // The system Alert is used only for the failure message now.
+  assert.equal((src.match(/Alert\.alert\(/g) || []).length, 1);
+  assert.ok(src.includes(`Alert.alert("Couldn't use that photo", 'Please try a different one.');`));
   assert.ok(src.includes('accessibilityLabel={`Profile picture, ${firstName ?? \'Your profile\'}`}'));
   assert.ok(src.includes('accessibilityHint="Choose or remove a photo"'));
   assert.ok(src.includes('onError={() => setPhotoUri(null)}'), 'falls back to the initial if the file fails');
@@ -142,6 +145,97 @@ test('app.json: picker without camera or microphone; camera, media, biometric pe
 
 test('no long dashes or emoji in the new code', () => {
   for (const f of ['src/features/profile/profilePhoto.ts', 'src/features/profile/profilePhotoStore.ts']) {
+    assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(read(f)), f);
+  }
+});
+
+// --- Edit badge on the Profile circle (2026-11-15) ---------------------------
+
+test('edit badge: Profile only, a 22 dp indigo circle with a 12 dp white pencil, no shadow or animation', () => {
+  const src = read('src/features/profile/ProfileScreen.tsx');
+  assert.ok(src.includes('const EDIT_BADGE = 22;'));
+  assert.ok(src.includes('const EDIT_ICON = 12;'));
+  assert.ok(src.includes('<Ionicons name="pencil" size={EDIT_ICON} color="#ffffff" />'));
+  const badge = src.slice(src.indexOf('  editBadge: {'), src.indexOf('},', src.indexOf('  editBadge: {')));
+  assert.ok(badge.includes('backgroundColor: colors.inversePrimary,'));
+  assert.ok(badge.includes('borderColor: BACKDROP_TOP,'));
+  assert.ok(badge.includes("position: 'absolute',"), 'overlaps without moving the layout');
+  assert.ok(!/shadow|elevation/i.test(badge), 'no shadow');
+  // Only ProfileScreen has the badge.
+  for (const f of ['src/features/home/PreviewHeader.tsx', 'src/features/library/LibraryScreen.tsx', 'src/features/insights/InsightsScreen.tsx', 'app/settings.tsx', 'src/components/AccountAvatar.tsx']) {
+    assert.ok(!/editBadge|name="pencil"/.test(read(f)), f);
+  }
+  // The pencil icon exists in the bundled Ionicons font.
+  const glyphs = require(path.join(repo, 'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json'));
+  assert.ok('pencil' in glyphs);
+});
+
+test('edit badge is decorative: inside the one button, not a tap target, not read aloud; label unchanged', () => {
+  const src = read('src/features/profile/ProfileScreen.tsx');
+  const button = src.slice(src.indexOf('onPress={openPhotoChoices}'), src.indexOf('</Pressable>', src.indexOf('onPress={openPhotoChoices}')));
+  assert.ok(button.includes('<View\n                style={styles.editBadge}') || button.includes('style={styles.editBadge}'), 'badge inside the button');
+  assert.ok(/style=\{styles\.editBadge\}\s+pointerEvents="none"\s+accessible=\{false\}\s+importantForAccessibility="no-hide-descendants"/.test(button));
+  assert.equal((src.match(/onPress=\{openPhotoChoices\}/g) || []).length, 1, 'one button only');
+  assert.ok(src.includes('accessibilityLabel={`Profile picture, ${firstName ?? \'Your profile\'}`}'));
+  assert.ok(src.includes('accessibilityHint="Choose or remove a photo"'));
+});
+
+test('the avatar box keeps its 72 dp size and bottom margin, so the name does not move; photo and initial both stay clipped round', () => {
+  const src = read('src/features/profile/ProfileScreen.tsx');
+  assert.ok(/avatarButton: \{\s*width: AVATAR,\s*height: AVATAR,\s*marginBottom: spacing\.base,\s*\}/.test(src));
+  assert.ok(/  avatar: \{[\s\S]*?overflow: 'hidden',/.test(src));
+  assert.ok(!/  avatar: \{[\s^}]*?marginBottom/.test(src.slice(src.indexOf('  avatar: {'), src.indexOf('},', src.indexOf('  avatar: {')))));
+  assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src), 'no long dashes or emoji');
+});
+
+// --- The "Profile picture" sheet (PhotoSheet.tsx, 2026-11-15) ---------------
+
+test('sheet rows: Choose from gallery, Remove photo only with a photo, then Cancel; outline icons; Remove in the error colour', () => {
+  assert.deepEqual(pp.photoSheetRows(false).map((r) => [r.action, r.label, r.icon]), [
+    ['choose', 'Choose from gallery', 'images-outline'],
+    ['cancel', 'Cancel', 'close-outline'],
+  ]);
+  assert.deepEqual(pp.photoSheetRows(true).map((r) => [r.action, r.label, r.icon, r.danger]), [
+    ['choose', 'Choose from gallery', 'images-outline', false],
+    ['remove', 'Remove photo', 'trash-outline', true],
+    ['cancel', 'Cancel', 'close-outline', false],
+  ]);
+  const glyphs = require(path.join(repo, 'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json'));
+  for (const r of pp.photoSheetRows(true)) assert.ok(r.icon in glyphs, r.icon);
+  const sheet = read('src/features/profile/PhotoSheet.tsx');
+  assert.ok(sheet.includes('color={row.danger ? colors.error : colors.onSurfaceVariant}'));
+  assert.ok(sheet.includes('style={[styles.rowLabel, row.danger && styles.danger]}'));
+});
+
+test('sheet closes on the backdrop, the Cancel row and Android back; actions run after it has closed', () => {
+  const sheet = read('src/features/profile/PhotoSheet.tsx');
+  assert.ok(sheet.includes('onRequestClose={() => close()}'), 'Android back');
+  assert.ok(/style=\{styles\.backdrop\}\s+onPress=\{\(\) => close\(\)\}/.test(sheet), 'backdrop');
+  assert.ok(sheet.includes("if (action === 'cancel') close();"), 'Cancel');
+  assert.ok(sheet.includes('else close(() => onAction(action));'), 'choose and remove run after closing');
+});
+
+test('sheet matches the app modals and respects reduced motion; accessible as a dialog', () => {
+  const sheet = read('src/features/profile/PhotoSheet.tsx');
+  for (const must of ['transparent', 'statusBarTranslucent', 'navigationBarTranslucent', "backgroundColor: 'rgba(0,0,0,0.75)'", 'borderTopLeftRadius: radii.lg', 'borderColor: accents.glassBorder', 'easing: EASE_OUT']) {
+    assert.ok(sheet.includes(must), must);
+  }
+  // Reduced motion: appears without sliding.
+  assert.ok(sheet.includes('const instant = reduced !== false;'));
+  assert.ok(/if \(instant\) \{\s*slide\.setValue\(0\);\s*fade\.setValue\(1\);/.test(sheet));
+  // Dialog role, header title, rows are buttons with labels.
+  assert.ok(sheet.includes('role="dialog"'));
+  assert.ok(sheet.includes('accessibilityViewIsModal'));
+  assert.ok(/<Text style=\{styles\.title\} accessibilityRole="header">\s*Profile picture/.test(sheet));
+  assert.ok(sheet.includes('accessibilityRole="button"\n            accessibilityLabel={row.label}'));
+  // Existing text roles only.
+  assert.ok(sheet.includes('...text.sectionTitle,'));
+  assert.ok(sheet.includes('...typography.bodyMd,'));
+  assert.ok(!/fontFamily:|fontWeight:/.test(sheet));
+});
+
+test('no long dashes or emoji in the sheet, the badge or the Profile screen', () => {
+  for (const f of ['src/features/profile/PhotoSheet.tsx', 'src/features/profile/ProfileScreen.tsx', 'src/features/profile/profilePhoto.ts']) {
     assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(read(f)), f);
   }
 });

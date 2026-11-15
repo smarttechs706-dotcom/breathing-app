@@ -31,8 +31,9 @@ import {
   type ProfileRow,
   type ReminderState,
 } from './profileModel';
+import { PhotoSheet } from './PhotoSheet';
 import { chooseProfilePhoto, getProfilePhotoUri, removeProfilePhoto } from './profilePhotoStore';
-import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdrop';
+import { BACKDROP_BOTTOM, BACKDROP_TOP, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdrop';
 
 // Profile tab: who you are, your real stats, and two rows: Settings (account
 // actions, About) and Daily reminder (its own screen). Change password,
@@ -40,6 +41,9 @@ import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdr
 // glass cards as Home; background from ScreenBackdrop.
 
 const AVATAR = 72;
+// The edit badge on the circle and its pencil.
+const EDIT_BADGE = 22;
+const EDIT_ICON = 12;
 const CARD_RADIUS = 16;
 
 export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
@@ -64,29 +68,21 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
     }
   }, [userId]);
 
-  const openPhotoChoices = useCallback(() => {
-    Alert.alert(
-      'Profile picture',
-      undefined,
-      [
-        { text: 'Choose photo', onPress: () => void choosePhoto() },
-        ...(photoUri
-          ? [
-              {
-                text: 'Remove photo',
-                style: 'destructive' as const,
-                onPress: () => {
-                  removeProfilePhoto(userId);
-                  setPhotoUri(null);
-                },
-              },
-            ]
-          : []),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-      { cancelable: true }
-    );
-  }, [choosePhoto, photoUri, userId]);
+  // The "Profile picture" sheet (PhotoSheet.tsx). Its actions run after it
+  // has closed, so the system photo picker never opens on top of it.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const openPhotoChoices = useCallback(() => setSheetOpen(true), []);
+  const onPhotoAction = useCallback(
+    (action: 'choose' | 'remove') => {
+      if (action === 'choose') {
+        void choosePhoto();
+      } else {
+        removeProfilePhoto(userId);
+        setPhotoUri(null);
+      }
+    },
+    [choosePhoto, userId]
+  );
 
   // Stats from the existing GET /api/insights. null = loading.
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -138,25 +134,37 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
           <FadeIn style={styles.header}>
             <Pressable
               onPress={openPhotoChoices}
-              style={styles.avatar}
+              style={styles.avatarButton}
               accessibilityRole="button"
               accessibilityLabel={`Profile picture, ${firstName ?? 'Your profile'}`}
               accessibilityHint="Choose or remove a photo"
             >
-              {photoUri ? (
-                <Image
-                  source={{ uri: photoUri }}
-                  style={styles.photo}
-                  resizeMode="cover"
-                  accessible={false}
-                  accessibilityIgnoresInvertColors
-                  onError={() => setPhotoUri(null)}
-                />
-              ) : initial ? (
-                <Text style={styles.initial}>{initial}</Text>
-              ) : (
-                <Ionicons name="person" size={36} color="#ffffff" />
-              )}
+              <View style={styles.avatar}>
+                {photoUri ? (
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.photo}
+                    resizeMode="cover"
+                    accessible={false}
+                    accessibilityIgnoresInvertColors
+                    onError={() => setPhotoUri(null)}
+                  />
+                ) : initial ? (
+                  <Text style={styles.initial}>{initial}</Text>
+                ) : (
+                  <Ionicons name="person" size={36} color="#ffffff" />
+                )}
+              </View>
+              {/* Decorative edit badge: part of the one button above, never a
+                  tap target or a screen reader stop of its own. */}
+              <View
+                style={styles.editBadge}
+                pointerEvents="none"
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+              >
+                <Ionicons name="pencil" size={EDIT_ICON} color="#ffffff" />
+              </View>
             </Pressable>
             <Text style={styles.name} numberOfLines={1} accessibilityRole="header">
               {firstName ?? homeGreeting(null)}
@@ -242,6 +250,12 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
 
         </ScrollView>
       </SafeAreaView>
+      <PhotoSheet
+        visible={sheetOpen}
+        hasPhoto={photoUri !== null}
+        onAction={onPhotoAction}
+        onClose={() => setSheetOpen(false)}
+      />
     </View>
   );
 }
@@ -293,6 +307,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.base,
   },
+  // The button: same 72 dp box and bottom margin as the circle had, so the
+  // name and everything below stay where they were.
+  avatarButton: {
+    width: AVATAR,
+    height: AVATAR,
+    marginBottom: spacing.base,
+  },
   avatar: {
     width: AVATAR,
     height: AVATAR,
@@ -302,8 +323,22 @@ const styles = StyleSheet.create({
     backgroundColor: accents.avatarFill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.base,
     overflow: 'hidden',
+  },
+  // Small indigo badge with a white pencil, on the bottom-right edge of the
+  // circle; a thin ring in the backdrop colour separates it. No shadow.
+  editBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: EDIT_BADGE,
+    height: EDIT_BADGE,
+    borderRadius: EDIT_BADGE / 2,
+    borderWidth: 2,
+    borderColor: BACKDROP_TOP,
+    backgroundColor: colors.inversePrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   photo: {
     width: AVATAR,
