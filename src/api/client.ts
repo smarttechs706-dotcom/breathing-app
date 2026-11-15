@@ -110,7 +110,7 @@ async function currentSession(label: string) {
 
 // Identity comes only from this token: the API ignores any id in the URL or
 // body, so none is ever sent. `onExpired` runs before the sign-out starts.
-async function authedFetch<T>(
+export async function authedFetch<T>(
   label: string,
   url: URL,
   init: RequestOptions | undefined,
