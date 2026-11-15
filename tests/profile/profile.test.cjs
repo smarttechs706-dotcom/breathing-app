@@ -57,7 +57,11 @@ test('Profile no longer has Change password, Privacy Policy or Sign out', () => 
   assert.ok(!/signOut|openPrivacyPolicy|change-password/.test(src));
 });
 
-test('Settings keeps the account actions and drops Email, First name and the reminder card', () => {
+// The 2026-11-09 cleanup removed the old Email and First name rows and the
+// reminder card from Settings. Since 2026-11-15 the email is back only as the
+// read-only "Account" row (moved there from the Profile header), never as an
+// editable "Email" field.
+test('Settings keeps the account actions, shows the email only as the Account row, no First name or reminder card', () => {
   const src = read('app/settings.tsx');
   for (const must of [
     "onPress={() => router.push('/change-password')}",
@@ -94,4 +98,36 @@ test('the mist painting is behind Home, Library, Profile, Settings, Reminder and
   for (const f of ['app/(tabs)/insights.tsx', 'app/session-player.tsx']) {
     assert.ok(!read(f).includes('MIST_BACKGROUND'), f);
   }
+});
+
+// --- Email: Settings "Account" row, not on Profile (2026-11-15) -------------
+
+test('Profile no longer reads or shows the email', () => {
+  const src = read('src/features/profile/ProfileScreen.tsx');
+  assert.ok(!/session\?\.user\.email|\{email\}|styles\.email\b|\n  email: \{/.test(src));
+});
+
+test('Settings: one read-only Account row with the email, first in the first card', () => {
+  const src = read('app/settings.tsx');
+  assert.equal((src.match(/>Account</g) || []).length, 1);
+  const row = src.slice(src.indexOf('{email && ('), src.indexOf('</View>', src.indexOf('{email && (')));
+  assert.ok(row.includes('accessibilityLabel={`Account, ${email}`}'));
+  assert.ok(row.includes('<Text style={styles.rowLabel}>Account</Text>'));
+  assert.ok(row.includes('style={[styles.rowValue, styles.rowValueShrink]} numberOfLines={1} ellipsizeMode="middle"'));
+  assert.ok(!/onPress|Pressable/.test(row), 'not tappable');
+  // Before Change password, inside the first card.
+  const firstCard = src.slice(src.indexOf('<PreviewGlass radius={CARD_RADIUS}>'), src.indexOf('</PreviewGlass>'));
+  assert.ok(firstCard.indexOf('{email && (') > -1 && firstCard.indexOf('{email && (') < firstCard.indexOf("router.push('/change-password')"));
+  // The email comes from the signed-in session.
+  assert.ok(src.includes('const email = session?.user.email ?? null;'));
+});
+
+test('the changed lines have no long dashes or emoji; the auth link screens still show AccountEmail', () => {
+  for (const f of ['app/settings.tsx', 'src/features/profile/ProfileScreen.tsx']) {
+    const lines = read(f).split(/\r?\n/).filter((l) => /Account|email/.test(l));
+    for (const l of lines) assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(l), `${f}: ${l}`);
+  }
+  assert.ok(read('app/auth/callback.tsx').includes('<AccountEmail prefix="Signed in as" email={session.user.email} />'));
+  assert.ok(read('app/auth/signed-in.tsx').includes('<AccountEmail prefix="Signed in as" email={session.user.email} />'));
+  assert.ok(read('app/reset-password.tsx').includes('<AccountEmail prefix="Changing the password for" email={session.user.email} />'));
 });

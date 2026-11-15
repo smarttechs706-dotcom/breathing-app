@@ -61,7 +61,9 @@ function confirmSignOut(): Promise<boolean> {
 }
 
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
+  // Shown read-only as the "Account" row (it is no longer on Profile).
+  const email = session?.user.email ?? null;
   const leaving = useSingleFlight();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -114,11 +116,20 @@ export default function SettingsScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <PreviewGlass radius={CARD_RADIUS}>
+            {email && (
+              <View style={styles.row} accessible accessibilityLabel={`Account, ${email}`}>
+                <Ionicons name="person-circle-outline" size={22} color={colors.onSurfaceVariant} />
+                <Text style={styles.rowLabel}>Account</Text>
+                <Text style={[styles.rowValue, styles.rowValueShrink]} numberOfLines={1} ellipsizeMode="middle">
+                  {email}
+                </Text>
+              </View>
+            )}
             <Pressable
               onPress={() => router.push('/change-password')}
               accessibilityRole="button"
               accessibilityLabel="Change password"
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              style={({ pressed }) => [styles.row, email ? styles.rowDivider : null, pressed && styles.rowPressed]}
             >
               <Ionicons name="key-outline" size={22} color={colors.onSurfaceVariant} />
               <Text style={styles.rowLabel}>Change password</Text>
@@ -232,6 +243,11 @@ const styles = StyleSheet.create({
   rowValue: {
     ...text.body,
     color: colors.onSurfaceVariant,
+  },
+  // A long email gives way (shortened in the middle) before the label does.
+  rowValueShrink: {
+    flexShrink: 1,
+    maxWidth: '65%',
   },
   danger: {
     color: colors.error,

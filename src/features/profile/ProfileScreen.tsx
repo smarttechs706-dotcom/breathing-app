@@ -43,7 +43,6 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
   const { session } = useAuth();
   const firstName = accountFirstName(session?.user);
   const initial = accountInitial(firstName);
-  const email = session?.user.email ?? null;
 
   // Stats from the existing GET /api/insights. null = loading.
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -107,11 +106,6 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
             <Text style={styles.name} numberOfLines={1} accessibilityRole="header">
               {firstName ?? homeGreeting(null)}
             </Text>
-            {email && (
-              <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
-                {email}
-              </Text>
-            )}
           </FadeIn>
 
           <FadeIn delay={STAGGER_MS}>
@@ -262,10 +256,6 @@ const styles = StyleSheet.create({
   name: {
     ...text.name,
     color: '#ffffff',
-  },
-  email: {
-    ...text.body,
-    color: colors.onSurfaceVariant,
   },
   stats: {
     flexDirection: 'row',
