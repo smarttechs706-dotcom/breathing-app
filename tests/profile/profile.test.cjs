@@ -68,9 +68,11 @@ test('Settings keeps the account actions, shows the email only as the Account ro
     'onPress={handleSignOut}',
     'onPress={handleDeleteAccount}',
     'onPress={openPrivacyPolicy}',
-    'if (await confirmSignOut()) await signOut();',
-    'const result = await deleteMyData();',
+    'const result = await deleteMyData(session?.user.id);',
   ]) assert.ok(src.includes(must), must);
+  // Sign out still asks first; since 2026-11-15 it also removes this account's
+  // Profile picture before signing out.
+  assert.ok(/if \(await confirmSignOut\(\)\) \{[\s\S]*?await signOut\(\);\s*\}/.test(src));
   assert.ok(!/EditNameModal|TimePickerModal|>Email<|First name|Daily Reminder|backgroundGlow/.test(src));
 });
 

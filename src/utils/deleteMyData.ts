@@ -1,6 +1,7 @@
 import { Alert, Platform } from 'react-native';
 
 import { deleteUserData } from '../api/client';
+import { removeProfilePhoto } from '../features/profile/profilePhotoStore';
 import { clearCachedSessions } from '../state/sessionsCache';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
 
@@ -61,7 +62,7 @@ export const DELETE_REMINDER_NOT_CANCELLED =
  * The caller signs out afterwards: the token outlives the deleted account.
  * The onboarding flag stays, so this phone lands on Log in, not onboarding.
  */
-export async function deleteMyData(): Promise<DeleteResult> {
+export async function deleteMyData(userId?: string | null): Promise<DeleteResult> {
   try {
     await deleteUserData();
   } catch {
@@ -85,6 +86,8 @@ export async function deleteMyData(): Promise<DeleteResult> {
     // the next account on this phone sees it as on and can turn it off.
     ...(reminderCancelled ? [clearReminderSettings] : []),
     clearCachedSessions,
+    // This account's Profile picture, kept on this phone only.
+    () => removeProfilePhoto(userId),
   ];
   for (const clear of clears) {
     try {

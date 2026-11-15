@@ -15,6 +15,9 @@ function setup({ deleteFails = false, cancelOk = true } = {}) {
         },
       },
       '../state/sessionsCache': { clearCachedSessions: () => events.push('sessions') },
+      '../features/profile/profilePhotoStore': {
+        removeProfilePhoto: (userId) => events.push(`photo ${userId}`),
+      },
       './reminders': {
         applyReminderSchedule: async () => {
           events.push('cancel reminder');
@@ -29,8 +32,8 @@ function setup({ deleteFails = false, cancelOk = true } = {}) {
 
 test('a delete clears local data after the server, and leaves onboarding alone', async () => {
   const { deleteMyData, events } = setup();
-  assert.equal(await deleteMyData(), 'deleted');
-  assert.deepEqual(events, ['server', 'cancel reminder', 'clear reminder', 'sessions']);
+  assert.equal(await deleteMyData('user-1234-abcd'), 'deleted');
+  assert.deepEqual(events, ['server', 'cancel reminder', 'clear reminder', 'sessions', 'photo user-1234-abcd']);
 });
 
 test('a failed server delete touches nothing on this phone', async () => {

@@ -20,6 +20,7 @@ import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { PreviewGlass } from '../src/features/home/PreviewGlass';
 import { accents, text } from '../src/features/home/styles';
+import { removeProfilePhoto } from '../src/features/profile/profilePhotoStore';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import {
   confirmDelete,
@@ -72,7 +73,12 @@ export default function SettingsScreen() {
   // navigates here.
   const handleSignOut = () =>
     leaving.run(async () => {
-      if (await confirmSignOut()) await signOut();
+      if (await confirmSignOut()) {
+        // Only this user-initiated sign out removes the Profile picture; the
+        // automatic sign-out after a session expires keeps it.
+        removeProfilePhoto(session?.user.id);
+        await signOut();
+      }
     });
 
   async function handleDeleteAccount() {
@@ -80,7 +86,7 @@ export default function SettingsScreen() {
     if (!(await confirmDelete())) return;
     setDeleting(true);
     setDeleteError(null);
-    const result = await deleteMyData();
+    const result = await deleteMyData(session?.user.id);
     if (result === 'failed') {
       setDeleting(false);
       setDeleteError(DELETE_FAILURE);

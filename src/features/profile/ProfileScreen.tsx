@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,6 +31,7 @@ import {
   type ProfileRow,
   type ReminderState,
 } from './profileModel';
+import { chooseProfilePhoto, getProfilePhotoUri, removeProfilePhoto } from './profilePhotoStore';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from './ScreenBackdrop';
 
 // Profile tab: who you are, your real stats, and two rows: Settings (account
@@ -43,6 +46,47 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
   const { session } = useAuth();
   const firstName = accountFirstName(session?.user);
   const initial = accountInitial(firstName);
+  const userId = session?.user.id ?? null;
+
+  // The Profile picture, kept on this phone only (profilePhotoStore.ts). null
+  // = no photo: the circle shows the initial (or a person icon) as before.
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  useEffect(() => {
+    setPhotoUri(getProfilePhotoUri(userId));
+  }, [userId]);
+
+  const choosePhoto = useCallback(async () => {
+    if (!userId) return;
+    const result = await chooseProfilePhoto(userId);
+    if (result.kind === 'saved') setPhotoUri(result.uri);
+    else if (result.kind === 'failed') {
+      Alert.alert("Couldn't use that photo", 'Please try a different one.');
+    }
+  }, [userId]);
+
+  const openPhotoChoices = useCallback(() => {
+    Alert.alert(
+      'Profile picture',
+      undefined,
+      [
+        { text: 'Choose photo', onPress: () => void choosePhoto() },
+        ...(photoUri
+          ? [
+              {
+                text: 'Remove photo',
+                style: 'destructive' as const,
+                onPress: () => {
+                  removeProfilePhoto(userId);
+                  setPhotoUri(null);
+                },
+              },
+            ]
+          : []),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+      { cancelable: true }
+    );
+  }, [choosePhoto, photoUri, userId]);
 
   // Stats from the existing GET /api/insights. null = loading.
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -92,17 +136,28 @@ export function ProfileScreen({ tabBarHeight }: { tabBarHeight: number }) {
           showsVerticalScrollIndicator={false}
         >
           <FadeIn style={styles.header}>
-            <View
+            <Pressable
+              onPress={openPhotoChoices}
               style={styles.avatar}
-              accessible
-              accessibilityLabel={firstName ? `${firstName}'s profile` : 'Your profile'}
+              accessibilityRole="button"
+              accessibilityLabel={`Profile picture, ${firstName ?? 'Your profile'}`}
+              accessibilityHint="Choose or remove a photo"
             >
-              {initial ? (
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.photo}
+                  resizeMode="cover"
+                  accessible={false}
+                  accessibilityIgnoresInvertColors
+                  onError={() => setPhotoUri(null)}
+                />
+              ) : initial ? (
                 <Text style={styles.initial}>{initial}</Text>
               ) : (
                 <Ionicons name="person" size={36} color="#ffffff" />
               )}
-            </View>
+            </Pressable>
             <Text style={styles.name} numberOfLines={1} accessibilityRole="header">
               {firstName ?? homeGreeting(null)}
             </Text>
@@ -248,6 +303,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.base,
+    overflow: 'hidden',
+  },
+  photo: {
+    width: AVATAR,
+    height: AVATAR,
   },
   initial: {
     ...typography.headlineLg,
