@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
         <View style={styles.content}>
           <View style={styles.textArea}>
             <Text style={styles.headline} accessibilityRole="header">
-              A reset between meetings, not another hour-long ritual.
+              Breathe. Reset. Carry on.
             </Text>
             <Text style={styles.body}>
               Built for busy workdays, with short guided breathing sessions you

@@ -70,6 +70,10 @@ const MUST = {
 // picker wiring stay as they were.
 Object.assign(MUST, {
   'app/onboarding/welcome.tsx': [
+    // Headline copy (2026-11-16); the line under it is unchanged.
+    '<Text style={styles.headline} accessibilityRole="header">',
+    'Breathe. Reset. Carry on.',
+    'Built for busy workdays, with short guided breathing sessions you',
     'await setOnboardingComplete();',
     "router.replace('/signup');",
     '<Pressable onPress={skipToSignUp} hitSlop={8}>',
