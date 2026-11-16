@@ -28,16 +28,15 @@ import {
   countFor,
   filterSessions,
   formatDuration,
-  quickStartTarget,
   type CategoryFilter,
 } from './libraryModel';
 import { CARD_IMAGES } from './libraryImages';
 import { patternLabel, patternLine } from '../session/breathPattern';
 import { EDITOR_HREF } from '../session/customPattern';
 
-// Library tab: search, category chips, Quick Start and one painted 5:2 image
-// card per session. Same behaviour as the previous screen (cache-first
-// loading, error + Retry, real counts, Quick Start = Deep Exhale); the look
+// Library tab: search, category chips, the "Create your own" row and one
+// painted 5:2 image card per session. Same behaviour as the previous screen
+// (cache-first loading, error + Retry, real counts); the look
 // follows the new Home, tab bar and Profile (deep navy, light glass, tokens).
 //
 // A ScrollView is enough for the 6-session catalog; switch to a FlatList if
@@ -104,10 +103,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
   );
 
   const openSession = (id: string) => router.push(`/session-player?sessionId=${id}`);
-  const handleQuickStart = () => {
-    const target = quickStartTarget(sessions);
-    if (target) openSession(target.id);
-  };
 
   return (
     <View style={styles.root}>
@@ -178,23 +173,11 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
               })}
             </ScrollView>
 
-            {/* Same contrast-fixed blue as before (AUDIT-2.md): white text
-                stays >= 6.47:1 across the whole gradient. */}
-            <Pressable onPress={handleQuickStart} accessibilityRole="button" accessibilityLabel="Quick Start">
-              <LinearGradient
-                colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.quickStart}
-              >
-                <Ionicons name="play" size={18} color="#ffffff" />
-                <Text style={styles.quickStartText}>Quick Start</Text>
-              </LinearGradient>
-            </Pressable>
-
-            {/* "Create your own" (a slim row), under Quick Start and above the
-                session list. The editor opens with the last custom pattern;
-                Library shows nothing else about it. */}
+            {/* "Create your own" (a slim row), under the category chips and
+                above the session list. The editor opens with the last custom
+                pattern; Library shows nothing else about it. Quick Start was
+                removed from Library on purpose (2026-11-16; see PROGRESS.md);
+                Home's Featured card starts a session in one tap. */}
             <PressableScale
               onPress={() => router.push(EDITOR_HREF as Href)}
               accessibilityRole="button"
@@ -430,18 +413,6 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   chipCountTextActive: {
-    color: '#ffffff',
-  },
-  quickStart: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.base,
-    height: 48,
-    borderRadius: CARD_RADIUS,
-  },
-  quickStartText: {
-    ...text.link,
     color: '#ffffff',
   },
   cards: {

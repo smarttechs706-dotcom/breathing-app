@@ -334,16 +334,15 @@ test('editor: opens with the last pattern; steppers, live label, preview circle,
   assert.ok(src.includes('importantForAccessibility="no-hide-descendants"'));
 });
 
-test('library: the slim "Create your own" row under Quick Start; nothing about the last pattern', () => {
+test('library: the slim "Create your own" row under the chips; nothing about the last pattern', () => {
   const src = read('src/features/library/LibraryScreen.tsx');
   assert.ok(src.includes('accessibilityLabel="Create your own pattern"'));
   assert.ok(src.includes('router.push(EDITOR_HREF as Href)'));
-  // Order: search, chips, Quick Start, "Create your own", then the session list.
-  // Every marker must exist (indexOf -1 would pass).
+  // Order: search, chips, "Create your own", then the session list (Quick
+  // Start was removed). Every marker must exist (indexOf -1 would pass).
   const order = [
     'placeholder="Search sessions..."',
     '{CATEGORIES.map((category) => {',
-    '<Text style={styles.quickStartText}>Quick Start</Text>',
     'accessibilityLabel="Create your own pattern"',
     '<View style={styles.cards}>',
   ].map((marker) => {

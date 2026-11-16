@@ -1,7 +1,6 @@
-// Pure logic for the Library tab (LibraryScreen.tsx): filters, counts, the
-// Quick Start target and the card-image lookup. No React Native imports, so
-// it is tested directly in Node (tests/library/library.test.cjs). Behaviour
-// matches the previous app/(tabs)/library.tsx exactly.
+// Pure logic for the Library tab (LibraryScreen.tsx): filters, counts and the
+// card-image lookup. No React Native imports, so it is tested directly in Node
+// (tests/library/library.test.cjs).
 
 export type Category = 'Calm' | 'Sleep' | 'Energy' | 'Recovery';
 export type Badge = 'Leaf' | 'Moon' | 'Zap' | 'Heart';
@@ -17,10 +16,6 @@ export interface LibrarySession {
 
 export type CategoryFilter = 'For You' | Category;
 export const CATEGORIES: readonly CategoryFilter[] = ['For You', 'Calm', 'Sleep', 'Energy', 'Recovery'];
-
-// Quick Start: Deep Exhale (architecture.md's locked Featured session), else
-// the first session, else nothing.
-const QUICK_START_ID = 'deep-exhale';
 
 // Real counts from the fetched catalog; 0 while loading or on an error.
 export function countFor(sessions: readonly LibrarySession[] | null, category: CategoryFilter): number {
@@ -40,10 +35,6 @@ export function filterSessions<T extends LibrarySession>(
   const q = query.trim().toLowerCase();
   if (!q) return byCategory;
   return byCategory.filter((s) => s.title.toLowerCase().includes(q));
-}
-
-export function quickStartTarget<T extends LibrarySession>(sessions: readonly T[] | null): T | null {
-  return sessions?.find((s) => s.id === QUICK_START_ID) ?? sessions?.[0] ?? null;
 }
 
 export function formatDuration(durationSec: number): string {

@@ -27,7 +27,8 @@ diagnosed respiratory or medical conditions.
 Browse → Play → Check in → See result → Come back
 
 1. User opens app, sees a personalized "For You" session
-2. Picks a session (or uses Quick Start for zero-friction entry)
+2. Picks a session (Home's Featured card is the zero-friction entry; Library's
+   Quick Start button was removed on 2026-11-16)
 3. Pre-session mood check-in (1-5 slider)
 4. Guided breathing session (animated visual pacer, timed phases)
 5. Post-session mood check-in, sees before/after delta
@@ -45,15 +46,16 @@ Browse → Play → Check in → See result → Come back
 3. **Library** — search, category tabs (For You/Calm/Sleep/Energy/Recovery —
    5 tabs: For You plus all 4 real session categories; an earlier draft of
    this list said 4 tabs and omitted Energy, which didn't match the
-   category-count example below it), Quick Start button, session grid
+   category-count example below it), the "Create your own" row, session grid.
+   Quick Start was removed from Library on 2026-11-16 by product decision
+   (restorable from git history); Home's Featured card starts a session
    - Category tab counts must reflect real counts from the 6-session
      catalog (as of 2026-09-19: "Calm 3", "Sleep 1", "Energy 1",
      "Recovery 1" — see the session catalog table below) — NOT the Stitch
      mockup's placeholder numbers (e.g. "For You 292", "Calm 45"), which
      were illustrative filler for the design mockup only
-   - Quick Start immediately begins the current "For You" recommended
-     session — skips Library browsing entirely, opens Session Player
-     directly at the pre-mood phase
+   - (Removed 2026-11-16) Quick Start immediately began the current "For
+     You" recommended session, opening Session Player at the pre-mood phase
 4. **Session Player** — ONE screen with internal state, not 3 separate
    navigable screens/routes. Transitions between 3 phases as component state
    (`currentPhase = 'pre-mood' | 'active' | 'post-mood'`): pre-session mood →

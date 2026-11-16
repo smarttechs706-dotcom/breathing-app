@@ -40,11 +40,19 @@ test('filters by category, then by a trimmed, case-insensitive title search', ()
   assert.deepEqual(lib.filterSessions(null, 'For You', ''), []);
 });
 
-test('Quick Start is Deep Exhale, else the first session, else nothing', () => {
-  assert.equal(lib.quickStartTarget(CATALOG).id, 'deep-exhale');
-  assert.equal(lib.quickStartTarget(CATALOG.slice(1)).id, 'morning-reset');
-  assert.equal(lib.quickStartTarget([]), null);
-  assert.equal(lib.quickStartTarget(null), null);
+test('Quick Start is removed from Library only (on purpose, 2026-11-16)', () => {
+  const root = path.join(__dirname, '..', '..');
+  assert.equal(lib.quickStartTarget, undefined, 'its target helper is gone');
+  const screen = fs.readFileSync(path.join(root, 'src/features/library/LibraryScreen.tsx'), 'utf8');
+  for (const gone of ['Quick Start</Text>', 'accessibilityLabel="Quick Start"', 'handleQuickStart', 'quickStart']) {
+    assert.ok(!screen.includes(gone), gone);
+  }
+  // Home still starts a session in one tap: the Featured card (Deep Exhale).
+  const featured = fs.readFileSync(path.join(root, 'src/features/home/FeaturedSessionCard.tsx'), 'utf8');
+  assert.ok(featured.includes('router.push(`/session-player?sessionId=${encodeURIComponent(id)}`);'));
+  assert.ok(featured.includes('onPress={() => openSession(session.id)}'));
+  const home = fs.readFileSync(path.join(root, 'src/features/home/HomeScreen.tsx'), 'utf8');
+  assert.ok(home.includes('<FeaturedSessionCard state={featuredState} />'));
 });
 
 test('durations read as whole minutes', () => {

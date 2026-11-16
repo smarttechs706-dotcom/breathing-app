@@ -5293,3 +5293,8 @@ pattern is remembered, one per account on this phone (lastPattern.ts), stored
 when the breathing ends; the editor opens with it, or 4-0-6-0 at 5 min.
 Library shows nothing about it. A custom session uses Calm and Focus's
 painting; "Create your own" is a slim row under Quick Start.
+
+- Quick Start was removed from Library on purpose (2026-11-16): Library is now
+  search, category chips, the "Create your own" row, then the session list.
+  Home's Featured card still starts a session in one tap. It can be restored
+  from git history (the commit before its removal) if customers ask.

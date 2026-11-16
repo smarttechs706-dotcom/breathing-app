@@ -129,7 +129,8 @@ function PatternEditor({ initial }: { initial: Recipe }) {
         <LengthChooser value={lengthSec} onChange={setLengthSec} />
       </View>
 
-      {/* Library's Quick Start gradient: white text stays >= 6.47:1 (AUDIT-2.md). */}
+      {/* The contrast-fixed CTA gradient (AUDIT-2.md, also Player's Explore
+          Library): white text stays >= 6.47:1 across it. */}
       <Pressable onPress={start} accessibilityRole="button" accessibilityLabel={startSpoken(pattern, lengthSec)}>
         <LinearGradient
           colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}

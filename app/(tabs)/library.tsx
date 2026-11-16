@@ -4,8 +4,9 @@ import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom
 import { LibraryScreen } from '../../src/features/library/LibraryScreen';
 
 // Library tab. The screen lives in src/features/library/ (search, category
-// chips, Quick Start and one painted image card per session). The floating
-// tab bar's footprint is passed in so the last card stays clear of it.
+// chips, the "Create your own" row and one painted image card per session).
+// The floating tab bar's footprint is passed in so the last card stays clear
+// of it.
 export default function LibraryTab() {
   const tabBarHeight = useBottomTabBarHeight();
   return <LibraryScreen tabBarHeight={tabBarHeight} />;
