@@ -267,9 +267,25 @@ test('library: "Create your own" card and the "Your patterns" row', () => {
   const src = read('src/features/library/LibraryScreen.tsx');
   assert.ok(src.includes('accessibilityLabel="Create your own pattern"'));
   assert.ok(src.includes('router.push(editorHref() as Href)'));
-  // Above search, chips and Quick Start.
-  assert.ok(src.indexOf('Create your own</Text>') < src.indexOf('placeholder="Search sessions..."'));
-  assert.ok(src.indexOf('Your patterns') < src.indexOf('placeholder="Search sessions..."'));
+  // Order: search, chips, Quick Start, "Create your own", "Your patterns",
+  // then the session list. Every marker must exist (indexOf -1 would pass).
+  const order = [
+    'placeholder="Search sessions..."',
+    '{CATEGORIES.map((category) => {',
+    '<Text style={styles.quickStartText}>Quick Start</Text>',
+    'accessibilityLabel="Create your own pattern"',
+    'Your patterns\n',
+    '<View style={styles.cards}>',
+  ].map((marker) => {
+    const at = src.indexOf(marker);
+    assert.ok(at >= 0, marker);
+    return at;
+  });
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  // A slim row: title and the one-line description, neither wraps.
+  assert.ok(src.includes('<Text style={styles.createTitle} numberOfLines={1}>\n                  Create your own'));
+  assert.ok(src.includes('<Text style={styles.createSubtitle} numberOfLines={1}>\n                  Set your own pattern and length'));
+  assert.ok(!src.includes('Set your own breathing pattern and length'));
   assert.ok(src.includes('{saved.length > 0 && ('), 'no empty row');
   assert.ok(src.includes('loadSavedPatterns(userId)'));
   assert.ok(src.includes('useFocusEffect('), 're-read when Library comes into view');

@@ -181,61 +181,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <PressableScale
-              onPress={() => router.push(editorHref() as Href)}
-              accessibilityRole="button"
-              accessibilityLabel="Create your own pattern"
-              style={styles.createCard}
-            >
-              <View style={styles.createIcon}>
-                <Ionicons name="add" size={24} color="#ffffff" />
-              </View>
-              <View style={styles.createText}>
-                <Text style={styles.createTitle}>Create your own</Text>
-                <Text style={styles.createSubtitle}>Set your own breathing pattern and length</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
-            </PressableScale>
-
-            {saved.length > 0 && (
-              <View style={styles.savedSection}>
-                <Text style={styles.savedHeading} accessibilityRole="header">
-                  Your patterns
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.savedRow}
-                >
-                  {saved.map((item) => (
-                    <PressableScale
-                      key={`${formatPatternParam(item.pattern)}@${item.lengthSec}`}
-                      onPress={() => openSaved(item)}
-                      onLongPress={() => savedOptions(item)}
-                      accessibilityRole="button"
-                      accessibilityLabel={savedCardSpoken(item.pattern, item.lengthSec)}
-                      accessibilityHint={SAVED_CARD_HINT}
-                      accessibilityActions={[
-                        { name: 'edit', label: 'Edit' },
-                        { name: 'remove', label: 'Remove' },
-                      ]}
-                      onAccessibilityAction={(e) => {
-                        if (e.nativeEvent.actionName === 'edit') {
-                          router.push(editorHref(item.pattern, item.lengthSec) as Href);
-                        } else if (e.nativeEvent.actionName === 'remove') {
-                          forgetPattern(userId, item).then((next) => next && setSaved(next));
-                        }
-                      }}
-                      style={styles.savedCard}
-                    >
-                      <Text style={styles.savedLabel}>{patternLabel(item.pattern)}</Text>
-                      <Text style={styles.savedMeta}>{lengthLabel(item.lengthSec)}</Text>
-                    </PressableScale>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
             <View style={styles.search}>
               <Ionicons name="search" size={20} color={colors.onSurfaceVariant} style={styles.searchIcon} />
               <TextInput
@@ -289,6 +234,67 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
                 <Text style={styles.quickStartText}>Quick Start</Text>
               </LinearGradient>
             </Pressable>
+
+            {/* "Create your own" (a slim row) and "Your patterns", under Quick
+                Start and above the session list. */}
+            <PressableScale
+              onPress={() => router.push(editorHref() as Href)}
+              accessibilityRole="button"
+              accessibilityLabel="Create your own pattern"
+              style={styles.createCard}
+            >
+              <View style={styles.createIcon}>
+                <Ionicons name="add" size={20} color="#ffffff" />
+              </View>
+              <View style={styles.createText}>
+                <Text style={styles.createTitle} numberOfLines={1}>
+                  Create your own
+                </Text>
+                <Text style={styles.createSubtitle} numberOfLines={1}>
+                  Set your own pattern and length
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
+            </PressableScale>
+
+            {saved.length > 0 && (
+              <View style={styles.savedSection}>
+                <Text style={styles.savedHeading} accessibilityRole="header">
+                  Your patterns
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.savedRow}
+                >
+                  {saved.map((item) => (
+                    <PressableScale
+                      key={`${formatPatternParam(item.pattern)}@${item.lengthSec}`}
+                      onPress={() => openSaved(item)}
+                      onLongPress={() => savedOptions(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={savedCardSpoken(item.pattern, item.lengthSec)}
+                      accessibilityHint={SAVED_CARD_HINT}
+                      accessibilityActions={[
+                        { name: 'edit', label: 'Edit' },
+                        { name: 'remove', label: 'Remove' },
+                      ]}
+                      onAccessibilityAction={(e) => {
+                        if (e.nativeEvent.actionName === 'edit') {
+                          router.push(editorHref(item.pattern, item.lengthSec) as Href);
+                        } else if (e.nativeEvent.actionName === 'remove') {
+                          forgetPattern(userId, item).then((next) => next && setSaved(next));
+                        }
+                      }}
+                      style={styles.savedCard}
+                    >
+                      <Text style={styles.savedLabel}>{patternLabel(item.pattern)}</Text>
+                      <Text style={styles.savedMeta}>{lengthLabel(item.lengthSec)}</Text>
+                    </PressableScale>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             <View style={styles.cards}>
               {visibleSessions.map((session, i) => (
@@ -408,32 +414,35 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     gap: spacing.base * 2,
   },
-  // "Create your own" and "Your patterns": Library's light glass.
+  // "Create your own" and "Your patterns": Library's light glass. The row is
+  // slim: title and description one line each. At 360 dp the text column is
+  // 218 dp (328 card - 2 border - 2 x 16 padding - 32 circle - 20 chevron -
+  // 2 x 12 gaps) and the description measures 210 dp in Plus Jakarta 14, so it
+  // fits without wrapping (numberOfLines guards larger font sizes).
   createCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.base * 2,
-    minHeight: 72,
+    gap: spacing.base * 1.5,
     paddingHorizontal: spacing.base * 2,
+    paddingVertical: spacing.base * 1.5,
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: accents.glassBorder,
     backgroundColor: accents.glassFill,
   },
   createIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: spacing.base * 4,
+    height: spacing.base * 4,
+    borderRadius: spacing.base * 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.inversePrimary,
   },
   createText: {
     flex: 1,
-    gap: 2,
   },
   createTitle: {
-    ...text.featuredTitle,
+    ...text.link,
     color: '#ffffff',
   },
   createSubtitle: {
