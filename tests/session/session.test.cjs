@@ -104,6 +104,28 @@ test('loading and error screens (no session yet) are plain navy: no picture, no 
   assert.deepEqual(model.backdropLayers('active', 'some-new-session'), { portrait: 0, video: true, scrim: 0.55 });
 });
 
+test('a custom session borrows Calm and Focus: same file, opacities and fades, no new image', () => {
+  assert.deepEqual(model.BORROWED_PORTRAITS, { custom: 'calm-focus' });
+  assert.equal(model.portraitSessionId('custom'), 'calm-focus');
+  assert.equal(model.portraitSessionId('calm-focus'), 'calm-focus');
+  assert.equal(model.portraitSessionId(null), null);
+  assert.equal(model.hasSessionPortrait('custom'), true);
+  // Exactly the layers Calm and Focus gets in every phase (80%, video + 55%, 70%).
+  for (const phase of ['pre-mood', 'active', 'post-mood']) {
+    assert.deepEqual(model.backdropLayers(phase, 'custom'), model.backdropLayers(phase, 'calm-focus'), phase);
+  }
+  // Still no file of its own: the images folder holds only the six built-in portraits.
+  assert.ok(!('custom' in model.SESSION_PORTRAIT_FILES));
+  const images = fs.readdirSync(path.join(repo, 'src/features/session/images')).filter((f) => f.endsWith('-portrait.jpg'));
+  assert.deepEqual(images.sort(), Object.values(model.SESSION_PORTRAIT_FILES).sort());
+  // The backdrop picks the image through the same lookup, with the same fades.
+  const backdrop = fs.readFileSync(path.join(repo, 'src/features/session/SessionBackdrop.tsx'), 'utf8');
+  assert.ok(backdrop.includes('const portraitId = portraitSessionId(sessionId);'));
+  assert.ok(backdrop.includes('const portraitImage = portraitId ? SESSION_PORTRAITS[portraitId] : undefined;'));
+  assert.ok(backdrop.includes('const layers = backdropLayers(phase, sessionId);'));
+  assert.ok(backdrop.includes('const portraitOpacity = useOpacityTo(layers.portrait, reduced);'));
+});
+
 test('all six sessions have their own portrait, every file exists, and the two maps agree', () => {
   const files = new Set();
   for (const id of SESSION_IDS) assert.ok(model.hasSessionPortrait(id), id);

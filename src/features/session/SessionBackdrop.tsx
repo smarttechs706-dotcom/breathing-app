@@ -19,6 +19,7 @@ import {
   TOP_BAR_HEIGHT,
   backdropLayers,
   contentSpacer,
+  portraitSessionId,
   type PlayerPhase,
 } from './sessionModel';
 
@@ -82,7 +83,9 @@ export function SessionBackdrop({ sessionId, phase }: { sessionId: string | null
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const layers = backdropLayers(phase, sessionId);
-  const portraitImage = sessionId ? SESSION_PORTRAITS[sessionId] : undefined;
+  // Its own painting, or a borrowed one (a custom session: Calm and Focus's).
+  const portraitId = portraitSessionId(sessionId);
+  const portraitImage = portraitId ? SESSION_PORTRAITS[portraitId] : undefined;
 
   const portraitOpacity = useOpacityTo(layers.portrait, reduced);
   const videoOpacity = useOpacityTo(layers.video ? 1 : 0, reduced);

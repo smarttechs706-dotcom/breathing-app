@@ -58,8 +58,22 @@ export const SESSION_PORTRAIT_FILES: Record<string, string> = {
   'box-breathing': 'session-box-breathing-portrait.jpg',
 };
 
+// Sessions that borrow another session's painting. A custom session ("Create
+// your own", id "custom") uses Calm and Focus's misty mountains: the same file,
+// opacities and fades as that session, so the same contrast holds.
+export const BORROWED_PORTRAITS: Record<string, string> = {
+  custom: 'calm-focus',
+};
+
+// The session id whose painting a session shows (its own, or a borrowed one).
+export function portraitSessionId(sessionId: string | null): string | null {
+  if (sessionId === null) return null;
+  return BORROWED_PORTRAITS[sessionId] ?? sessionId;
+}
+
 export function hasSessionPortrait(sessionId: string | null): boolean {
-  return sessionId !== null && sessionId in SESSION_PORTRAIT_FILES;
+  const id = portraitSessionId(sessionId);
+  return id !== null && id in SESSION_PORTRAIT_FILES;
 }
 
 export function paintingHeight(screenWidth: number): number {
