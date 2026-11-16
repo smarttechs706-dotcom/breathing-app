@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useIsFocused } from 'expo-router';
+import { router, useIsFocused, type Href } from 'expo-router';
 // See app/(tabs)/home.tsx for why this is a deep import — CONFIRMED
 // correct on-device via instrumented debugging (see PROGRESS.md).
 import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
@@ -97,7 +97,7 @@ function formatDuration(durationSec: number) {
 
 export default function PlayerScreen() {
   const tabBarHeight = useBottomTabBarHeight();
-  const { activeSessionId } = useActiveSession();
+  const { activeSessionId, activeSessionHref } = useActiveSession();
   // Guards the redirect below against firing while this tab is mounted but
   // not the one on screen (e.g. session-player.tsx, pushed on top, sets
   // activeSessionId once its own fetch resolves) — without this, that
@@ -117,10 +117,11 @@ export default function PlayerScreen() {
   const [currentStreak, setCurrentStreak] = useState<number | null | undefined>(null);
 
   useEffect(() => {
-    if (isFocused && activeSessionId) {
-      router.replace(`/session-player?sessionId=${activeSessionId}`);
+    if (isFocused && activeSessionHref) {
+      // The player's own link, so a custom session keeps its pattern.
+      router.replace(activeSessionHref as Href);
     }
-  }, [activeSessionId, isFocused]);
+  }, [activeSessionHref, isFocused]);
 
   // P5 (2026-09-30): split out of the redirect effect above so it no longer
   // depends on `isFocused` — previously every focus/blur of this tab (e.g.

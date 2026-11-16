@@ -156,3 +156,146 @@ test('no long dashes or emoji in the new files', () => {
     assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(read(f)), f);
   }
 });
+
+// --- Part 2: playing a custom session -------------------------------------------
+
+test('custom session: built from the link, hidden id "custom", null for a broken link', () => {
+  const s = cp.customSession('4-7-8-0', '600');
+  assert.deepEqual(s, {
+    id: 'custom',
+    title: 'Your pattern',
+    category: 'Calm',
+    durationSec: 600,
+    phaseConfig: P(4, 7, 8, 0),
+    badge: 'Leaf',
+    pattern: 'rings',
+    description: 'A pattern you set yourself.',
+  });
+  assert.equal(cp.customSession('4-7-8-0', '240'), null, 'not a length choice');
+  assert.equal(cp.customSession('10-9-12-0', '300'), null, 'one breath 31 s');
+  assert.equal(cp.customSession(undefined, '300'), null);
+  assert.equal(cp.customSession('4-7-8-0', undefined), null);
+});
+
+test('links: the player and the editor', () => {
+  assert.equal(cp.customPlayerHref(P(4, 7, 8, 0), 300), '/session-player?sessionId=custom&pattern=4-7-8-0&length=300');
+  assert.equal(cp.editorHref(), '/create-pattern');
+  assert.equal(cp.editorHref(P(4, 4, 4, 4), 120), '/create-pattern?pattern=4-4-4-4&length=120');
+  // What the editor links to, the player reads back.
+  const href = cp.customPlayerHref(P(5, 2, 7, 1), 180);
+  const q = new URLSearchParams(href.split('?')[1]);
+  assert.deepEqual(cp.customSession(q.get('pattern'), q.get('length')).phaseConfig, P(5, 2, 7, 1));
+});
+
+test('screen reader wording: steppers, label, Start, cards, safety note', () => {
+  assert.equal(cp.stepperSpoken('inhale', 4), 'Breathe in, 4 seconds');
+  assert.equal(cp.stepperSpoken('hold', 0), 'Hold, 0 seconds');
+  assert.equal(cp.stepperSpoken('hold', 1), 'Hold, 1 second');
+  assert.equal(cp.stepperSpoken('exhale', 8), 'Breathe out, 8 seconds');
+  assert.equal(cp.stepperSpoken('rest', 2), 'Rest, 2 seconds');
+  assert.equal(cp.patternSpoken(P(4, 7, 8, 0)), 'Pattern 4-7-8: breathe in 4, hold 7, breathe out 8');
+  assert.equal(cp.patternSpoken(P(4, 0, 6, 0)), 'Pattern 4-6: breathe in 4, breathe out 6');
+  assert.equal(cp.startText(300), 'Start · 5 min');
+  assert.equal(cp.startSpoken(P(4, 7, 8, 0), 300), 'Start, 5 minute session, pattern 4-7-8');
+  assert.equal(cp.savedCardSpoken(P(4, 7, 8, 0), 300), 'Your pattern 4-7-8, 5 minutes. Start');
+  assert.equal(cp.SAVED_CARD_HINT, 'Hold for edit or remove');
+  assert.equal(
+    cp.SAFETY_NOTE,
+    "Long holds aren't for everyone. If you feel dizzy or short of breath, stop and breathe normally."
+  );
+});
+
+// --- Part 2: wiring ---------------------------------------------------------------
+
+test('player: plays a custom session from the link without the catalogue', () => {
+  const src = read('app/session-player.tsx');
+  assert.ok(src.includes('const isCustom = sessionId === CUSTOM_SESSION_ID;'));
+  assert.ok(src.includes('(isCustom ? customSession(pattern, length) : null)'));
+  assert.ok(src.includes('const session = isCustom ? custom : (sessions?.find((s) => s.id === sessionId) ?? null);'));
+  assert.ok(src.includes('if (isCustom) return; // played from the link, not the catalogue'));
+  assert.ok(src.includes('if (!isCustom && fetchError) {'));
+  assert.ok(src.includes('if (!isCustom && sessions === null) {'));
+  // Its check-in goes out like any other: id "custom", the seconds played.
+  assert.ok(src.includes('await postCheckin({ sessionId, preMood, postMood, durationSec });'));
+  // The Player tab can come back to it with its pattern.
+  assert.ok(src.includes('isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec)) : undefined'));
+});
+
+test('player: the recipe is saved once when the breathing ends, before and apart from the check-in', () => {
+  const src = read('app/session-player.tsx');
+  const end = src.slice(src.indexOf('const recipeSavedRef = useRef(false);'), src.indexOf('const exitSession = () => {'));
+  assert.ok(end.includes("if (phase === 'active' && elapsedMs >= endMs) {"));
+  assert.ok(end.includes('if (isCustom && !recipeSavedRef.current) {'));
+  assert.ok(end.includes('recipeSavedRef.current = true;'));
+  assert.ok(end.includes('void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec });'));
+  assert.equal((src.match(/rememberPattern\(/g) || []).length, 1, 'saved in one place only');
+  const save = src.slice(src.indexOf('const saveCheckin = async'), src.indexOf('const handleExitPress'));
+  assert.ok(!save.includes('rememberPattern'), 'not tied to the check-in');
+});
+
+test('editor: steppers, live label, preview circle, length, safety note under Hold, Start', () => {
+  const src = read('app/create-pattern.tsx');
+  assert.ok(read('app/_layout.tsx').includes('<Stack.Screen name="create-pattern" />'));
+  assert.ok(src.includes('parsePatternParam(params.pattern) ?? DEFAULT_CUSTOM_PATTERN'));
+  assert.ok(src.includes('parseLengthParam(params.length) ?? DEFAULT_LENGTH_SEC'));
+  assert.ok(src.includes('accessibilityLabel={patternSpoken(pattern)}'));
+  assert.ok(src.includes('{patternLabel(pattern)}'));
+  assert.ok(src.includes('<PatternPreview pattern={pattern} />'));
+  assert.ok(src.includes('<BreathCircle'));
+  assert.ok(src.includes('<LengthChooser value={lengthSec} onChange={setLengthSec} />'));
+  // Steppers: one adjustable control each, buttons disabled outside the limits.
+  assert.ok(src.includes('accessibilityRole="adjustable"'));
+  assert.ok(src.includes('accessibilityLabel={stepperSpoken(phase, pattern[phase])}'));
+  assert.ok(src.includes("{ name: 'increment', label: 'Increase' }"));
+  assert.ok(src.includes("{ name: 'decrement', label: 'Decrease' }"));
+  assert.ok(src.includes('const down = stepPhase(pattern, phase, -1);'));
+  assert.ok(src.includes('const up = stepPhase(pattern, phase, 1);'));
+  assert.ok(src.includes('disabled={!down}') && src.includes('disabled={!up}'));
+  // Safety note: shown under Hold, read with the Hold stepper.
+  assert.ok(src.includes("{phase === 'hold' && ("));
+  assert.ok(src.includes("accessibilityHint={phase === 'hold' ? SAFETY_NOTE : undefined}"));
+  // Start opens the player with the recipe; nothing is saved here.
+  assert.ok(src.includes('router.push(customPlayerHref(pattern, lengthSec) as Href)'));
+  assert.ok(src.includes('accessibilityLabel={startSpoken(pattern, lengthSec)}'));
+  assert.ok(src.includes('{startText(lengthSec)}'));
+  assert.ok(!src.includes('rememberPattern'));
+  // The preview circle is decorative.
+  assert.ok(src.includes('importantForAccessibility="no-hide-descendants"'));
+});
+
+test('library: "Create your own" card and the "Your patterns" row', () => {
+  const src = read('src/features/library/LibraryScreen.tsx');
+  assert.ok(src.includes('accessibilityLabel="Create your own pattern"'));
+  assert.ok(src.includes('router.push(editorHref() as Href)'));
+  // Above search, chips and Quick Start.
+  assert.ok(src.indexOf('Create your own</Text>') < src.indexOf('placeholder="Search sessions..."'));
+  assert.ok(src.indexOf('Your patterns') < src.indexOf('placeholder="Search sessions..."'));
+  assert.ok(src.includes('{saved.length > 0 && ('), 'no empty row');
+  assert.ok(src.includes('loadSavedPatterns(userId)'));
+  assert.ok(src.includes('useFocusEffect('), 're-read when Library comes into view');
+  assert.ok(src.includes('accessibilityLabel={savedCardSpoken(item.pattern, item.lengthSec)}'));
+  assert.ok(src.includes('accessibilityHint={SAVED_CARD_HINT}'));
+  assert.ok(src.includes('onLongPress={() => savedOptions(item)}'));
+  assert.ok(src.includes("{ name: 'edit', label: 'Edit' }"));
+  assert.ok(src.includes("{ name: 'remove', label: 'Remove' }"));
+  assert.ok(src.includes('router.push(customPlayerHref(item.pattern, item.lengthSec) as Href)'));
+  assert.ok(src.includes('router.push(editorHref(item.pattern, item.lengthSec) as Href)'));
+});
+
+test('Player tab returns to the player by its own link; Delete account clears "Your patterns"', () => {
+  assert.ok(read('src/state/ActiveSessionContext.tsx').includes('href: href ?? `/session-player?sessionId=${id}`'));
+  assert.ok(read('app/(tabs)/player.tsx').includes('router.replace(activeSessionHref as Href);'));
+  assert.ok(read('src/utils/deleteMyData.ts').includes('() => clearSavedPatterns(userId),'));
+  // Sign-out keeps them: only Delete account clears.
+  for (const f of ['app/settings.tsx', 'src/auth/AuthProvider.tsx', 'src/features/profile/ProfileScreen.tsx']) {
+    assert.ok(!read(f).includes('clearSavedPatterns'), f);
+  }
+});
+
+test('Part 2 files: text roles only, no long dashes or emoji', () => {
+  for (const f of ['app/create-pattern.tsx', 'src/features/session/savedPatterns.ts', 'src/features/session/savedPatternsStore.ts']) {
+    const src = read(f);
+    assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src), f);
+    assert.ok(!/fontFamily:|fontWeight:|fontSize:/.test(src), `${f}: text roles only`);
+  }
+});

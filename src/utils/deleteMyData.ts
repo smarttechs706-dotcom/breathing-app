@@ -2,6 +2,7 @@ import { Alert, Platform } from 'react-native';
 
 import { deleteUserData } from '../api/client';
 import { forgetProfilePhoto } from '../features/profile/profilePhotoStore';
+import { clearSavedPatterns } from '../features/session/savedPatternsStore';
 import { clearCachedSessions } from '../state/sessionsCache';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
 
@@ -89,6 +90,8 @@ export async function deleteMyData(userId?: string | null): Promise<DeleteResult
     // This account's Profile picture on this phone (file and sync state). The
     // account's copy was already deleted by the server, before the account.
     () => forgetProfilePhoto(userId),
+    // This account's "Your patterns" (phone only; sign-out keeps them).
+    () => clearSavedPatterns(userId),
   ];
   for (const clear of clears) {
     try {

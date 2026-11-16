@@ -51,6 +51,7 @@ function RootStack() {
       <Stack.Protected guard={status === 'signedIn'}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="session-player" />
+        <Stack.Screen name="create-pattern" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="reminder" />
         <Stack.Screen name="change-password" />

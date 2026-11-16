@@ -5267,3 +5267,22 @@ Release list, in order:
    policy update), together with the Stage 2 length chooser.
 8. Recheck npm audit before the store build.
 9. iPhone round.
+
+## Custom breathing pattern, app side (2026-11-16, branch feat/media-backgrounds)
+- ced5c11 (Part 1): length chooser 2, 3, 5 and 10 min on every session
+  (replaces the "5 MIN SESSION" badge); the check-in sends `durationSec`,
+  the seconds actually played (60 to 600).
+- Part 2: Library's "Create your own" card opens `app/create-pattern.tsx`
+  (four steppers inside the approved limits, live label, preview circle,
+  length, safety note under Hold, Start). The player plays
+  `/session-player?sessionId=custom&pattern=4-7-8-0&length=300` without the
+  catalogue. The recipe goes to "Your patterns" (phone only, per account,
+  newest first, at most 8, no duplicates) when the breathing ends, not when
+  the check-in saves. Hold a card for Edit or Remove. Kept on sign-out,
+  cleared on Delete account. architecture.md's API contract updated.
+- Until the backend deploy and Migration B, a custom check-in gets a 400
+  and stays on the finish screen with Try Again; built-in sessions save as
+  before. The recipe is already kept by then.
+
+Next: the owner's phone check of Part 2; then the backend deploy order (A,
+deploy, B) and the privacy policy lines.

@@ -134,19 +134,28 @@ Identity comes only from `Authorization: Bearer <access_token>`, read from
 `getAuth().getSession()` in `src/api/client.ts`. The API ignores `userId` and
 `user_id`, and the app never sends them.
 
-- `GET {base_url}/api/sessions?category=` → `Session[]`. Public, no token
-- `POST {base_url}/api/checkin` (Bearer) → body `{sessionId, preMood, postMood}`,
-  inserts checkin, updates streak (increment if last session was yesterday,
-  reset to 1 if gap >1 day, no-op if already checked in today), returns
-  updated `Streak`
+- `GET {base_url}/api/sessions?category=` → `Session[]`. Public, no token.
+  Lists only the visible catalogue: the hidden row `custom` is never listed
+- `POST {base_url}/api/checkin` (Bearer) → body `{sessionId, preMood, postMood,
+  durationSec?}`, inserts checkin, updates streak (increment if last session
+  was yesterday, reset to 1 if gap >1 day, no-op if already checked in today),
+  returns updated `Streak`
+  - `durationSec` (optional): the seconds actually played (whole breaths,
+    `sessionSeconds`), a whole number from 60 to 600. Left out, the check-in
+    counts the catalogue's `durationSec`, as older app builds expect
+  - `sessionId: "custom"`: a session the user set up in "Create your own".
+    It is a hidden catalogue row, so every check-in still names a real session
+    and older app builds still get a string `sessionId`. The pattern itself
+    is never sent; it stays on the phone
 - `DELETE {base_url}/api/user` (Bearer) → removes the caller's check-ins, streak
   and account. The token stays valid for up to an hour, so the app signs out
   straight after
 - `GET {base_url}/api/insights` (Bearer) → `{checkins: Checkin[] (last 30
   days), streak: Streak, totalSessions: number, sessionsThisWeek: number,
   mindfulMinutes: number, monthOverMonthDelta: number}` —
-  `mindfulMinutes` is total session duration completed (sum of
-  `durationSec` across checkins, in minutes); `monthOverMonthDelta` is
+  `mindfulMinutes` is total session duration completed (sum across
+  checkins of the check-in's own `durationSec`, or the catalogue's when it
+  has none, in minutes); `monthOverMonthDelta` is
   percentage change in sessions completed vs. the prior 30-day period
   (matches the Insights screen's "+12% Vs Last Month" stat card)
 

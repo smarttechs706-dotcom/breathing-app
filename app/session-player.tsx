@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../src/api/apiErrors';
 import { fetchSessions, postCheckin } from '../src/api/client';
+import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
 import { markCheckinSaved } from '../src/state/checkinSignal';
 import { getCachedSessions, setCachedSessions } from '../src/state/sessionsCache';
@@ -33,10 +34,14 @@ import {
 } from '../src/features/session/breathPattern';
 import {
   checkinDurationSec,
+  CUSTOM_SESSION_ID,
+  customPlayerHref,
+  customSession,
   defaultLengthFor,
   DEFAULT_LENGTH_SEC,
   type LengthSec,
 } from '../src/features/session/customPattern';
+import { rememberPattern } from '../src/features/session/savedPatternsStore';
 import { LengthChooser } from '../src/features/session/LengthChooser';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
@@ -133,7 +138,19 @@ function TopBar({
 }
 
 export default function SessionPlayerScreen() {
-  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
+  const { sessionId, pattern, length } = useLocalSearchParams<{
+    sessionId?: string;
+    pattern?: string;
+    length?: string;
+  }>();
+  // "Create your own": the pattern and length come in the link
+  // (customPattern.customPlayerHref), so no catalogue fetch is needed. A
+  // broken link gives null, which shows "Session not found" below.
+  const isCustom = sessionId === CUSTOM_SESSION_ID;
+  const custom = useMemo(
+    () => (isCustom ? customSession(pattern, length) : null),
+    [isCustom, pattern, length]
+  );
 
   // FRONTEND-AUDIT-2.md High finding (fixed 2026-09-26): this used to be
   // `getSessionById(sessionId ?? '') ?? featuredSession` — a synchronous
@@ -172,6 +189,7 @@ export default function SessionPlayerScreen() {
   }, []);
 
   useEffect(() => {
+    if (isCustom) return; // played from the link, not the catalogue
     if (sessions) {
       fetchSessions().then(setCachedSessions).catch(() => {});
       return;
@@ -188,7 +206,9 @@ export default function SessionPlayerScreen() {
   // Once `sessions` has loaded and `fetchError` is clear, `session` being
   // null unambiguously means "not found" (see the guard sequence before
   // the main return below) — not a loading state.
-  const session = sessions?.find((s) => s.id === sessionId) ?? null;
+  const session = isCustom ? custom : (sessions?.find((s) => s.id === sessionId) ?? null);
+  const { session: auth } = useAuth();
+  const userId = auth?.user.id ?? null;
 
   // AUDIT.md High finding (2026-09-19): router.push('/settings') from this
   // screen doesn't unmount it — it just loses focus while Settings sits on
@@ -208,7 +228,10 @@ export default function SessionPlayerScreen() {
   // see the FRONTEND-AUDIT-2.md comment above).
   useEffect(() => {
     if (!session) return;
-    setActiveSessionId(session.id);
+    setActiveSessionId(
+      session.id,
+      isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec)) : undefined
+    );
     return () => setActiveSessionId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
@@ -326,12 +349,20 @@ export default function SessionPlayerScreen() {
   }, [running]);
 
   // Session Complete as soon as the last whole out-breath has finished.
+  // A custom recipe is kept in "Your patterns" right here, once per finished
+  // session and before the check-in, because it is stored only on this phone
+  // and a weak connection must not lose it (the check-in has its own Retry).
+  const recipeSavedRef = useRef(false);
   useEffect(() => {
     if (!session || endMs <= 0) return;
     if (phase === 'active' && elapsedMs >= endMs) {
       setPhase('post-mood');
+      if (isCustom && !recipeSavedRef.current) {
+        recipeSavedRef.current = true;
+        void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec });
+      }
     }
-  }, [elapsedMs, phase, session, endMs]);
+  }, [elapsedMs, phase, session, endMs, isCustom, userId, lengthSec]);
 
   const exitSession = () => {
     setActiveSessionId(null);
@@ -481,7 +512,7 @@ export default function SessionPlayerScreen() {
   // Session | null) for the rest of the render — the existing phase JSX
   // below needed no changes to account for that, it's the same shape
   // GET /api/sessions already returns as the local catalog used to.
-  if (fetchError) {
+  if (!isCustom && fetchError) {
     return (
       <View style={styles.root}>
         <SessionBackdrop sessionId={null} phase="pre-mood" />
@@ -500,7 +531,7 @@ export default function SessionPlayerScreen() {
     );
   }
 
-  if (sessions === null) {
+  if (!isCustom && sessions === null) {
     return (
       <View style={styles.root}>
         <SessionBackdrop sessionId={null} phase="pre-mood" />

@@ -7,7 +7,8 @@
 // breathe in 2-10 s, hold 0-10 s, breathe out 2-12 s, rest 0-10 s, one breath
 // at most 30 s, default 4-0-6-0; minutes count what was actually played.
 
-import { cycleSeconds, sessionSeconds, type BreathPattern } from './breathPattern';
+import type { Session } from '../../types/models';
+import { cycleSeconds, patternLabel, patternLine, sessionSeconds, type BreathPattern } from './breathPattern';
 
 export const LENGTH_OPTIONS = [120, 180, 300, 600] as const;
 export type LengthSec = (typeof LENGTH_OPTIONS)[number];
@@ -104,3 +105,79 @@ export function checkinDurationSec(p: BreathPattern, lengthSec: number): number 
   const played = Math.round(sessionSeconds(p, lengthSec));
   return played >= MIN_CHECKIN_SEC && played <= MAX_CHECKIN_SEC ? played : undefined;
 }
+
+// --- Playing a custom session -----------------------------------------------
+
+export const CUSTOM_TITLE = 'Your pattern';
+export const CUSTOM_DESCRIPTION = 'A pattern you set yourself.';
+
+// The player's link for a custom session: /session-player?sessionId=custom&pattern=4-7-8-0&length=300
+export function customPlayerHref(p: BreathPattern, lengthSec: LengthSec): string {
+  return `/session-player?sessionId=${CUSTOM_SESSION_ID}&pattern=${formatPatternParam(p)}&length=${lengthSec}`;
+}
+
+// The editor's link, empty or filled in with a saved pattern (Edit).
+export function editorHref(p?: BreathPattern, lengthSec?: LengthSec): string {
+  if (!p || !lengthSec) return '/create-pattern';
+  return `/create-pattern?pattern=${formatPatternParam(p)}&length=${lengthSec}`;
+}
+
+// The in-memory session the player plays for a custom pattern, or null when
+// the link's pattern or length is not valid (the player then shows "Session
+// not found"). The id is the hidden catalogue row the check-in is saved under.
+export function customSession(rawPattern: unknown, rawLength: unknown): Session | null {
+  const phaseConfig = parsePatternParam(rawPattern);
+  const lengthSec = parseLengthParam(rawLength);
+  if (!phaseConfig || !lengthSec) return null;
+  return {
+    id: CUSTOM_SESSION_ID,
+    title: CUSTOM_TITLE,
+    category: 'Calm',
+    durationSec: lengthSec,
+    phaseConfig,
+    badge: 'Leaf',
+    pattern: 'rings',
+    description: CUSTOM_DESCRIPTION,
+  };
+}
+
+// --- Editor wording -------------------------------------------------------------
+
+export const PHASE_NAMES: Record<PhaseName, string> = {
+  inhale: 'Breathe in',
+  hold: 'Hold',
+  exhale: 'Breathe out',
+  rest: 'Rest',
+};
+
+export const SAFETY_NOTE =
+  "Long holds aren't for everyone. If you feel dizzy or short of breath, stop and breathe normally.";
+
+function seconds(n: number): string {
+  return `${n} ${n === 1 ? 'second' : 'seconds'}`;
+}
+
+// Stepper: "Breathe in, 4 seconds".
+export function stepperSpoken(phase: PhaseName, value: number): string {
+  return `${PHASE_NAMES[phase]}, ${seconds(value)}`;
+}
+
+// The live label: "Pattern 4-7-8: breathe in 4, hold 7, breathe out 8".
+export function patternSpoken(p: BreathPattern): string {
+  const line = patternLine(p);
+  return `Pattern ${patternLabel(p)}: ${line.charAt(0).toLowerCase()}${line.slice(1)}`;
+}
+
+// Start button: "Start · 5 min" on screen, "Start, 5 minute session, pattern 4-7-8" spoken.
+export function startText(lengthSec: number): string {
+  return `Start · ${lengthLabel(lengthSec)}`;
+}
+export function startSpoken(p: BreathPattern, lengthSec: number): string {
+  return `Start, ${Math.round(lengthSec / 60)} minute session, pattern ${patternLabel(p)}`;
+}
+
+// A "Your patterns" card: "Your pattern 4-7-8, 5 minutes. Start".
+export function savedCardSpoken(p: BreathPattern, lengthSec: number): string {
+  return `${CUSTOM_TITLE} ${patternLabel(p)}, ${lengthSpoken(lengthSec)}. Start`;
+}
+export const SAVED_CARD_HINT = 'Hold for edit or remove';
