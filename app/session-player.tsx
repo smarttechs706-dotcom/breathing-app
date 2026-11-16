@@ -38,11 +38,10 @@ import {
   customPlayerHref,
   customSession,
   defaultLengthFor,
-  parseRecipe,
   DEFAULT_LENGTH_SEC,
   type LengthSec,
 } from '../src/features/session/customPattern';
-import { rememberPattern } from '../src/features/session/savedPatternsStore';
+import { rememberLastPattern } from '../src/features/session/lastPatternStore';
 import { LengthChooser } from '../src/features/session/LengthChooser';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
@@ -139,12 +138,10 @@ function TopBar({
 }
 
 export default function SessionPlayerScreen() {
-  const { sessionId, pattern, length, from, fromLength } = useLocalSearchParams<{
+  const { sessionId, pattern, length } = useLocalSearchParams<{
     sessionId?: string;
     pattern?: string;
     length?: string;
-    from?: string;
-    fromLength?: string;
   }>();
   // "Create your own": the pattern and length come in the link
   // (customPattern.customPlayerHref), so no catalogue fetch is needed. A
@@ -153,11 +150,6 @@ export default function SessionPlayerScreen() {
   const custom = useMemo(
     () => (isCustom ? customSession(pattern, length) : null),
     [isCustom, pattern, length]
-  );
-  // Opened through Edit: the "Your patterns" card this recipe replaces.
-  const replaces = useMemo(
-    () => (isCustom ? parseRecipe(from, fromLength) : null),
-    [isCustom, from, fromLength]
   );
 
   // FRONTEND-AUDIT-2.md High finding (fixed 2026-09-26): this used to be
@@ -238,7 +230,7 @@ export default function SessionPlayerScreen() {
     if (!session) return;
     setActiveSessionId(
       session.id,
-      isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec), replaces) : undefined
+      isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec)) : undefined
     );
     return () => setActiveSessionId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -357,9 +349,10 @@ export default function SessionPlayerScreen() {
   }, [running]);
 
   // Session Complete as soon as the last whole out-breath has finished.
-  // A custom recipe is kept in "Your patterns" right here, once per finished
-  // session and before the check-in, because it is stored only on this phone
-  // and a weak connection must not lose it (the check-in has its own Retry).
+  // A custom recipe is remembered as the last pattern right here, once per
+  // finished session and before the check-in, because it is stored only on
+  // this phone and a weak connection must not lose it (the check-in has its
+  // own Retry). The editor opens with it next time.
   const recipeSavedRef = useRef(false);
   useEffect(() => {
     if (!session || endMs <= 0) return;
@@ -367,10 +360,10 @@ export default function SessionPlayerScreen() {
       setPhase('post-mood');
       if (isCustom && !recipeSavedRef.current) {
         recipeSavedRef.current = true;
-        void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec }, replaces);
+        void rememberLastPattern(userId, { pattern: session.phaseConfig, lengthSec });
       }
     }
-  }, [elapsedMs, phase, session, endMs, isCustom, userId, lengthSec, replaces]);
+  }, [elapsedMs, phase, session, endMs, isCustom, userId, lengthSec]);
 
   const exitSession = () => {
     setActiveSessionId(null);

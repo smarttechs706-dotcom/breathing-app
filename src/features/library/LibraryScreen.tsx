@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect, type Href } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -17,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { friendlyError } from '../../api/apiErrors';
 import { fetchSessions } from '../../api/client';
-import { useAuth } from '../../auth/AuthProvider';
 import { getCachedSessions, setCachedSessions } from '../../state/sessionsCache';
 import { colors, spacing, typography } from '../../theme/tokens';
 import type { Session } from '../../types/models';
@@ -35,16 +33,7 @@ import {
 } from './libraryModel';
 import { CARD_IMAGES } from './libraryImages';
 import { patternLabel, patternLine } from '../session/breathPattern';
-import {
-  customPlayerHref,
-  editorHref,
-  formatPatternParam,
-  lengthLabel,
-  SAVED_CARD_HINT,
-  savedCardSpoken,
-} from '../session/customPattern';
-import type { SavedPattern } from '../session/savedPatterns';
-import { forgetPattern, loadSavedPatterns } from '../session/savedPatternsStore';
+import { EDITOR_HREF } from '../session/customPattern';
 
 // Library tab: search, category chips, Quick Start and one painted 5:2 image
 // card per session. Same behaviour as the previous screen (cache-first
@@ -79,22 +68,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
     return cached && cached.length > 0 ? cached : null;
   });
   const [error, setError] = useState<string | null>(null);
-  // "Your patterns" (phone only, this account). Read again whenever Library
-  // comes into view, so a pattern saved at the end of a session shows at once.
-  const { session: auth } = useAuth();
-  const userId = auth?.user.id ?? null;
-  const [saved, setSaved] = useState<SavedPattern[]>([]);
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      loadSavedPatterns(userId).then((list) => {
-        if (!cancelled) setSaved(list);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [userId])
-  );
 
   const load = useCallback(() => {
     setError(null);
@@ -131,22 +104,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
   );
 
   const openSession = (id: string) => router.push(`/session-player?sessionId=${id}`);
-  const openSaved = (item: SavedPattern) => router.push(customPlayerHref(item.pattern, item.lengthSec) as Href);
-  // Hold on a card: Edit (the editor, filled in) or Remove.
-  const savedOptions = (item: SavedPattern) => {
-    Alert.alert(`Your pattern ${patternLabel(item.pattern)}`, lengthLabel(item.lengthSec), [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Edit', onPress: () => router.push(editorHref(item.pattern, item.lengthSec) as Href) },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          const next = await forgetPattern(userId, item);
-          if (next) setSaved(next);
-        },
-      },
-    ]);
-  };
   const handleQuickStart = () => {
     const target = quickStartTarget(sessions);
     if (target) openSession(target.id);
@@ -235,10 +192,11 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
               </LinearGradient>
             </Pressable>
 
-            {/* "Create your own" (a slim row) and "Your patterns", under Quick
-                Start and above the session list. */}
+            {/* "Create your own" (a slim row), under Quick Start and above the
+                session list. The editor opens with the last custom pattern;
+                Library shows nothing else about it. */}
             <PressableScale
-              onPress={() => router.push(editorHref() as Href)}
+              onPress={() => router.push(EDITOR_HREF as Href)}
               accessibilityRole="button"
               accessibilityLabel="Create your own pattern"
               style={styles.createCard}
@@ -256,45 +214,6 @@ export function LibraryScreen({ tabBarHeight }: { tabBarHeight: number }) {
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceVariant} />
             </PressableScale>
-
-            {saved.length > 0 && (
-              <View style={styles.savedSection}>
-                <Text style={styles.savedHeading} accessibilityRole="header">
-                  Your patterns
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.savedRow}
-                >
-                  {saved.map((item) => (
-                    <PressableScale
-                      key={`${formatPatternParam(item.pattern)}@${item.lengthSec}`}
-                      onPress={() => openSaved(item)}
-                      onLongPress={() => savedOptions(item)}
-                      accessibilityRole="button"
-                      accessibilityLabel={savedCardSpoken(item.pattern, item.lengthSec)}
-                      accessibilityHint={SAVED_CARD_HINT}
-                      accessibilityActions={[
-                        { name: 'edit', label: 'Edit' },
-                        { name: 'remove', label: 'Remove' },
-                      ]}
-                      onAccessibilityAction={(e) => {
-                        if (e.nativeEvent.actionName === 'edit') {
-                          router.push(editorHref(item.pattern, item.lengthSec) as Href);
-                        } else if (e.nativeEvent.actionName === 'remove') {
-                          forgetPattern(userId, item).then((next) => next && setSaved(next));
-                        }
-                      }}
-                      style={styles.savedCard}
-                    >
-                      <Text style={styles.savedLabel}>{patternLabel(item.pattern)}</Text>
-                      <Text style={styles.savedMeta}>{lengthLabel(item.lengthSec)}</Text>
-                    </PressableScale>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
 
             <View style={styles.cards}>
               {visibleSessions.map((session, i) => (
@@ -414,7 +333,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.base,
     gap: spacing.base * 2,
   },
-  // "Create your own" and "Your patterns": Library's light glass. The row is
+  // "Create your own": Library's light glass. The row is
   // slim: title and description one line each. At 360 dp the text column is
   // 218 dp (328 card - 2 border - 2 x 16 padding - 32 circle - 20 chevron -
   // 2 x 12 gaps) and the description measures 210 dp in Plus Jakarta 14, so it
@@ -446,36 +365,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   createSubtitle: {
-    ...text.meta,
-    color: colors.onSurfaceVariant,
-  },
-  savedSection: {
-    gap: spacing.base,
-  },
-  savedHeading: {
-    ...text.sectionTitle,
-    color: '#ffffff',
-  },
-  savedRow: {
-    flexDirection: 'row',
-    gap: spacing.base,
-    paddingRight: spacing.base,
-  },
-  savedCard: {
-    minWidth: 96,
-    paddingHorizontal: spacing.base * 2,
-    paddingVertical: spacing.base * 1.5,
-    borderRadius: CARD_RADIUS,
-    borderWidth: 1,
-    borderColor: accents.glassBorder,
-    backgroundColor: accents.glassFill,
-    gap: 2,
-  },
-  savedLabel: {
-    ...text.featuredTitle,
-    color: '#ffffff',
-  },
-  savedMeta: {
     ...text.meta,
     color: colors.onSurfaceVariant,
   },

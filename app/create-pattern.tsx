@@ -1,19 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useIsFocused, useLocalSearchParams, type Href } from 'expo-router';
+import { router, useIsFocused, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BreathCircle } from '../src/features/session/BreathCircle';
 import { breathAt, nextTickMs, patternLabel, patternLine, type BreathPattern } from '../src/features/session/breathPattern';
+import { useAuth } from '../src/auth/AuthProvider';
 import {
   customPlayerHref,
-  DEFAULT_CUSTOM_PATTERN,
-  DEFAULT_LENGTH_SEC,
-  parseLengthParam,
-  parsePatternParam,
-  parseRecipe,
   PHASE_NAMES,
   PHASES,
   patternSpoken,
@@ -24,19 +20,22 @@ import {
   stepperSpoken,
   type LengthSec,
   type PhaseName,
+  type Recipe,
 } from '../src/features/session/customPattern';
+import { loadLastPattern } from '../src/features/session/lastPatternStore';
 import { LengthChooser } from '../src/features/session/LengthChooser';
 import { accents, text } from '../src/features/home/styles';
 import { MIST_BACKGROUND, ScreenBackdrop } from '../src/features/profile/ScreenBackdrop';
 import { colors, spacing, typography } from '../src/theme/tokens';
 
-// "Create your own": the full-screen editor opened from Library's card (or
-// from Edit on a "Your patterns" card, with ?pattern=4-7-8-0&length=300).
+// "Create your own": the full-screen editor opened from Library's row. It
+// opens with the last custom pattern of this account (lastPattern.ts), or
+// 4-0-6-0 at 5 min when there is none or the stored value is broken.
 // Four steppers in whole seconds inside the limits in customPattern.ts, a live
 // pattern label, a small breathing circle running the pattern, the length
 // choice, the safety note under Hold, and one Start button that opens the
-// player. Nothing is saved here: the recipe is kept in "Your patterns" when
-// its session reaches the end (app/session-player.tsx).
+// player. Nothing is saved here: the recipe is remembered when its session's
+// breathing reaches the end (app/session-player.tsx).
 // Built in the existing glass card style (no Stitch reference for this screen).
 
 const CARD_RADIUS = 16;
@@ -51,17 +50,23 @@ const PHASE_WORD: Record<PhaseName, string> = {
 };
 
 export default function CreatePatternScreen() {
-  const params = useLocalSearchParams<{ pattern?: string; length?: string }>();
-  const [pattern, setPattern] = useState<BreathPattern>(
-    () => parsePatternParam(params.pattern) ?? DEFAULT_CUSTOM_PATTERN
-  );
-  const [lengthSec, setLengthSec] = useState<LengthSec>(() => parseLengthParam(params.length) ?? DEFAULT_LENGTH_SEC);
-  // Opened through Edit: the card being edited, replaced when the edited
-  // session's breathing ends (savedPatterns.replaceSaved).
-  const [editing] = useState(() => parseRecipe(params.pattern, params.length));
+  // The last pattern, read once from this phone (never throws; the default
+  // when there is none). The editor waits for it, so it never jumps from the
+  // default to the stored numbers.
+  const { session: auth } = useAuth();
+  const userId = auth?.user.id ?? null;
+  const [initial, setInitial] = useState<Recipe | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadLastPattern(userId).then((recipe) => {
+      if (!cancelled) setInitial(recipe);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/library'));
-  const start = () => router.push(customPlayerHref(pattern, lengthSec, editing) as Href);
 
   return (
     <View style={styles.root}>
@@ -83,49 +88,59 @@ export default function CreatePatternScreen() {
           <View style={styles.topBarButton} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Live label: the same patternLabel the cards and the player show. */}
-          <View style={styles.labelBlock} accessible accessibilityLabel={patternSpoken(pattern)}>
-            <Text style={styles.patternLabel}>{patternLabel(pattern)}</Text>
-            <Text style={styles.patternLine}>{patternLine(pattern)}</Text>
-          </View>
-
-          <PatternPreview pattern={pattern} />
-
-          <View style={styles.card}>
-            {PHASES.map((phase, i) => (
-              <View key={phase}>
-                {i > 0 && <View style={styles.divider} />}
-                <Stepper phase={phase} pattern={pattern} onChange={setPattern} />
-                {phase === 'hold' && (
-                  // Read with the Hold stepper (its hint), so not twice.
-                  <Text style={styles.safetyNote} importantForAccessibility="no" accessibilityElementsHidden>
-                    {SAFETY_NOTE}
-                  </Text>
-                )}
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.lengthBlock}>
-            <Text style={styles.sectionLabel}>Length</Text>
-            <LengthChooser value={lengthSec} onChange={setLengthSec} />
-          </View>
-
-          {/* Library's Quick Start gradient: white text stays >= 6.47:1 (AUDIT-2.md). */}
-          <Pressable onPress={start} accessibilityRole="button" accessibilityLabel={startSpoken(pattern, lengthSec)}>
-            <LinearGradient
-              colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.startButton}
-            >
-              <Text style={styles.startButtonText}>{startText(lengthSec)}</Text>
-            </LinearGradient>
-          </Pressable>
-        </ScrollView>
+        {initial && <PatternEditor initial={initial} />}
       </SafeAreaView>
     </View>
+  );
+}
+
+function PatternEditor({ initial }: { initial: Recipe }) {
+  const [pattern, setPattern] = useState<BreathPattern>(initial.pattern);
+  const [lengthSec, setLengthSec] = useState<LengthSec>(initial.lengthSec);
+  const start = () => router.push(customPlayerHref(pattern, lengthSec) as Href);
+
+  return (
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {/* Live label: the same patternLabel the cards and the player show. */}
+      <View style={styles.labelBlock} accessible accessibilityLabel={patternSpoken(pattern)}>
+        <Text style={styles.patternLabel}>{patternLabel(pattern)}</Text>
+        <Text style={styles.patternLine}>{patternLine(pattern)}</Text>
+      </View>
+
+      <PatternPreview pattern={pattern} />
+
+      <View style={styles.card}>
+        {PHASES.map((phase, i) => (
+          <View key={phase}>
+            {i > 0 && <View style={styles.divider} />}
+            <Stepper phase={phase} pattern={pattern} onChange={setPattern} />
+            {phase === 'hold' && (
+              // Read with the Hold stepper (its hint), so not twice.
+              <Text style={styles.safetyNote} importantForAccessibility="no" accessibilityElementsHidden>
+                {SAFETY_NOTE}
+              </Text>
+            )}
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.lengthBlock}>
+        <Text style={styles.sectionLabel}>Length</Text>
+        <LengthChooser value={lengthSec} onChange={setLengthSec} />
+      </View>
+
+      {/* Library's Quick Start gradient: white text stays >= 6.47:1 (AUDIT-2.md). */}
+      <Pressable onPress={start} accessibilityRole="button" accessibilityLabel={startSpoken(pattern, lengthSec)}>
+        <LinearGradient
+          colors={[colors.inversePrimary, colors.onPrimaryFixedVariant]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.startButton}
+        >
+          <Text style={styles.startButtonText}>{startText(lengthSec)}</Text>
+        </LinearGradient>
+      </Pressable>
+    </ScrollView>
   );
 }
 

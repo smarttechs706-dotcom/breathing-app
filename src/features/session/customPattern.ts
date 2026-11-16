@@ -1,11 +1,14 @@
 // Pure rules for session lengths and the "Create your own" pattern: the length
 // choices, the limits per phase, reading a pattern from the player's link
-// parameters, and the seconds a check-in reports. No React Native imports, so
-// it is tested directly in Node (tests/session/customPattern.test.cjs).
+// parameters, the in-memory custom session, the editor's screen reader wording,
+// and the seconds a check-in reports. No React Native imports, so it is tested
+// directly in Node (tests/session/customPattern.test.cjs).
 //
 // Approved 2026-11-16: lengths 2, 3, 5 and 10 minutes for every session;
 // breathe in 2-10 s, hold 0-10 s, breathe out 2-12 s, rest 0-10 s, one breath
-// at most 30 s, default 4-0-6-0; minutes count what was actually played.
+// at most 30 s, default 4-0-6-0; minutes count what was actually played. Only
+// the last custom pattern is remembered, one per account on this phone
+// (lastPattern.ts); there is no list of saved patterns.
 
 import type { Session } from '../../types/models';
 import { cycleSeconds, patternLabel, patternLine, sessionSeconds, type BreathPattern } from './breathPattern';
@@ -111,34 +114,19 @@ export function checkinDurationSec(p: BreathPattern, lengthSec: number): number 
 export const CUSTOM_TITLE = 'Your pattern';
 export const CUSTOM_DESCRIPTION = 'A pattern you set yourself.';
 
-// A pattern and its length: what "Your patterns" keeps.
+// A pattern and its length: what is remembered as the last custom pattern.
 export interface Recipe {
   pattern: BreathPattern;
   lengthSec: LengthSec;
 }
 
 // The player's link for a custom session: /session-player?sessionId=custom&pattern=4-7-8-0&length=300
-// With `from` (opened through Edit on a "Your patterns" card), the link also
-// names that card, &from=4-7-8-0&fromLength=300, so the edited recipe
-// replaces it when the breathing ends.
-export function customPlayerHref(p: BreathPattern, lengthSec: LengthSec, from?: Recipe | null): string {
-  const base = `/session-player?sessionId=${CUSTOM_SESSION_ID}&pattern=${formatPatternParam(p)}&length=${lengthSec}`;
-  return from ? `${base}&from=${formatPatternParam(from.pattern)}&fromLength=${from.lengthSec}` : base;
+export function customPlayerHref(p: BreathPattern, lengthSec: LengthSec): string {
+  return `/session-player?sessionId=${CUSTOM_SESSION_ID}&pattern=${formatPatternParam(p)}&length=${lengthSec}`;
 }
 
-// A recipe read from link parameters, or null when either part is missing or invalid.
-export function parseRecipe(rawPattern: unknown, rawLength: unknown): Recipe | null {
-  const pattern = parsePatternParam(rawPattern);
-  const lengthSec = parseLengthParam(rawLength);
-  return pattern && lengthSec ? { pattern, lengthSec } : null;
-}
-
-// The editor's link, empty or filled in with a saved pattern (Edit). A
-// filled-in editor is always an Edit, so its recipe is the card it replaces.
-export function editorHref(p?: BreathPattern, lengthSec?: LengthSec): string {
-  if (!p || !lengthSec) return '/create-pattern';
-  return `/create-pattern?pattern=${formatPatternParam(p)}&length=${lengthSec}`;
-}
+// The "Create your own" editor (it opens with the last custom pattern).
+export const EDITOR_HREF = '/create-pattern';
 
 // The in-memory session the player plays for a custom pattern, or null when
 // the link's pattern or length is not valid (the player then shows "Session
@@ -193,9 +181,3 @@ export function startText(lengthSec: number): string {
 export function startSpoken(p: BreathPattern, lengthSec: number): string {
   return `Start, ${Math.round(lengthSec / 60)} minute session, pattern ${patternLabel(p)}`;
 }
-
-// A "Your patterns" card: "Your pattern 4-7-8, 5 minutes. Start".
-export function savedCardSpoken(p: BreathPattern, lengthSec: number): string {
-  return `${CUSTOM_TITLE} ${patternLabel(p)}, ${lengthSpoken(lengthSec)}. Start`;
-}
-export const SAVED_CARD_HINT = 'Hold for edit or remove';

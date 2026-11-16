@@ -5286,3 +5286,10 @@ Release list, in order:
 
 Next: the owner's phone check of Part 2; then the backend deploy order (A,
 deploy, B) and the privacy policy lines.
+
+Update (same day): the "Your patterns" row, its hold actions (Edit, Remove),
+the Edit link parameters and the saved list are removed. Only the last custom
+pattern is remembered, one per account on this phone (lastPattern.ts), stored
+when the breathing ends; the editor opens with it, or 4-0-6-0 at 5 min.
+Library shows nothing about it. A custom session uses Calm and Focus's
+painting; "Create your own" is a slim row under Quick Start.

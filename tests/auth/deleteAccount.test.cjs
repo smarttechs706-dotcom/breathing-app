@@ -18,8 +18,8 @@ function setup({ deleteFails = false, cancelOk = true } = {}) {
       '../features/profile/profilePhotoStore': {
         forgetProfilePhoto: async (userId) => events.push(`photo ${userId}`),
       },
-      '../features/session/savedPatternsStore': {
-        clearSavedPatterns: async (userId) => events.push(`patterns ${userId}`),
+      '../features/session/lastPatternStore': {
+        clearLastPattern: async (userId) => events.push(`last pattern ${userId}`),
       },
       './reminders': {
         applyReminderSchedule: async () => {
@@ -42,7 +42,7 @@ test('a delete clears local data after the server, and leaves onboarding alone',
     'clear reminder',
     'sessions',
     'photo user-1234-abcd',
-    'patterns user-1234-abcd',
+    'last pattern user-1234-abcd',
   ]);
 });
 
