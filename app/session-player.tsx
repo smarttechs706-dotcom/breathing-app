@@ -31,6 +31,13 @@ import {
   sessionSeconds,
   type BreathPhase,
 } from '../src/features/session/breathPattern';
+import {
+  checkinDurationSec,
+  defaultLengthFor,
+  DEFAULT_LENGTH_SEC,
+  type LengthSec,
+} from '../src/features/session/customPattern';
+import { LengthChooser } from '../src/features/session/LengthChooser';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
@@ -82,10 +89,6 @@ const GLASS_BUTTON_FILL = 'rgba(10,16,40,0.55)';
 // all reflect it) and in PRD.md's table to match — see PROGRESS.md.
 
 type Phase = 'pre-mood' | 'active' | 'post-mood';
-
-function formatDurationBadge(durationSec: number) {
-  return `${Math.round(durationSec / 60)} MIN SESSION`;
-}
 
 function formatTime(totalSec: number) {
   const m = Math.floor(totalSec / 60);
@@ -215,6 +218,11 @@ export default function SessionPlayerScreen() {
   // untouched selector can never submit a fabricated value.
   const [preMood, setPreMood] = useState<number | null>(null);
   const [postMood, setPostMood] = useState<number | null>(null);
+  // The length chosen before the session (2, 3, 5 or 10 min). null = the
+  // session's own length (customPattern.ts defaultLengthFor). Only changeable
+  // before the session starts.
+  const [chosenLength, setChosenLength] = useState<LengthSec | null>(null);
+  const lengthSec: LengthSec = chosenLength ?? defaultLengthFor(session?.durationSec ?? DEFAULT_LENGTH_SEC);
   // Breathed time in ms: the one clock everything on the breathing screen
   // reads (see the clock effect below).
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -273,7 +281,7 @@ export default function SessionPlayerScreen() {
   // The session ends at the last whole out-breath that fits its length
   // (sessionSeconds). Instead of a fixed interval, the next update is
   // scheduled for the next phase change, the next whole second or the end.
-  const endMs = session ? sessionSeconds(session.phaseConfig, session.durationSec) * 1000 : 0;
+  const endMs = session ? sessionSeconds(session.phaseConfig, lengthSec) * 1000 : 0;
 
   useEffect(() => {
     clockRef.current = setClockRunning(clockRef.current, running, Date.now());
@@ -394,10 +402,12 @@ export default function SessionPlayerScreen() {
     // D-10: never send a null mood to the API.
     if (preMood === null || postMood === null) return false;
     const sessionId = session.id;
+    // The seconds actually played (whole breaths), so Insights counts them.
+    const durationSec = checkinDurationSec(session.phaseConfig, lengthSec);
     const saved = await runSave(async () => {
       setSaveError(null);
       try {
-        await postCheckin({ sessionId, preMood, postMood });
+        await postCheckin({ sessionId, preMood, postMood, durationSec });
         markCheckinSaved();
         return true;
       } catch (err) {
@@ -596,12 +606,7 @@ export default function SessionPlayerScreen() {
             {phase === 'pre-mood' && (
               <View style={styles.panel}>
                 <View style={styles.preMoodTop}>
-                  <View style={styles.durationBadge}>
-                    <MaterialIcons name="waves" size={16} color={colors.tertiary} />
-                    <Text style={styles.durationBadgeText}>
-                      {formatDurationBadge(session.durationSec)}
-                    </Text>
-                  </View>
+                  <LengthChooser value={lengthSec} onChange={setChosenLength} />
                   <Text style={styles.sessionTitle}>{session.title}</Text>
                   <Text style={styles.sessionDescription}>
                     {session.description}
@@ -863,22 +868,6 @@ const styles = StyleSheet.create({
   // ---- pre-mood ----
   preMoodTop: {
     gap: spacing.base * 1.5,
-  },
-  durationBadge: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    gap: spacing.base,
-    backgroundColor: 'rgba(10,16,40,0.6)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: spacing.base * 1.5,
-    paddingVertical: spacing.base * 0.75,
-    borderRadius: radii.full,
-  },
-  durationBadgeText: {
-    ...typography.labelSm,
-    color: colors.onSurfaceVariant,
   },
   sessionTitle: {
     ...typography.displayTitle,

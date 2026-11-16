@@ -6,6 +6,9 @@ export type CheckinPayload = {
   sessionId: string;
   preMood: number;
   postMood: number;
+  // Seconds actually played (60 to 600). Optional: left out, the server counts
+  // the catalogue length, as it always has.
+  durationSec?: number;
 };
 
 let held: { userId: string; checkin: CheckinPayload } | null = null;

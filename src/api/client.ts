@@ -236,14 +236,15 @@ function sendCheckin(
   checkin: CheckinPayload,
   onExpired?: (userId: string) => void
 ): Promise<Streak> {
-  const { sessionId, preMood, postMood } = checkin;
+  const { sessionId, preMood, postMood, durationSec } = checkin;
   return authedFetch(
     'POST /api/checkin',
     new URL('/api/checkin', getApiBaseUrl()),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, preMood, postMood }),
+      // durationSec: undefined is left out of the JSON by JSON.stringify.
+      body: JSON.stringify({ sessionId, preMood, postMood, durationSec }),
     },
     (response) => response.json(),
     CHECKIN_TIMEOUT_MS,

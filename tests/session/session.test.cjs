@@ -138,7 +138,8 @@ test('backdrop: the video only while breathing, one source, crossfade 400 ms, in
 test('one clock: the player derives phase, circle and end from breathed time; no second timer', () => {
   const player = fs.readFileSync(path.join(repo, 'app/session-player.tsx'), 'utf8');
   assert.ok(player.includes('const breath = breathAt(session.phaseConfig, elapsedMs);'));
-  assert.ok(player.includes('sessionSeconds(session.phaseConfig, session.durationSec) * 1000'));
+  // The end follows the length chosen before the session (2, 3, 5 or 10 min).
+  assert.ok(player.includes('sessionSeconds(session.phaseConfig, lengthSec) * 1000'));
   assert.ok(player.includes('nextTickMs(session.phaseConfig, ms, endMs)'));
   assert.ok(player.includes('if (phase === \'active\' && elapsedMs >= endMs) {'));
   // The old per-phase timer chain is gone.
