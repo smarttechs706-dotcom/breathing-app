@@ -5247,6 +5247,9 @@ Done: cleanup round.
 To confirm by the owner on the phone:
 - Home greeting readability in daylight.
 - Signing in to the real account after the password reset.
+- Location in profile photos: verified from source on 2026-11-17 (gallery
+  only, re-encoded 512 x 512 JPEG, no EXIF or GPS); not yet verified on an
+  uploaded file; iOS not checked.
 
 Moved to the store round:
 - Two-phone password change test.
