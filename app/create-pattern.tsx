@@ -13,6 +13,7 @@ import {
   DEFAULT_LENGTH_SEC,
   parseLengthParam,
   parsePatternParam,
+  parseRecipe,
   PHASE_NAMES,
   PHASES,
   patternSpoken,
@@ -55,9 +56,12 @@ export default function CreatePatternScreen() {
     () => parsePatternParam(params.pattern) ?? DEFAULT_CUSTOM_PATTERN
   );
   const [lengthSec, setLengthSec] = useState<LengthSec>(() => parseLengthParam(params.length) ?? DEFAULT_LENGTH_SEC);
+  // Opened through Edit: the card being edited, replaced when the edited
+  // session's breathing ends (savedPatterns.replaceSaved).
+  const [editing] = useState(() => parseRecipe(params.pattern, params.length));
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/library'));
-  const start = () => router.push(customPlayerHref(pattern, lengthSec) as Href);
+  const start = () => router.push(customPlayerHref(pattern, lengthSec, editing) as Href);
 
   return (
     <View style={styles.root}>

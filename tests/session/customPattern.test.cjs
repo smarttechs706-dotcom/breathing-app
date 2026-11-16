@@ -218,7 +218,7 @@ test('player: plays a custom session from the link without the catalogue', () =>
   // Its check-in goes out like any other: id "custom", the seconds played.
   assert.ok(src.includes('await postCheckin({ sessionId, preMood, postMood, durationSec });'));
   // The Player tab can come back to it with its pattern.
-  assert.ok(src.includes('isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec)) : undefined'));
+  assert.ok(src.includes('isCustom ? customPlayerHref(session.phaseConfig, defaultLengthFor(session.durationSec), replaces) : undefined'));
 });
 
 test('player: the recipe is saved once when the breathing ends, before and apart from the check-in', () => {
@@ -227,7 +227,7 @@ test('player: the recipe is saved once when the breathing ends, before and apart
   assert.ok(end.includes("if (phase === 'active' && elapsedMs >= endMs) {"));
   assert.ok(end.includes('if (isCustom && !recipeSavedRef.current) {'));
   assert.ok(end.includes('recipeSavedRef.current = true;'));
-  assert.ok(end.includes('void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec });'));
+  assert.ok(end.includes('void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec }, replaces);'));
   assert.equal((src.match(/rememberPattern\(/g) || []).length, 1, 'saved in one place only');
   const save = src.slice(src.indexOf('const saveCheckin = async'), src.indexOf('const handleExitPress'));
   assert.ok(!save.includes('rememberPattern'), 'not tied to the check-in');
@@ -255,7 +255,7 @@ test('editor: steppers, live label, preview circle, length, safety note under Ho
   assert.ok(src.includes("{phase === 'hold' && ("));
   assert.ok(src.includes("accessibilityHint={phase === 'hold' ? SAFETY_NOTE : undefined}"));
   // Start opens the player with the recipe; nothing is saved here.
-  assert.ok(src.includes('router.push(customPlayerHref(pattern, lengthSec) as Href)'));
+  assert.ok(src.includes('router.push(customPlayerHref(pattern, lengthSec, editing) as Href)'));
   assert.ok(src.includes('accessibilityLabel={startSpoken(pattern, lengthSec)}'));
   assert.ok(src.includes('{startText(lengthSec)}'));
   assert.ok(!src.includes('rememberPattern'));
@@ -298,4 +298,28 @@ test('Part 2 files: text roles only, no long dashes or emoji', () => {
     assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src), f);
     assert.ok(!/fontFamily:|fontWeight:|fontSize:/.test(src), `${f}: text roles only`);
   }
+});
+
+test('Edit: the editor passes the card it was opened from to the player, which replaces it', () => {
+  // Link: the card rides along as from / fromLength, and reads back.
+  const href = cp.customPlayerHref(P(4, 6, 8, 0), 600, { pattern: P(4, 7, 8, 0), lengthSec: 300 });
+  assert.equal(href, '/session-player?sessionId=custom&pattern=4-6-8-0&length=600&from=4-7-8-0&fromLength=300');
+  const q = new URLSearchParams(href.split('?')[1]);
+  assert.deepEqual(cp.parseRecipe(q.get('from'), q.get('fromLength')), { pattern: P(4, 7, 8, 0), lengthSec: 300 });
+  assert.equal(cp.customPlayerHref(P(4, 6, 8, 0), 600, null), '/session-player?sessionId=custom&pattern=4-6-8-0&length=600');
+  assert.equal(cp.parseRecipe('4-7-8-0', undefined), null);
+  assert.equal(cp.parseRecipe(undefined, '300'), null);
+
+  // Editor: only a filled-in editor (Edit) has a card to replace.
+  const editor = read('app/create-pattern.tsx');
+  assert.ok(editor.includes('const [editing] = useState(() => parseRecipe(params.pattern, params.length));'));
+  assert.ok(editor.includes('router.push(customPlayerHref(pattern, lengthSec, editing) as Href)'));
+  // Player: reads it from the link and hands it to the save at the end.
+  const player = read('app/session-player.tsx');
+  assert.ok(player.includes('(isCustom ? parseRecipe(from, fromLength) : null)'));
+  assert.ok(player.includes('void rememberPattern(userId, { pattern: session.phaseConfig, lengthSec }, replaces);'));
+  // Library: "Create your own" opens an empty editor, Edit a filled-in one.
+  const library = read('src/features/library/LibraryScreen.tsx');
+  assert.ok(library.includes('router.push(editorHref() as Href)'));
+  assert.ok(library.includes('router.push(editorHref(item.pattern, item.lengthSec) as Href)'));
 });

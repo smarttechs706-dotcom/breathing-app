@@ -57,6 +57,17 @@ export function removeSaved(list: readonly SavedPattern[], item: SavedPattern): 
   return list.filter((s) => !sameRecipe(s, item));
 }
 
+// Edit: the card it was opened from is removed and the edited recipe goes to
+// the front. Unchanged numbers and length leave the list exactly as it is.
+export function replaceSaved(
+  list: readonly SavedPattern[],
+  from: SavedPattern,
+  item: SavedPattern
+): SavedPattern[] {
+  if (sameRecipe(from, item)) return [...list];
+  return addSaved(removeSaved(list, from), item);
+}
+
 // What was stored, read back: anything broken or out of the limits is
 // dropped, duplicates are dropped (the first, newest, stays), at most 8.
 export function parseSaved(raw: string | null): SavedPattern[] {
@@ -103,9 +114,15 @@ async function update(
   }
 }
 
-export function rememberSaved(storage: KeyValueStorage, userId: string | null | undefined, item: SavedPattern) {
+// `from`: the card an Edit was opened from, which this recipe replaces.
+export function rememberSaved(
+  storage: KeyValueStorage,
+  userId: string | null | undefined,
+  item: SavedPattern,
+  from?: SavedPattern | null
+) {
   if (!isSavedPattern(item)) return Promise.resolve(null);
-  return update(storage, userId, (list) => addSaved(list, item));
+  return update(storage, userId, (list) => (from ? replaceSaved(list, from, item) : addSaved(list, item)));
 }
 
 export function forgetSaved(storage: KeyValueStorage, userId: string | null | undefined, item: SavedPattern) {

@@ -119,3 +119,39 @@ test('storage failures never throw: the row stays empty or unchanged', async () 
   };
   await sp.clearSaved(failing, USER);
 });
+
+test('Edit: the card it was opened from is replaced by the edited recipe, at the front', () => {
+  const list = [R(P(5, 0, 5, 0), 600), R(P(4, 7, 8, 0), 300), R(P(4, 4, 4, 4), 120)];
+  // Edited 4-7-8 @ 5 min into 4-7-8 @ 10 min: the old card is gone, the new one first.
+  assert.deepEqual(sp.replaceSaved(list, R(P(4, 7, 8, 0), 300), R(P(4, 7, 8, 0), 600)), [
+    R(P(4, 7, 8, 0), 600),
+    R(P(5, 0, 5, 0), 600),
+    R(P(4, 4, 4, 4), 120),
+  ]);
+  // Unchanged numbers and length: nothing changes, not even the order.
+  assert.deepEqual(sp.replaceSaved(list, R(P(4, 7, 8, 0), 300), R(P(4, 7, 8, 0), 300)), list);
+  // Edited into a recipe that already has a card: one card, at the front.
+  assert.deepEqual(sp.replaceSaved(list, R(P(4, 7, 8, 0), 300), R(P(4, 4, 4, 4), 120)), [
+    R(P(4, 4, 4, 4), 120),
+    R(P(5, 0, 5, 0), 600),
+  ]);
+  // The card was removed meanwhile: the edited recipe is simply added.
+  assert.deepEqual(sp.replaceSaved([R(P(5, 0, 5, 0), 600)], R(P(4, 7, 8, 0), 300), R(P(4, 6, 8, 0), 300)), [
+    R(P(4, 6, 8, 0), 300),
+    R(P(5, 0, 5, 0), 600),
+  ]);
+});
+
+test('Edit in storage: replaces when the breathing ends; unchanged leaves the stored list as it is', async () => {
+  const storage = memoryStorage();
+  await sp.rememberSaved(storage, USER, R(P(4, 7, 8, 0), 300));
+  await sp.rememberSaved(storage, USER, R(P(5, 0, 5, 0), 600)); // newest first: 5-5, 4-7-8
+  await sp.rememberSaved(storage, USER, R(P(4, 6, 8, 0), 300), R(P(4, 7, 8, 0), 300));
+  assert.deepEqual(await sp.loadSaved(storage, USER), [R(P(4, 6, 8, 0), 300), R(P(5, 0, 5, 0), 600)]);
+  const before = storage.data.get(sp.savedPatternsKey(USER));
+  await sp.rememberSaved(storage, USER, R(P(5, 0, 5, 0), 600), R(P(5, 0, 5, 0), 600));
+  assert.equal(storage.data.get(sp.savedPatternsKey(USER)), before, 'unchanged: same order');
+  // Without `from` (a new pattern or a tap on a card), behaviour is as before.
+  await sp.rememberSaved(storage, USER, R(P(5, 0, 5, 0), 600));
+  assert.deepEqual(await sp.loadSaved(storage, USER), [R(P(5, 0, 5, 0), 600), R(P(4, 6, 8, 0), 300)]);
+});

@@ -15,9 +15,9 @@ export function loadSavedPatterns(userId: string | null | undefined): Promise<Sa
   return loadSaved(AsyncStorage, userId);
 }
 
-// When a custom session reaches its end.
-export function rememberPattern(userId: string | null | undefined, item: SavedPattern) {
-  return rememberSaved(AsyncStorage, userId, item);
+// When a custom session reaches its end. `from`: the card an Edit replaces.
+export function rememberPattern(userId: string | null | undefined, item: SavedPattern, from?: SavedPattern | null) {
+  return rememberSaved(AsyncStorage, userId, item, from);
 }
 
 // "Remove" on a card.

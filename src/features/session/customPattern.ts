@@ -111,12 +111,30 @@ export function checkinDurationSec(p: BreathPattern, lengthSec: number): number 
 export const CUSTOM_TITLE = 'Your pattern';
 export const CUSTOM_DESCRIPTION = 'A pattern you set yourself.';
 
-// The player's link for a custom session: /session-player?sessionId=custom&pattern=4-7-8-0&length=300
-export function customPlayerHref(p: BreathPattern, lengthSec: LengthSec): string {
-  return `/session-player?sessionId=${CUSTOM_SESSION_ID}&pattern=${formatPatternParam(p)}&length=${lengthSec}`;
+// A pattern and its length: what "Your patterns" keeps.
+export interface Recipe {
+  pattern: BreathPattern;
+  lengthSec: LengthSec;
 }
 
-// The editor's link, empty or filled in with a saved pattern (Edit).
+// The player's link for a custom session: /session-player?sessionId=custom&pattern=4-7-8-0&length=300
+// With `from` (opened through Edit on a "Your patterns" card), the link also
+// names that card, &from=4-7-8-0&fromLength=300, so the edited recipe
+// replaces it when the breathing ends.
+export function customPlayerHref(p: BreathPattern, lengthSec: LengthSec, from?: Recipe | null): string {
+  const base = `/session-player?sessionId=${CUSTOM_SESSION_ID}&pattern=${formatPatternParam(p)}&length=${lengthSec}`;
+  return from ? `${base}&from=${formatPatternParam(from.pattern)}&fromLength=${from.lengthSec}` : base;
+}
+
+// A recipe read from link parameters, or null when either part is missing or invalid.
+export function parseRecipe(rawPattern: unknown, rawLength: unknown): Recipe | null {
+  const pattern = parsePatternParam(rawPattern);
+  const lengthSec = parseLengthParam(rawLength);
+  return pattern && lengthSec ? { pattern, lengthSec } : null;
+}
+
+// The editor's link, empty or filled in with a saved pattern (Edit). A
+// filled-in editor is always an Edit, so its recipe is the card it replaces.
 export function editorHref(p?: BreathPattern, lengthSec?: LengthSec): string {
   if (!p || !lengthSec) return '/create-pattern';
   return `/create-pattern?pattern=${formatPatternParam(p)}&length=${lengthSec}`;
