@@ -57,10 +57,6 @@ export function lengthSpoken(sec: number): string {
   const m = Math.round(sec / 60);
   return `${m} ${m === 1 ? 'minute' : 'minutes'}`;
 }
-// A custom session's fixed length before it starts: "Session length, 5 minutes".
-export function lengthLabelSpoken(sec: number): string {
-  return `Session length, ${lengthSpoken(sec)}`;
-}
 
 function inLimits(phase: PhaseName, n: unknown): boolean {
   const { min, max } = PHASE_LIMITS[phase];

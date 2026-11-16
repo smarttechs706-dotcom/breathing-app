@@ -118,59 +118,42 @@ test('custom check-ins use the hidden catalogue id "custom"', () => {
 
 // --- Wiring -----------------------------------------------------------------------
 
-test('player: the chooser (built-in) or the label (custom) replaces the badge; the end and the check-in follow the length', () => {
+test('player: the start screen has no length choice or label, for built-in and custom sessions', () => {
   const src = read('app/session-player.tsx');
-  assert.ok(src.includes('const [chosenLength, setChosenLength] = useState<LengthSec | null>(null);'));
-  assert.ok(src.includes('const lengthSec: LengthSec = chosenLength ?? defaultLengthFor(session?.durationSec ?? DEFAULT_LENGTH_SEC);'));
-  assert.ok(src.includes('<LengthChooser value={lengthSec} onChange={setChosenLength} />'));
+  const pre = src.slice(src.indexOf("{phase === 'pre-mood' && ("), src.indexOf("{phase === 'active' && ("));
+  assert.ok(pre.length > 0 && pre.includes('<MoodScale'), 'slice is the start screen');
+  for (const gone of ['LengthChooser', 'LengthLabel', 'chosenLength', 'setChosenLength', 'lengthLabelSpoken', 'MIN SESSION', 'durationBadge']) {
+    assert.ok(!src.includes(gone), gone);
+  }
+  assert.equal(cp.lengthLabelSpoken, undefined, 'the label wording is gone');
+  assert.ok(!read('src/features/session/LengthChooser.tsx').includes('LengthLabel'), 'the label component is gone');
+  // The editor keeps the length pills.
+  assert.ok(read('app/create-pattern.tsx').includes('<LengthChooser value={lengthSec} onChange={setLengthSec} />'));
+});
+
+test('player: a built-in session plays its own catalogue length; a custom one the length its link carries', () => {
+  const src = read('app/session-player.tsx');
+  assert.ok(src.includes('const lengthSec = session?.durationSec ?? 0;'));
+  assert.equal((src.match(/const lengthSec\b/g) || []).length, 1, 'one source for the length');
+  // The end and the check-in follow it: the seconds actually played.
+  assert.ok(src.includes('const endMs = session ? sessionSeconds(session.phaseConfig, lengthSec) * 1000 : 0;'));
   assert.ok(src.includes('const durationSec = checkinDurationSec(session.phaseConfig, lengthSec);'));
   assert.ok(src.includes('await postCheckin({ sessionId, preMood, postMood, durationSec });'));
-  assert.ok(!/MIN SESSION|formatDurationBadge|durationBadge/.test(src), 'old badge gone');
-  // The chooser and the label are only on the before-session panel.
-  const pre = src.slice(src.indexOf("{phase === 'pre-mood' && ("), src.indexOf("{phase === 'active' && ("));
-  assert.ok(pre.includes('<LengthChooser'));
-  assert.ok(pre.includes('<LengthLabel'));
-  assert.equal((src.match(/<LengthChooser/g) || []).length, 1);
-  assert.equal((src.match(/<LengthLabel/g) || []).length, 1);
-});
-
-test('player: a custom session shows its length as a label, not the chooser; the length is what the link carries', () => {
-  const src = read('app/session-player.tsx');
-  const pre = src.slice(src.indexOf("{phase === 'pre-mood' && ("), src.indexOf("{phase === 'active' && ("));
-  assert.ok(
-    pre.includes(
-      [
-        '{isCustom ? (',
-        '                    <LengthLabel value={lengthSec} />',
-        '                  ) : (',
-        '                    <LengthChooser value={lengthSec} onChange={setChosenLength} />',
-        '                  )}',
-      ].join('\n')
-    ),
-    'label for custom, chooser for built-in'
-  );
-  // setChosenLength is only reachable through the chooser, so for a custom
-  // session the length stays the link's (chosenLength stays null).
-  assert.equal((src.match(/setChosenLength/g) || []).length, 2, 'declared once, used once (the chooser)');
+  // A custom session's durationSec is the link's length for every choice, and
+  // what it plays and records follows from it (4-7-8 at 5 min: 285 s).
   for (const len of cp.LENGTH_OPTIONS) {
     const s = cp.customSession('4-7-8-0', String(len));
-    assert.equal(s.durationSec, len);
-    assert.equal(cp.defaultLengthFor(s.durationSec), len, `${len}: the link's length is used as is`);
+    assert.equal(s.id, 'custom');
+    assert.equal(s.durationSec, len, `${len}: the link's length`);
+    assert.equal(cp.defaultLengthFor(s.durationSec), len, `${len}: remembered unchanged`);
+    assert.equal(cp.checkinDurationSec(s.phaseConfig, s.durationSec), Math.round(bp.sessionSeconds(s.phaseConfig, len)));
   }
+  assert.equal(cp.checkinDurationSec(cp.customSession('4-7-8-0', '300').phaseConfig, 300), 285);
+  // The last pattern is remembered with that same length.
+  assert.ok(src.includes('lengthSec: defaultLengthFor(session.durationSec),'));
 });
 
-test('length label (custom): not interactive, read as "Session length, 5 minutes"', () => {
-  assert.equal(cp.lengthLabelSpoken(300), 'Session length, 5 minutes');
-  assert.equal(cp.lengthLabelSpoken(120), 'Session length, 2 minutes');
-  const src = read('src/features/session/LengthChooser.tsx');
-  const label = src.slice(src.indexOf('export function LengthLabel'));
-  assert.ok(label.includes('accessibilityRole="text"'));
-  assert.ok(label.includes('accessibilityLabel={lengthLabelSpoken(value)}'));
-  assert.ok(label.includes('{lengthLabel(value)}'));
-  assert.ok(!/Pressable|onPress|accessibilityRole="(button|radio)"/.test(label.slice(0, label.indexOf('const styles'))), 'not interactive');
-});
-
-test('length chooser (built-in): four pills of equal width in one row, never a second row', () => {
+test('length chooser (editor): four pills of equal width in one row, never a second row', () => {
   const src = read('src/features/session/LengthChooser.tsx');
   const style = (name) => {
     const m = src.match(new RegExp('\\n  ' + name + ': \\{([^}]*)\\}'));
@@ -292,7 +275,9 @@ test('player: the last pattern is stored once when the breathing ends, not insid
   assert.ok(end.includes("if (phase === 'active' && elapsedMs >= endMs) {"));
   assert.ok(end.includes('if (isCustom && !recipeSavedRef.current) {'));
   assert.ok(end.includes('recipeSavedRef.current = true;'));
-  assert.ok(end.includes('void rememberLastPattern(userId, { pattern: session.phaseConfig, lengthSec });'));
+  assert.ok(end.includes('void rememberLastPattern(userId, {'));
+  assert.ok(end.includes('pattern: session.phaseConfig,'));
+  assert.ok(end.includes('lengthSec: defaultLengthFor(session.durationSec),'));
   assert.equal((src.match(/rememberLastPattern\(/g) || []).length, 1, 'stored in one place only');
   const save = src.slice(src.indexOf('const saveCheckin = async'), src.indexOf('const handleExitPress'));
   assert.ok(save.includes('await postCheckin('), 'slice is the check-in code');

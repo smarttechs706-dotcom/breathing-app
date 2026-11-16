@@ -38,11 +38,8 @@ import {
   customPlayerHref,
   customSession,
   defaultLengthFor,
-  DEFAULT_LENGTH_SEC,
-  type LengthSec,
 } from '../src/features/session/customPattern';
 import { rememberLastPattern } from '../src/features/session/lastPatternStore';
-import { LengthChooser, LengthLabel } from '../src/features/session/LengthChooser';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
@@ -241,11 +238,10 @@ export default function SessionPlayerScreen() {
   // untouched selector can never submit a fabricated value.
   const [preMood, setPreMood] = useState<number | null>(null);
   const [postMood, setPostMood] = useState<number | null>(null);
-  // The length chosen before the session (2, 3, 5 or 10 min). null = the
-  // session's own length (customPattern.ts defaultLengthFor). Only changeable
-  // before the session starts.
-  const [chosenLength, setChosenLength] = useState<LengthSec | null>(null);
-  const lengthSec: LengthSec = chosenLength ?? defaultLengthFor(session?.durationSec ?? DEFAULT_LENGTH_SEC);
+  // The session's length, not chosen on this screen: a built-in session plays
+  // its own catalogue length; a custom session plays the length its link
+  // carries (chosen in the "Create your own" editor, customSession).
+  const lengthSec = session?.durationSec ?? 0;
   // Breathed time in ms: the one clock everything on the breathing screen
   // reads (see the clock effect below).
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -360,7 +356,12 @@ export default function SessionPlayerScreen() {
       setPhase('post-mood');
       if (isCustom && !recipeSavedRef.current) {
         recipeSavedRef.current = true;
-        void rememberLastPattern(userId, { pattern: session.phaseConfig, lengthSec });
+        // A custom session's durationSec is the link's length, one of the four
+        // choices (customSession), so defaultLengthFor returns it unchanged.
+        void rememberLastPattern(userId, {
+          pattern: session.phaseConfig,
+          lengthSec: defaultLengthFor(session.durationSec),
+        });
       }
     }
   }, [elapsedMs, phase, session, endMs, isCustom, userId, lengthSec]);
@@ -638,13 +639,6 @@ export default function SessionPlayerScreen() {
             {phase === 'pre-mood' && (
               <View style={styles.panel}>
                 <View style={styles.preMoodTop}>
-                  {/* A custom session's length was chosen in the editor and
-                      stays what the link carries: shown, not changeable. */}
-                  {isCustom ? (
-                    <LengthLabel value={lengthSec} />
-                  ) : (
-                    <LengthChooser value={lengthSec} onChange={setChosenLength} />
-                  )}
                   <Text style={styles.sessionTitle}>{session.title}</Text>
                   <Text style={styles.sessionDescription}>
                     {session.description}
