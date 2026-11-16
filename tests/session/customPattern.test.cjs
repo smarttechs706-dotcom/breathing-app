@@ -118,7 +118,7 @@ test('custom check-ins use the hidden catalogue id "custom"', () => {
 
 // --- Wiring -----------------------------------------------------------------------
 
-test('player: the length chooser replaces the badge; the end and the check-in follow the chosen length', () => {
+test('player: the chooser (built-in) or the label (custom) replaces the badge; the end and the check-in follow the length', () => {
   const src = read('app/session-player.tsx');
   assert.ok(src.includes('const [chosenLength, setChosenLength] = useState<LengthSec | null>(null);'));
   assert.ok(src.includes('const lengthSec: LengthSec = chosenLength ?? defaultLengthFor(session?.durationSec ?? DEFAULT_LENGTH_SEC);'));
@@ -126,10 +126,76 @@ test('player: the length chooser replaces the badge; the end and the check-in fo
   assert.ok(src.includes('const durationSec = checkinDurationSec(session.phaseConfig, lengthSec);'));
   assert.ok(src.includes('await postCheckin({ sessionId, preMood, postMood, durationSec });'));
   assert.ok(!/MIN SESSION|formatDurationBadge|durationBadge/.test(src), 'old badge gone');
-  // The chooser is only on the before-session panel.
+  // The chooser and the label are only on the before-session panel.
   const pre = src.slice(src.indexOf("{phase === 'pre-mood' && ("), src.indexOf("{phase === 'active' && ("));
   assert.ok(pre.includes('<LengthChooser'));
+  assert.ok(pre.includes('<LengthLabel'));
   assert.equal((src.match(/<LengthChooser/g) || []).length, 1);
+  assert.equal((src.match(/<LengthLabel/g) || []).length, 1);
+});
+
+test('player: a custom session shows its length as a label, not the chooser; the length is what the link carries', () => {
+  const src = read('app/session-player.tsx');
+  const pre = src.slice(src.indexOf("{phase === 'pre-mood' && ("), src.indexOf("{phase === 'active' && ("));
+  assert.ok(
+    pre.includes(
+      [
+        '{isCustom ? (',
+        '                    <LengthLabel value={lengthSec} />',
+        '                  ) : (',
+        '                    <LengthChooser value={lengthSec} onChange={setChosenLength} />',
+        '                  )}',
+      ].join('\n')
+    ),
+    'label for custom, chooser for built-in'
+  );
+  // setChosenLength is only reachable through the chooser, so for a custom
+  // session the length stays the link's (chosenLength stays null).
+  assert.equal((src.match(/setChosenLength/g) || []).length, 2, 'declared once, used once (the chooser)');
+  for (const len of cp.LENGTH_OPTIONS) {
+    const s = cp.customSession('4-7-8-0', String(len));
+    assert.equal(s.durationSec, len);
+    assert.equal(cp.defaultLengthFor(s.durationSec), len, `${len}: the link's length is used as is`);
+  }
+});
+
+test('length label (custom): not interactive, read as "Session length, 5 minutes"', () => {
+  assert.equal(cp.lengthLabelSpoken(300), 'Session length, 5 minutes');
+  assert.equal(cp.lengthLabelSpoken(120), 'Session length, 2 minutes');
+  const src = read('src/features/session/LengthChooser.tsx');
+  const label = src.slice(src.indexOf('export function LengthLabel'));
+  assert.ok(label.includes('accessibilityRole="text"'));
+  assert.ok(label.includes('accessibilityLabel={lengthLabelSpoken(value)}'));
+  assert.ok(label.includes('{lengthLabel(value)}'));
+  assert.ok(!/Pressable|onPress|accessibilityRole="(button|radio)"/.test(label.slice(0, label.indexOf('const styles'))), 'not interactive');
+});
+
+test('length chooser (built-in): four pills of equal width in one row, never a second row', () => {
+  const src = read('src/features/session/LengthChooser.tsx');
+  const style = (name) => {
+    const m = src.match(new RegExp('\\n  ' + name + ': \\{([^}]*)\\}'));
+    assert.ok(m, name);
+    return m[1];
+  };
+  assert.ok(!src.includes('flexWrap'), 'no wrapping onto a second row');
+  assert.ok(style('row').includes("flexDirection: 'row'"));
+  assert.ok(style('row').includes('gap: spacing.base,'));
+  assert.ok(style('choice').includes('flex: 1,'), 'equal width: a quarter each');
+  assert.ok(style('choice').includes('paddingHorizontal: spacing.base * 0.5,'));
+  assert.ok(src.includes('style={[styles.pill, styles.choice, selected && styles.pillSelected]}'));
+  // Large system font: the label may break between words inside its pill; it is
+  // never shrunk, capped or cut.
+  assert.ok(style('label').includes("textAlign: 'center'"));
+  assert.ok(!/numberOfLines|adjustsFontSizeToFit|maxFontSizeMultiplier|allowFontScaling/.test(src));
+  // Same text role and colours as before.
+  assert.ok(style('label').includes('...typography.labelSm,'));
+  assert.ok(style('label').includes('color: colors.onSurfaceVariant,'));
+  assert.ok(style('pillSelected').includes('backgroundColor: colors.inversePrimary,'));
+  assert.ok(style('labelSelected').includes("color: '#ffffff',"));
+  // Spacing from the 8-pt tokens only.
+  for (const m of src.matchAll(/(?:gap|padding\w*|minHeight): ([^,]+),/g)) {
+    assert.ok(m[1].startsWith('spacing.base'), m[0]);
+  }
 });
 
 test('check-in payload: optional durationSec, sent only when present', () => {

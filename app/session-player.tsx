@@ -42,7 +42,7 @@ import {
   type LengthSec,
 } from '../src/features/session/customPattern';
 import { rememberLastPattern } from '../src/features/session/lastPatternStore';
-import { LengthChooser } from '../src/features/session/LengthChooser';
+import { LengthChooser, LengthLabel } from '../src/features/session/LengthChooser';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
 import { useActiveSession } from '../src/state/ActiveSessionContext';
@@ -638,7 +638,13 @@ export default function SessionPlayerScreen() {
             {phase === 'pre-mood' && (
               <View style={styles.panel}>
                 <View style={styles.preMoodTop}>
-                  <LengthChooser value={lengthSec} onChange={setChosenLength} />
+                  {/* A custom session's length was chosen in the editor and
+                      stays what the link carries: shown, not changeable. */}
+                  {isCustom ? (
+                    <LengthLabel value={lengthSec} />
+                  ) : (
+                    <LengthChooser value={lengthSec} onChange={setChosenLength} />
+                  )}
                   <Text style={styles.sessionTitle}>{session.title}</Text>
                   <Text style={styles.sessionDescription}>
                     {session.description}
