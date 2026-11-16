@@ -86,6 +86,9 @@ Object.assign(MUST, {
     "onPress={() => router.push('/onboarding/build-habit')}",
   ],
   'app/onboarding/build-habit.tsx': [
+    // Body copy (2026-11-16): one sentence, the "Not a bedtime ritual" line removed.
+    'One reset a day changes the rest of it.',
+    "We'll remind you at the moments you actually need it.",
     'const result = await requestNotificationPermission();',
     'const result = await applyReminderSchedule(settings);',
     'await saveReminderSettings(settings);',
@@ -152,4 +155,10 @@ test('the (auth) stack background is navy; the root layout and its guards are un
   const root = read('app/_layout.tsx');
   assert.ok(root.includes("<Stack.Protected guard={status === 'signedOut'}>"));
   assert.ok(root.includes("<Stack.Protected guard={status === 'signedIn'}>"));
+});
+
+test('build-habit body copy: the "Not a bedtime ritual" sentence is gone', () => {
+  const src = read('app/onboarding/build-habit.tsx');
+  assert.ok(!/bedtime ritual/i.test(src));
+  assert.ok(/<Text style=\{styles\.body\}>\s*We'll remind you at the moments you actually need it\.\s*<\/Text>/.test(src));
 });

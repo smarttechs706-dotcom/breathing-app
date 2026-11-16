@@ -128,8 +128,7 @@ export default function BuildHabitScreen() {
               One reset a day changes the rest of it.
             </Text>
             <Text style={styles.body}>
-              We'll remind you at the moments you actually need it. Not a
-              bedtime ritual you'll forget.
+              We'll remind you at the moments you actually need it.
             </Text>
             <Text style={styles.tip}>{REMINDER_TIP}</Text>
           </View>
