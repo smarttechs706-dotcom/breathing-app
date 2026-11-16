@@ -23,7 +23,7 @@ const sch = loadTs('src/features/session/audio/schedule.ts', {
 const P = (inhale, hold, exhale, rest) => ({ inhale, hold, exhale, rest });
 const MS_PER_CHAR = 70;
 const SYNTHETIC = Object.fromEntries(vs.allClips().map((c) => [c.id, c.text.length * MS_PER_CHAR]));
-const ON = { voice: true, tones: true, voiceFrequency: 'every' };
+const ON = { voice: true };
 
 // Every pattern the editor allows (customPattern limits, one breath <= 30 s).
 function editorPatterns() {
@@ -99,11 +99,11 @@ test('schedule: 4-7-8 at 5 min, phase by phase', () => {
   assert.equal(s.totalMs, 285000, '15 breaths of 19 s');
   assert.equal(s.phases.length, 45);
   assert.deepEqual(
-    s.phases.slice(0, 3).map((p) => [p.breath, p.phase, p.startMs, p.durationMs, p.voice && p.voice.clipId, p.tone]),
+    s.phases.slice(0, 3).map((p) => [p.breath, p.phase, p.startMs, p.durationMs, p.voice && p.voice.clipId]),
     [
-      [0, 'inhale', 0, 4000, 'in-04', 'rise'],
-      [0, 'hold', 4000, 7000, 'hold-07', 'chime'],
-      [0, 'exhale', 11000, 8000, 'out-08', 'fall'],
+      [0, 'inhale', 0, 4000, 'in-04'],
+      [0, 'hold', 4000, 7000, 'hold-07'],
+      [0, 'exhale', 11000, 8000, 'out-08'],
     ]
   );
   const last = s.phases[s.phases.length - 1];
@@ -111,28 +111,30 @@ test('schedule: 4-7-8 at 5 min, phase by phase', () => {
   assert.equal(last.startMs + last.durationMs, s.totalMs, 'ends on the last out-breath');
 });
 
-test('schedule: a 0-second hold or rest is skipped; rest is silent; no rest after the last out-breath', () => {
+test('schedule: a 0-second hold or rest is skipped; rest is spoken; no rest after the last out-breath', () => {
   const s = sch.buildSchedule(P(4, 4, 4, 4), 120, ON, SYNTHETIC);
   assert.equal(s.totalMs, 108000, '7 breaths of 16 s, minus the final rest');
   const rest = s.phases.find((p) => p.phase === 'rest');
-  assert.equal(rest.tone, null, 'silence for rest');
   assert.equal(rest.voice.clipId, 'rest-04');
   assert.equal(s.phases[s.phases.length - 1].phase, 'exhale');
   const noHold = sch.buildSchedule(P(5, 0, 5, 0), 120, ON, SYNTHETIC);
   assert.ok(noHold.phases.every((p) => p.phase === 'inhale' || p.phase === 'exhale'));
 });
 
-test('schedule: voice and tones settings', () => {
+test('schedule: Voice guidance on speaks at every breath; off means no audio at all', () => {
   const pattern = P(4, 7, 8, 0);
-  const off = sch.buildSchedule(pattern, 300, { voice: false, tones: true, voiceFrequency: 'every' }, SYNTHETIC);
-  assert.ok(off.phases.every((p) => p.voice === null && p.tone !== null));
-  const silent = sch.buildSchedule(pattern, 300, { voice: true, tones: false, voiceFrequency: 'every' }, SYNTHETIC);
-  assert.ok(silent.phases.every((p) => p.tone === null && p.voice !== null));
-  const first3 = sch.buildSchedule(pattern, 300, { voice: true, tones: true, voiceFrequency: 'first3' }, SYNTHETIC);
-  assert.equal(sch.VOICE_FIRST_BREATHS, 3);
-  for (const p of first3.phases) assert.equal(p.voice !== null, p.breath < 3, `breath ${p.breath}`);
-  assert.equal(first3.totalMs, off.totalMs, 'settings never change the timing');
-  assert.deepEqual(sch.DEFAULT_AUDIO_SETTINGS, ON);
+  const on = sch.buildSchedule(pattern, 300, ON, SYNTHETIC);
+  assert.ok(on.phases.every((p) => p.voice !== null), 'every phase of every breath (the clips all fit 4-7-8)');
+  assert.equal(on.phases[on.phases.length - 1].breath, 14, 'up to the last breath');
+  const off = sch.buildSchedule(pattern, 300, { voice: false }, SYNTHETIC);
+  assert.ok(off.phases.every((p) => p.voice === null));
+  assert.equal(off.totalMs, on.totalMs, 'the setting never changes the timing');
+  assert.equal(sch.usesAudio({ voice: true }), true);
+  assert.equal(sch.usesAudio({ voice: false }), false, 'off: no track, the existing clock');
+  assert.deepEqual(sch.DEFAULT_AUDIO_SETTINGS, { voice: true });
+  // Voice only for now: no tone or frequency fields (decided 2026-11-17).
+  for (const ph of on.phases) assert.deepEqual(Object.keys(ph).sort(), ['breath', 'durationMs', 'phase', 'startMs', 'voice']);
+  assert.equal(sch.VOICE_FIRST_BREATHS, undefined);
 });
 
 test('every editor pattern: phases match the breathing circle, the voice never runs into the next phase', () => {
@@ -183,7 +185,7 @@ test('every length for the built-in patterns: same rules, voice for the exact se
 
 test('empty or broken patterns give an empty schedule, never a throw', () => {
   assert.deepEqual(sch.buildSchedule(P(0, 0, 0, 0), 300, ON, SYNTHETIC), { totalMs: 0, phases: [] });
-  assert.deepEqual(sch.buildSchedule(P(4, 0, 6, 0), 300, ON, {}).phases.every((p) => p.voice === null), true, 'no clips: tones only');
+  assert.deepEqual(sch.buildSchedule(P(4, 0, 6, 0), 300, ON, {}).phases.every((p) => p.voice === null), true, 'no clips: silent');
 });
 
 test('pure modules: no React Native or Expo imports, no long dashes or emoji', () => {

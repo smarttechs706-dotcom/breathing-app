@@ -5301,3 +5301,50 @@ painting; "Create your own" is a slim row under Quick Start.
   search, category chips, the "Create your own" row, then the session list.
   Home's Featured card still starts a session in one tap. It can be restored
   from git history (the commit before its removal) if customers ask.
+
+## Voice guidance (2026-11-17, branch feat/voice-guidance)
+Plan approved 2026-11-17, then narrowed the same day to voice only:
+- A calm female voice says a full sentence at the start of every phase with
+  the pattern's exact seconds ("Breathe in slowly for four seconds"), or the
+  short cue ("Breathe in", "Hold", "Breathe out", "Rest") when the sentence
+  does not fit the phase with 300 ms to spare. Never over the next phase.
+- 44 pre-recorded clips (40 sentences: in 2-10, hold 1-10, out 2-12, rest
+  1-10; plus 4 cues), 16-bit mono 22.05 kHz WAV. The voice is not chosen yet;
+  everything is built and tested with synthetic beeps; no audio in the repo.
+- No tones (decided 2026-11-17): the track is silence plus the voice clips.
+  Music may come later as a separate layer.
+- Settings: only "Voice guidance" on/off; it speaks at every breath. Off means
+  no audio at all and the existing clock (screen-off time does not count).
+- With Voice guidance on, one WAV per session is baked to Paths.cache from the
+  same schedule as the circle and played by the OS player (expo-audio), so it
+  keeps going with the screen off; the player's time is the session's one
+  clock, and screen-off time counts (it is observed through the player).
+  interruptionMode doNotMix; lock screen controls; needs
+  enableBackgroundPlayback (a new native build) and the Play Console
+  foreground service (media playback) declaration.
+- Done so far (pure, tested in Node): voice script, fit rule, schedule
+  (0f78450); WAV writer and track mixer (6ff8d67, tones since removed).
+- Next steps: Voice guidance setting; track writing and cache cleanup; player
+  hook in the foreground; then background playback with a new dev and preview
+  build and phone tests; clip import when the voice exists.
+
+Open items (voice):
+- Music layer later, as its own layer under the voice.
+- The "first 3 breaths only" voice option returns when music exists.
+- Tone samples were rejected (pitch glides sounded like a siren or race car);
+  three later candidates (swelling pad, soft bell, both) were not chosen
+  either. None of them are in the repo.
+- Choose the voice (and its commercial rights) and record or generate the 44
+  clips.
+- When background playback lands: PROGRESS note on screen-off time counting.
+- Home's ambient loop and the voice must never overlap. Home already plays
+  assets/audio/home-ambient-loop.m4a (from f50b0bf, useHomeAmbientSound.ts;
+  that file is not to be changed). Today it stops (pause and release, no
+  fade) when Home loses focus, which includes the session player opening on
+  top. For voice sessions: Home's loop must stop or fade out before the voice
+  starts, and must not restart behind a playing session (also not when the
+  app returns to the foreground with a session still playing). The audio
+  mode is global: Home sets mixWithOthers, no background play, silent in
+  silent mode; the session must set doNotMix and background play when it
+  starts playing, and Home must not set its mode again while a session
+  plays. Add tests for both when the player hook lands.

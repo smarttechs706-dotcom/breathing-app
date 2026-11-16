@@ -1,6 +1,6 @@
-// Tests for the voice guidance audio (step 2): WAV writer and reader, the
-// generated tones, and the mixer that renders a session's schedule into one
-// track (src/features/session/audio/). Clips are synthetic beeps built here;
+// Tests for the voice guidance audio: WAV writer and reader, and the mixer that
+// renders a session's voice schedule into one track (silence plus the voice
+// clips; no tones, decided 2026-11-17). Clips are synthetic beeps built here;
 // no real audio file is used or added.
 // Run with:
 //   node --test tests/session/voiceMixer.test.cjs
@@ -20,12 +20,11 @@ const sch = loadTs('src/features/session/audio/schedule.ts', {
   stubs: { '../breathPattern': bp, './fitRule': fit, './voiceScript': vs },
 });
 const wav = loadTs('src/features/session/audio/wav.ts');
-const tones = loadTs('src/features/session/audio/tones.ts');
-const mix = loadTs('src/features/session/audio/mixer.ts', { stubs: { './tones': tones, './wav': wav } });
+const mix = loadTs('src/features/session/audio/mixer.ts', { stubs: { './wav': wav } });
 
 const RATE = wav.SAMPLE_RATE;
 const P = (inhale, hold, exhale, rest) => ({ inhale, hold, exhale, rest });
-const ON = { voice: true, tones: true, voiceFrequency: 'every' };
+const ON = { voice: true };
 const MS_PER_CHAR = 70;
 const DURATIONS = Object.fromEntries(vs.allClips().map((c) => [c.id, c.text.length * MS_PER_CHAR]));
 
@@ -97,10 +96,9 @@ test('wav: a clip reads back exactly; other chunks are skipped; wrong formats ar
   withList.set(bytes.slice(36), 36 + list.length);
   assert.equal(wav.parseWav(withList).samples.length, 11025);
   // Refused: not RIFF, stereo, 8-bit, not PCM, cut short.
-  const edit = (at, value, size = 2) => {
+  const edit = (at, value) => {
     const b = bytes.slice();
-    const v = new DataView(b.buffer);
-    size === 2 ? v.setUint16(at, value, true) : v.setUint32(at, value, true);
+    new DataView(b.buffer).setUint16(at, value, true);
     return b;
   };
   assert.equal(wav.parseWav(new Uint8Array([1, 2, 3])), null);
@@ -111,41 +109,6 @@ test('wav: a clip reads back exactly; other chunks are skipped; wrong formats ar
   const notRiff = bytes.slice();
   notRiff[0] = 88;
   assert.equal(wav.parseWav(notRiff), null);
-});
-
-// --- Tones -----------------------------------------------------------------------
-
-function zeroCrossings(a, from, to) {
-  let n = 0;
-  for (let i = from + 1; i < to; i++) if ((a[i - 1] < 0) !== (a[i] < 0)) n++;
-  return n;
-}
-
-test('tones: exact length, start and end at silence, quiet, never NaN', () => {
-  for (const kind of ['rise', 'fall', 'chime']) {
-    for (const ms of [1000, 4000, 12000]) {
-      const n = wav.msToSamples(ms);
-      const t = tones.renderTone(kind, n, RATE);
-      assert.equal(t.length, n);
-      assert.equal(t[0], 0, `${kind} starts at 0`);
-      assert.ok(Math.abs(t[n - 1]) < 1e-9, `${kind} ends at 0`);
-      assert.ok(peak(t) <= Math.max(tones.TONE_LEVEL, tones.CHIME_LEVEL) + 1e-9, `${kind} quiet`);
-      assert.ok(t.every(Number.isFinite));
-    }
-  }
-  assert.ok(tones.renderTone(null, 22050, RATE).every((x) => x === 0), 'rest is silence');
-  assert.equal(tones.renderTone('rise', 0, RATE).length, 0);
-});
-
-test('tones: the in-tone rises, the out-tone falls, the chime fades', () => {
-  const n = wav.msToSamples(4000);
-  const q = Math.floor(n / 4);
-  const rise = tones.renderTone('rise', n, RATE);
-  const fall = tones.renderTone('fall', n, RATE);
-  assert.ok(zeroCrossings(rise, 3 * q, n) > zeroCrossings(rise, 0, q) * 1.3, 'higher at the end');
-  assert.ok(zeroCrossings(fall, 0, q) > zeroCrossings(fall, 3 * q, n) * 1.3, 'lower at the end');
-  const chime = tones.renderTone('chime', n, RATE);
-  assert.ok(peak(chime, 3 * q, n) < peak(chime, 0, q) / 4, 'decays');
 });
 
 // --- Mixer ------------------------------------------------------------------------
@@ -165,41 +128,33 @@ test('mixer: a 5-minute 4-7-8 track has exactly the session length, header first
   assert.equal(result.rendered, 3);
 });
 
-test('mixer: the voice starts at the phase start, sample-exact; the tone is lowered under it', () => {
-  const s = sch.buildSchedule(P(4, 7, 8, 0), 120, { voice: true, tones: false, voiceFrequency: 'every' }, DURATIONS);
+test('mixer: each clip starts at its phase start, sample-exact and unchanged; silence everywhere else', () => {
+  const s = sch.buildSchedule(P(4, 7, 8, 2), 120, ON, DURATIONS);
   const out = wav.parseWav(collect(s).bytes).samples;
-  for (const ph of s.phases.slice(0, 3)) {
+  let voiced = 0;
+  for (const ph of s.phases) {
     const at = wav.msToSamples(ph.startMs);
-    const clip = CLIPS[ph.voice.clipId].samples;
-    // Tones off: the track is the clip itself at that offset, then silence.
-    assert.deepEqual([...out.slice(at, at + clip.length)], [...clip], ph.voice.clipId);
     const end = wav.msToSamples(ph.startMs + ph.durationMs);
+    if (!ph.voice) {
+      assert.equal(peak(out, at, end), 0, 'a phase with no clip is silent');
+      continue;
+    }
+    const clip = CLIPS[ph.voice.clipId].samples;
+    assert.deepEqual([...out.slice(at, at + clip.length)], [...clip], ph.voice.clipId);
     assert.equal(peak(out, at + clip.length, end), 0, 'silent after the clip');
+    voiced++;
   }
-  // Ducking: with tones on and a silent (all-zero) clip, the tone is about a
-  // quarter as loud under the clip as after it.
-  const silentClips = Object.fromEntries(Object.entries(CLIPS).map(([id, c]) => [id, { rate: c.rate, samples: new Int16Array(c.samples.length) }]));
-  const s2 = sch.buildSchedule(P(8, 0, 8, 0), 120, ON, DURATIONS);
-  const out2 = wav.parseWav(collect(s2, silentClips).bytes).samples;
-  const clipLen = CLIPS[s2.phases[0].voice.clipId].samples.length;
-  const ramp = Math.round((mix.DUCK_RAMP_MS * RATE) / 1000);
-  const under = peak(out2, Math.floor(clipLen / 2), clipLen - ramp);
-  const after = peak(out2, clipLen + ramp, clipLen + ramp + 4000);
-  assert.equal(mix.DUCK_GAIN, 0.25);
-  assert.ok(under < after * 0.35 && under > after * 0.15, `${under} vs ${after}`);
+  assert.ok(voiced > 10);
 });
 
-test('mixer: rest is silent, all off is silence, nothing clips', () => {
-  const quiet = sch.buildSchedule(P(4, 4, 4, 4), 120, { voice: false, tones: false, voiceFrequency: 'every' }, DURATIONS);
-  assert.equal(peak(wav.parseWav(collect(quiet).bytes).samples), 0);
-  const s = sch.buildSchedule(P(4, 4, 4, 4), 120, { voice: false, tones: true, voiceFrequency: 'every' }, DURATIONS);
-  const out = wav.parseWav(collect(s).bytes).samples;
-  const rest = s.phases.find((p) => p.phase === 'rest');
-  assert.equal(peak(out, wav.msToSamples(rest.startMs), wav.msToSamples(rest.startMs + rest.durationMs)), 0);
-  // A full-scale clip plus a tone stays inside 16 bits.
-  const loud = Object.fromEntries(Object.entries(CLIPS).map(([id, c]) => [id, { rate: c.rate, samples: c.samples.map((x) => (x >= 0 ? 32767 : -32768)) }]));
-  const out2 = wav.parseWav(collect(sch.buildSchedule(P(8, 0, 8, 0), 120, ON, DURATIONS), loud).bytes).samples;
-  assert.ok(peak(out2) <= 32768);
+test('mixer: voice off or no voice in any phase gives a silent track of the full length', () => {
+  const off = sch.buildSchedule(P(4, 4, 4, 4), 120, { voice: false }, DURATIONS);
+  const { result, bytes } = collect(off);
+  assert.equal(result.samples, wav.msToSamples(off.totalMs));
+  assert.equal(peak(wav.parseWav(bytes).samples), 0);
+  assert.equal(result.rendered, 1, 'one silent block of 4 s, reused');
+  const noClips = sch.buildSchedule(P(4, 7, 8, 0), 120, ON, {});
+  assert.equal(peak(wav.parseWav(collect(noClips, {}).bytes).samples), 0);
 });
 
 test('mixer: a missing clip or a clip at another rate is refused before anything is written', () => {
@@ -230,11 +185,16 @@ test('mixer: every length and built-in pattern adds up exactly; sizes 2, 5 and 1
   assert.equal(mix.trackBytes(600000), 26460044);
 });
 
-test('pure modules: no React Native or Expo imports, no audio files added', () => {
-  for (const f of ['wav.ts', 'tones.ts', 'mixer.ts']) {
+test('voice only: no tone code left, no React Native or Expo imports, no audio files added', () => {
+  assert.ok(!fs.existsSync(path.join(repo, 'src/features/session/audio/tones.ts')), 'tones.ts removed');
+  for (const f of ['wav.ts', 'mixer.ts', 'schedule.ts']) {
     const src = fs.readFileSync(path.join(repo, 'src/features/session/audio', f), 'utf8');
     assert.ok(!/from 'react|from 'expo/.test(src), f);
+    assert.ok(!/renderTone|ToneKind|DUCK_|from '\.\/tones'/.test(src), `${f}: no tone code`);
     assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src), f);
   }
-  assert.ok(!fs.existsSync(path.join(repo, 'assets/audio/voice')), 'no voice clips in the repo yet');
+  // No audio added: no voice clips yet, and assets/audio holds only Home's
+  // existing ambient loop (committed in f50b0bf, not part of this work).
+  assert.ok(!fs.existsSync(path.join(repo, 'assets/audio/voice')), 'no voice clips in the repo');
+  assert.deepEqual(fs.readdirSync(path.join(repo, 'assets/audio')), ['home-ambient-loop.m4a']);
 });

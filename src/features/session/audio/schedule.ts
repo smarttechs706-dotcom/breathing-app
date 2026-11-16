@@ -1,30 +1,28 @@
-// The audio schedule of a session: every phase from the start to the end of
-// the last out-breath, with the voice clip (if any) and the tone for each.
+// The voice schedule of a session: every phase from the start to the end of
+// the last out-breath, with the voice clip (if any) spoken at its start.
 // Built from the same pattern and sessionSeconds as the breathing circle, so
 // each phase starts at exactly the time breathAt changes phase. The mixer
-// (step 2) turns this into one audio track. No React Native imports (tested
-// in Node, tests/session/voiceSchedule.test.cjs).
+// turns this into one audio track. No React Native imports (tested in Node,
+// tests/session/voiceSchedule.test.cjs).
+//
+// Voice only for now (decided 2026-11-17): no generated tones, and the voice
+// speaks at every breath. Music may come later as a separate layer.
 
 import { sessionSeconds, type BreathPattern } from '../breathPattern';
 import { chooseVoice } from './fitRule';
 import { cueClipId, sentenceClipId, VOICE_PHASES, type VoicePhase } from './voiceScript';
 
-export type VoiceFrequency = 'every' | 'first3';
-
 export interface AudioSettings {
-  voice: boolean;
-  tones: boolean;
-  voiceFrequency: VoiceFrequency;
+  voice: boolean; // Voice guidance on/off (Settings)
 }
 
-export const DEFAULT_AUDIO_SETTINGS: AudioSettings = { voice: true, tones: true, voiceFrequency: 'every' };
+export const DEFAULT_AUDIO_SETTINGS: AudioSettings = { voice: true };
 
-// "First 3 breaths": the voice speaks in breaths 0, 1 and 2 only.
-export const VOICE_FIRST_BREATHS = 3;
-
-// Rising for in, falling for out, a quiet chime for hold, silence for rest.
-export type ToneKind = 'rise' | 'fall' | 'chime';
-const TONE: Record<VoicePhase, ToneKind | null> = { inhale: 'rise', hold: 'chime', exhale: 'fall', rest: null };
+// With Voice guidance off there is no audio at all: no track is built and the
+// session uses its existing clock.
+export function usesAudio(settings: AudioSettings): boolean {
+  return settings.voice === true;
+}
 
 // Clip lengths in ms by clip id (from the clip manifest; synthetic in tests).
 export type ClipDurations = Record<string, number>;
@@ -42,7 +40,6 @@ export interface ScheduledPhase {
   startMs: number;
   durationMs: number;
   voice: ScheduledVoice | null;
-  tone: ToneKind | null;
 }
 
 export interface AudioSchedule {
@@ -87,14 +84,12 @@ export function buildSchedule(
     for (const { phase, sec } of steps) {
       if (startMs >= totalMs) break;
       const durationMs = Math.min(Math.round(sec * 1000), totalMs - startMs);
-      const speaks = settings.voice && (settings.voiceFrequency === 'every' || breath < VOICE_FIRST_BREATHS);
       phases.push({
         breath,
         phase,
         startMs,
         durationMs,
-        voice: speaks ? voiceFor(phase, sec, durationMs, startMs, durations) : null,
-        tone: settings.tones ? TONE[phase] : null,
+        voice: usesAudio(settings) ? voiceFor(phase, sec, durationMs, startMs, durations) : null,
       });
       startMs += durationMs;
     }
