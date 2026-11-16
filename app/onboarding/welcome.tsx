@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { text } from '../../src/features/home/styles';
+import { onboardingLayout } from '../../src/features/onboarding/layout';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
@@ -31,7 +32,7 @@ export default function WelcomeScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.content}>
+        <View style={onboardingLayout.body}>
           <View style={styles.textArea}>
             <Text style={styles.headline} accessibilityRole="header">
               Breathe. Reset. Carry on.
@@ -41,7 +42,9 @@ export default function WelcomeScreen() {
               can fit in before your next call.
             </Text>
           </View>
+        </View>
 
+        <View style={onboardingLayout.footer}>
           <Pressable
             onPress={() => router.push('/onboarding/how-it-works')}
             style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
@@ -55,6 +58,8 @@ export default function WelcomeScreen() {
               <Text style={styles.nextButtonText}>Next</Text>
             </LinearGradient>
           </Pressable>
+          {/* Same height as build-habit's "Enable reminders", so Next sits where Get started does. */}
+          <View style={onboardingLayout.secondarySlot} />
         </View>
       </SafeAreaView>
     </View>
@@ -86,21 +91,12 @@ const styles = StyleSheet.create({
     ...text.link,
     color: colors.onSurfaceVariant,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.marginMobile,
-    gap: spacing.base * 5,
-  },
   textArea: {
     alignItems: 'center',
     gap: spacing.base * 1.5,
   },
   headline: {
     ...text.name,
-    fontSize: 28,
-    lineHeight: 40,
     color: '#ffffff',
     textAlign: 'center',
   },

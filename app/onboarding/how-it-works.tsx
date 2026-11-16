@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { text } from '../../src/features/home/styles';
+import { onboardingLayout } from '../../src/features/onboarding/layout';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
@@ -58,7 +59,8 @@ export default function HowItWorksScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.content}
+          style={styles.scroll}
+          contentContainerStyle={onboardingLayout.body}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -84,7 +86,9 @@ export default function HowItWorksScreen() {
               </View>
             ))}
           </View>
+        </ScrollView>
 
+        <View style={onboardingLayout.footer}>
           <Pressable
             onPress={() => router.push('/onboarding/build-habit')}
             style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
@@ -98,7 +102,9 @@ export default function HowItWorksScreen() {
               <Text style={styles.nextButtonText}>Next</Text>
             </LinearGradient>
           </Pressable>
-        </ScrollView>
+          {/* Same height as build-habit's "Enable reminders", so Next sits where Get started does. */}
+          <View style={onboardingLayout.secondarySlot} />
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -133,13 +139,8 @@ const styles = StyleSheet.create({
     ...text.link,
     color: colors.onSurfaceVariant,
   },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.base * 2,
-    paddingBottom: spacing.base * 4,
-    gap: spacing.base * 5,
+  scroll: {
+    flex: 1,
   },
   header: {
     alignItems: 'center',
@@ -147,8 +148,6 @@ const styles = StyleSheet.create({
   },
   headline: {
     ...text.name,
-    fontSize: 28,
-    lineHeight: 40,
     color: '#ffffff',
     textAlign: 'center',
   },

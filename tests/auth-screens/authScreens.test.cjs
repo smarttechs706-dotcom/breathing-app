@@ -162,3 +162,40 @@ test('build-habit body copy: the "Not a bedtime ritual" sentence is gone', () =>
   assert.ok(!/bedtime ritual/i.test(src));
   assert.ok(/<Text style=\{styles\.body\}>\s*We'll remind you at the moments you actually need it\.\s*<\/Text>/.test(src));
 });
+
+test('onboarding headlines use text.name as is (24 / 36); the body keeps its 15 / 22', () => {
+  for (const f of ['app/onboarding/welcome.tsx', 'app/onboarding/how-it-works.tsx', 'app/onboarding/build-habit.tsx']) {
+    const src = read(f);
+    const headline = src.slice(src.indexOf('  headline: {'), src.indexOf('},', src.indexOf('  headline: {')));
+    assert.ok(headline.includes('...text.name,'), f);
+    assert.ok(!/fontSize|lineHeight|fontFamily|fontWeight/.test(headline), `${f}: no size override`);
+    const body = src.slice(src.indexOf('  body: {'), src.indexOf('},', src.indexOf('  body: {')));
+    assert.ok(/\.\.\.text\.body,\s*fontSize: 15,\s*lineHeight: 22,/.test(body), `${f}: body unchanged`);
+  }
+});
+
+test('onboarding layout: one shared body and footer, so the headline block and the primary button sit at the same place on all three', () => {
+  const layout = read('src/features/onboarding/layout.ts');
+  assert.ok(layout.includes('export const SECONDARY_ACTION_HEIGHT = spacing.base * 6;'));
+  assert.ok(/body: \{\s*flexGrow: 1,\s*alignItems: 'center',\s*paddingHorizontal: spacing\.marginMobile,\s*paddingTop: spacing\.base \* 7,\s*paddingBottom: spacing\.base \* 2,\s*gap: spacing\.base \* 5,\s*\}/.test(layout));
+  assert.ok(/footer: \{\s*paddingHorizontal: spacing\.marginMobile,\s*paddingTop: spacing\.base \* 2,\s*paddingBottom: spacing\.base \* 4,\s*gap: spacing\.base \* 2,\s*\}/.test(layout));
+  assert.ok(!/fontSize|fontFamily|fontWeight|color/.test(layout), 'layout only');
+  const welcome = read('app/onboarding/welcome.tsx');
+  const how = read('app/onboarding/how-it-works.tsx');
+  const habit = read('app/onboarding/build-habit.tsx');
+  assert.ok(welcome.includes('<View style={onboardingLayout.body}>'));
+  assert.ok(how.includes('contentContainerStyle={onboardingLayout.body}'));
+  assert.ok(habit.includes('<View style={onboardingLayout.body}>'));
+  for (const [f, src] of [['welcome', welcome], ['how-it-works', how], ['build-habit', habit]]) {
+    assert.ok(src.includes('<View style={onboardingLayout.footer}>'), f);
+    // The primary button is inside the pinned footer, not the body.
+    const footer = src.slice(src.indexOf('<View style={onboardingLayout.footer}>'));
+    assert.ok(/<LinearGradient/.test(footer), `${f}: primary button in the footer`);
+  }
+  // The slot under the primary button: empty on the first two, "Enable reminders" on the third.
+  assert.ok(welcome.includes('<View style={onboardingLayout.secondarySlot} />'));
+  assert.ok(how.includes('<View style={onboardingLayout.secondarySlot} />'));
+  assert.ok(habit.includes('minHeight: SECONDARY_ACTION_HEIGHT,'));
+  // Nothing centres the content vertically any more.
+  for (const src of [welcome, how, habit]) assert.ok(!/justifyContent: 'space-between',\s*\},\s*topBar/.test(src));
+});

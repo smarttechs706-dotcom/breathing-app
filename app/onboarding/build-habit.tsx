@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TimePickerModal } from '../../src/components/TimePickerModal';
 import { text } from '../../src/features/home/styles';
+import { onboardingLayout, SECONDARY_ACTION_HEIGHT } from '../../src/features/onboarding/layout';
 import { BACKDROP_BOTTOM, MIST_BACKGROUND, ScreenBackdrop } from '../../src/features/profile/ScreenBackdrop';
 import { colors, radii, spacing, typography } from '../../src/theme/tokens';
 import { setOnboardingComplete } from '../../src/utils/onboarding';
@@ -115,7 +116,7 @@ export default function BuildHabitScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.content}>
+        <View style={onboardingLayout.body}>
           <Animated.View style={[styles.illustrationWrap, { transform: [{ translateY }] }]}>
             <View style={styles.illustrationRing} />
             <View style={styles.illustrationCircle}>
@@ -134,7 +135,7 @@ export default function BuildHabitScreen() {
           </View>
         </View>
 
-        <View style={styles.actions}>
+        <View style={onboardingLayout.footer}>
           <Pressable
             onPress={finishOnboarding}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
@@ -173,7 +174,6 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: 'space-between',
   },
   topBar: {
     flexDirection: 'row',
@@ -191,13 +191,6 @@ const styles = StyleSheet.create({
   skipText: {
     ...text.link,
     color: colors.onSurfaceVariant,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.marginMobile,
-    gap: spacing.base * 5,
   },
   illustrationWrap: {
     alignItems: 'center',
@@ -227,8 +220,6 @@ const styles = StyleSheet.create({
   },
   headline: {
     ...text.name,
-    fontSize: 28,
-    lineHeight: 40,
     color: '#ffffff',
     textAlign: 'center',
   },
@@ -245,12 +236,6 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
     maxWidth: 320,
-  },
-  actions: {
-    paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.base * 2,
-    paddingBottom: spacing.base * 4,
-    gap: spacing.base * 2,
   },
   primaryButton: {
     width: '100%',
@@ -273,7 +258,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   secondaryButton: {
-    minHeight: 48,
+    minHeight: SECONDARY_ACTION_HEIGHT,
     paddingVertical: spacing.base,
     alignItems: 'center',
     justifyContent: 'center',
