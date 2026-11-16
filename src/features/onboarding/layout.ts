@@ -4,7 +4,7 @@ import { spacing } from '../../theme/tokens';
 
 // One layout for the three onboarding screens, so the headline block starts at
 // the same place and the primary button sits at the same height on each:
-//   top bar | body (top-aligned, base*7 below the bar) | footer (pinned)
+//   top bar | body (top-aligned, base*12 below the bar) | footer (pinned)
 // The footer always keeps a slot the height of build-habit's secondary action
 // ("Enable reminders") under the primary button; welcome and how-it-works leave
 // it empty. 8-point spacing tokens only.
@@ -18,7 +18,7 @@ export const onboardingLayout = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: spacing.marginMobile,
-    paddingTop: spacing.base * 7,
+    paddingTop: spacing.base * 12,
     paddingBottom: spacing.base * 2,
     gap: spacing.base * 5,
   },

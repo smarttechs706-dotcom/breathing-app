@@ -177,7 +177,7 @@ test('onboarding headlines use text.name as is (24 / 36); the body keeps its 15 
 test('onboarding layout: one shared body and footer, so the headline block and the primary button sit at the same place on all three', () => {
   const layout = read('src/features/onboarding/layout.ts');
   assert.ok(layout.includes('export const SECONDARY_ACTION_HEIGHT = spacing.base * 6;'));
-  assert.ok(/body: \{\s*flexGrow: 1,\s*alignItems: 'center',\s*paddingHorizontal: spacing\.marginMobile,\s*paddingTop: spacing\.base \* 7,\s*paddingBottom: spacing\.base \* 2,\s*gap: spacing\.base \* 5,\s*\}/.test(layout));
+  assert.ok(/body: \{\s*flexGrow: 1,\s*alignItems: 'center',\s*paddingHorizontal: spacing\.marginMobile,\s*paddingTop: spacing\.base \* 12,\s*paddingBottom: spacing\.base \* 2,\s*gap: spacing\.base \* 5,\s*\}/.test(layout));
   assert.ok(/footer: \{\s*paddingHorizontal: spacing\.marginMobile,\s*paddingTop: spacing\.base \* 2,\s*paddingBottom: spacing\.base \* 4,\s*gap: spacing\.base \* 2,\s*\}/.test(layout));
   assert.ok(!/fontSize|fontFamily|fontWeight|color/.test(layout), 'layout only');
   const welcome = read('app/onboarding/welcome.tsx');
@@ -185,7 +185,7 @@ test('onboarding layout: one shared body and footer, so the headline block and t
   const habit = read('app/onboarding/build-habit.tsx');
   assert.ok(welcome.includes('<View style={onboardingLayout.body}>'));
   assert.ok(how.includes('contentContainerStyle={onboardingLayout.body}'));
-  assert.ok(habit.includes('<View style={onboardingLayout.body}>'));
+  assert.ok(habit.includes('contentContainerStyle={onboardingLayout.body}'));
   for (const [f, src] of [['welcome', welcome], ['how-it-works', how], ['build-habit', habit]]) {
     assert.ok(src.includes('<View style={onboardingLayout.footer}>'), f);
     // The primary button is inside the pinned footer, not the body.
@@ -198,4 +198,25 @@ test('onboarding layout: one shared body and footer, so the headline block and t
   assert.ok(habit.includes('minHeight: SECONDARY_ACTION_HEIGHT,'));
   // Nothing centres the content vertically any more.
   for (const src of [welcome, how, habit]) assert.ok(!/justifyContent: 'space-between',\s*\},\s*topBar/.test(src));
+});
+
+test('build-habit text area scrolls only on short screens; the footer stays pinned outside it', () => {
+  const habit = read('app/onboarding/build-habit.tsx');
+  assert.ok(
+    /<ScrollView\s+style=\{styles\.scroll\}\s+contentContainerStyle=\{onboardingLayout\.body\}\s+showsVerticalScrollIndicator=\{false\}\s+alwaysBounceVertical=\{false\}\s*>/.test(habit),
+    'no scrollbar, no bounce when it fits'
+  );
+  assert.ok(/scroll: \{\s*flex: 1,\s*\}/.test(habit));
+  // Illustration and text are inside the scroll area; the buttons come after it.
+  const scrollStart = habit.indexOf('<ScrollView');
+  const scrollEnd = habit.indexOf('</ScrollView>');
+  const footer = habit.indexOf('<View style={onboardingLayout.footer}>');
+  assert.ok(scrollStart > 0 && scrollStart < scrollEnd && scrollEnd < footer);
+  const inside = habit.slice(scrollStart, scrollEnd);
+  assert.ok(inside.includes('styles.illustrationWrap'));
+  assert.ok(inside.includes('<Text style={styles.tip}>{REMINDER_TIP}</Text>'));
+  assert.ok(!inside.includes('Get started') && !inside.includes('Enable reminders'));
+  // how-it-works keeps its own scroll area the same way.
+  const how = read('app/onboarding/how-it-works.tsx');
+  assert.ok(how.indexOf('</ScrollView>') < how.indexOf('<View style={onboardingLayout.footer}>'));
 });

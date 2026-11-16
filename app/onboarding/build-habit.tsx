@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TimePickerModal } from '../../src/components/TimePickerModal';
@@ -116,7 +116,14 @@ export default function BuildHabitScreen() {
           </Pressable>
         </View>
 
-        <View style={onboardingLayout.body}>
+        {/* Scrolls only when the illustration and text do not fit (a short
+            phone), so the pinned footer buttons are never pushed off-screen. */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={onboardingLayout.body}
+          showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={false}
+        >
           <Animated.View style={[styles.illustrationWrap, { transform: [{ translateY }] }]}>
             <View style={styles.illustrationRing} />
             <View style={styles.illustrationCircle}>
@@ -133,7 +140,7 @@ export default function BuildHabitScreen() {
             </Text>
             <Text style={styles.tip}>{REMINDER_TIP}</Text>
           </View>
-        </View>
+        </ScrollView>
 
         <View style={onboardingLayout.footer}>
           <Pressable
@@ -173,6 +180,9 @@ const styles = StyleSheet.create({
     backgroundColor: BACKDROP_BOTTOM,
   },
   safeArea: {
+    flex: 1,
+  },
+  scroll: {
     flex: 1,
   },
   topBar: {
