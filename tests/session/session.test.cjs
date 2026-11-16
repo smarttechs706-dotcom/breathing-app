@@ -104,6 +104,16 @@ test('loading and error screens (no session yet) are plain navy: no picture, no 
   assert.deepEqual(model.backdropLayers('active', 'some-new-session'), { portrait: 0, video: true, scrim: 0.55 });
 });
 
+test('before/after panel: 57% navy keeps the description and hint >= 4.5:1 on 99% of every painting', () => {
+  const player = fs.readFileSync(path.join(repo, 'app/session-player.tsx'), 'utf8');
+  const panel = player.match(/\n  panel: \{([^}]*)\}/);
+  assert.ok(panel, 'panel style');
+  assert.ok(panel[1].includes("backgroundColor: 'rgba(10,16,40,0.57)',"), 'measured minimum (Morning Reset before: 4.55:1)');
+  // The paintings themselves stay as they were.
+  assert.equal(model.portraitOpacity('pre-mood'), 0.8);
+  assert.equal(model.portraitOpacity('post-mood'), 0.7);
+});
+
 test('a custom session borrows Calm and Focus: same file, opacities and fades, no new image', () => {
   assert.deepEqual(model.BORROWED_PORTRAITS, { custom: 'calm-focus' });
   assert.equal(model.portraitSessionId('custom'), 'calm-focus');

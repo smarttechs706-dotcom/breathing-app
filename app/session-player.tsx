@@ -890,10 +890,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.base * 2,
   },
   // Before and after: translucent navy glass so the painting shows through.
+  // 57% (was 45%): the smallest panel that keeps the description and hint
+  // (onSurfaceVariant) at >= 4.5:1 on 99% of pixels of all six paintings at
+  // their 80% (before) and 70% (after) strength; the binding case is Morning
+  // Reset before the start, 4.55:1. The paintings themselves are unchanged.
   panel: {
     padding: spacing.base * 3,
     borderRadius: radii.lg,
-    backgroundColor: 'rgba(10,16,40,0.45)',
+    backgroundColor: 'rgba(10,16,40,0.57)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.16)',
   },
