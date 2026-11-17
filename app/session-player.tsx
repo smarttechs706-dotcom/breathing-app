@@ -40,6 +40,7 @@ import {
   defaultLengthFor,
 } from '../src/features/session/customPattern';
 import { deleteBreathTrack } from '../src/features/session/audio/trackFiles';
+import { useSessionVoice } from '../src/features/session/audio/useSessionVoice';
 import { rememberLastPattern } from '../src/features/session/lastPatternStore';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
@@ -345,6 +346,19 @@ export default function SessionPlayerScreen() {
       if (id !== undefined) clearTimeout(id);
     };
   }, [running, session, endMs]);
+
+  // Voice guidance (foreground only for now): bakes the track while the user
+  // picks a mood and follows this clock; off, or no clips, means silent
+  // breathing with exactly this timing. See useSessionVoice.
+  useSessionVoice({
+    pattern: session?.phaseConfig ?? null,
+    lengthSec,
+    ready: session !== null,
+    breathing: running && elapsedMs < endMs,
+    finished: phase === 'post-mood',
+    clockMs: elapsedMs,
+    trackNameRef,
+  });
 
   // Keep the display awake only while the session is actually running (and
   // release on pause / exit / finish / unmount), so a screen timeout can't

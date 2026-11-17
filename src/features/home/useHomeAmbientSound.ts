@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { useActiveSession } from '../../state/ActiveSessionContext';
 import { FADE_IN_MS, FADE_TICK_MS, fadeInVolume } from './ambientSound';
 
 // Home's ambient sound: the looping waves-and-breeze track plays by itself
@@ -15,6 +16,12 @@ import { FADE_IN_MS, FADE_TICK_MS, fadeInVolume } from './ambientSound';
 // takes audio focus from other apps (mixWithOthers), does not play in the
 // background, and stays silent when the phone is on silent or vibrate. If
 // anything fails, Home carries on silently.
+//
+// It never plays while a session is open (any session, voice or silent), so it
+// can never sound behind the voice: the loop is already stopped when the
+// session player opens, and cannot restart (also not on returning to the
+// foreground) until the session closes. While a session is open Home also never
+// sets the global audio mode, so the session's doNotMix stays in place.
 
 const SOURCE = require('../../../assets/audio/home-ambient-loop.m4a');
 
@@ -38,7 +45,8 @@ function useFocusedAndForeground(): boolean {
 }
 
 export function useHomeAmbientSound(): void {
-  const active = useFocusedAndForeground();
+  const { activeSessionId } = useActiveSession();
+  const active = useFocusedAndForeground() && activeSessionId === null;
 
   useEffect(() => {
     if (!active) return;

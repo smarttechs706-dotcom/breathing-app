@@ -203,7 +203,13 @@ test('sound code only on Home; no sound button, icon, toggle or stored setting a
       return [];
     }
   };
-  assert.deepEqual(grep('-E', "from 'expo-audio'|home-ambient-loop"), ['src/features/home/useHomeAmbientSound.ts']);
+  // Since 2026-11-17 (voice guidance) expo-audio is also used by the session's
+  // voice hook; nowhere else. The ambient loop file stays Home-only.
+  assert.deepEqual(grep('-E', "from 'expo-audio'"), [
+    'src/features/home/useHomeAmbientSound.ts',
+    'src/features/session/audio/useSessionVoice.ts',
+  ]);
+  assert.deepEqual(grep('-F', 'home-ambient-loop'), ['src/features/home/useHomeAmbientSound.ts']);
   // Only Home calls the hook (the call with its semicolon, not the definition).
   assert.deepEqual(grep('-F', 'useHomeAmbientSound();'), ['src/features/home/HomeScreen.tsx']);
   // No audio anywhere in the session player.
