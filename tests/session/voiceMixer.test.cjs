@@ -193,8 +193,11 @@ test('voice only: no tone code left, no React Native or Expo imports, no audio f
     assert.ok(!/renderTone|ToneKind|DUCK_|from '\.\/tones'/.test(src), `${f}: no tone code`);
     assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src), f);
   }
-  // No audio added: no voice clips yet, and assets/audio holds only Home's
-  // existing ambient loop (committed in f50b0bf, not part of this work).
-  assert.ok(!fs.existsSync(path.join(repo, 'assets/audio/voice')), 'no voice clips in the repo');
-  assert.deepEqual(fs.readdirSync(path.join(repo, 'assets/audio')), ['home-ambient-loop.m4a']);
+  // assets/audio: Home's ambient loop (f50b0bf) and the imported voice clips
+  // (scripts/import-voice-clips.mjs: 44 clips and SOURCE.json); nothing else.
+  assert.deepEqual(fs.readdirSync(path.join(repo, 'assets/audio')).sort(), ['home-ambient-loop.m4a', 'voice']);
+  assert.deepEqual(
+    fs.readdirSync(path.join(repo, 'assets/audio/voice')).sort(),
+    [...vs.allClips().map((c) => `${c.id}.wav`), 'SOURCE.json'].sort()
+  );
 });

@@ -240,8 +240,12 @@ test('safety: never writes outside <repo>/assets/audio/voice; never reads a key'
     const s = fs.readFileSync(path.join(repo, f), 'utf8');
     assert.ok(!/process\.env|AZURE|SPEECH_KEY|fetch\(/.test(s), `${f}: no key, no network`);
   }
-  // The real import has not been run.
-  assert.equal(fs.existsSync(path.join(repo, 'assets/audio/voice')), false);
+  // The real assets folder holds exactly the import's output: 44 clips and SOURCE.json.
+  const voice = path.join(repo, 'assets/audio/voice');
+  if (fs.existsSync(voice)) {
+    assert.deepEqual(fs.readdirSync(voice).sort(), [...vs.allClips().map((c) => `${c.id}.wav`), 'SOURCE.json'].sort());
+    assert.ok(imp.TIERS.includes(JSON.parse(fs.readFileSync(path.join(voice, 'SOURCE.json'), 'utf8')).tier));
+  }
 });
 
 // --- Release gate ------------------------------------------------------------------

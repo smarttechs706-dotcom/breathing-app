@@ -5353,6 +5353,10 @@ Open items (voice):
 - Release gate (`npm run check:voice-release` must pass before any store
   build):
   regenerate the 44 clips on the pay-as-you-go tier and import with --tier paid
+- The clips bundled now (assets/audio/voice, committed 2026-11-18) are tier
+  free-test: made on the free F0 tier for testing only. Do not give builds
+  containing them to other people or to a store before the paid
+  regeneration; `npm run check:voice-release` fails until then.
 - Home's ambient loop and the voice must never overlap. Home already plays
   assets/audio/home-ambient-loop.m4a (from f50b0bf, useHomeAmbientSound.ts;
   that file is not to be changed). Today it stops (pause and release, no

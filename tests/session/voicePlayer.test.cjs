@@ -53,30 +53,100 @@ test('placeholder: all 44 clips in memory, a soft pip then silence, about 70 ms 
   }
 });
 
-// --- Guard -----------------------------------------------------------------------
+// --- Clip source: real clips, fallback, placeholder guard --------------------
 
-function clipSource(devFlag, env) {
-  globalThis.__DEV__ = devFlag;
-  const mod = loadTs('src/features/session/audio/voiceClips.ts', {
-    stubs: { './devPlaceholderClips': { placeholderVoiceClips: () => ({ placeholder: true }) } },
+const VOICE_DIR = path.join(repo, 'assets/audio/voice');
+const realBytes = (id) => new Uint8Array(fs.readFileSync(path.join(VOICE_DIR, `${id}.wav`)));
+const ALL_IDS = vs.allClips().map((c) => c.id);
+const REAL_MAP = Object.fromEntries(ALL_IDS.map((id) => [id, id])); // module stand-ins: the id itself
+
+// voiceClips.ts with its native imports stubbed; `assets` is the bundled map.
+function clipModule({ dev, env = {}, assets }) {
+  globalThis.__DEV__ = dev;
+  return loadTs('src/features/session/audio/voiceClips.ts', {
+    stubs: {
+      'expo-asset': { Asset: {} },
+      'expo-file-system': { File: class {} },
+      './voiceAssets': { VOICE_ASSETS: assets },
+      './voiceScript': vs,
+      './wav': wav,
+      './devPlaceholderClips': { placeholderVoiceClips: () => ({ placeholder: true }) },
+    },
     env,
   });
+}
+async function load(opts, read) {
+  const mod = clipModule(opts);
   try {
-    return mod.getVoiceClips();
+    return await mod.loadVoiceClips(read);
   } finally {
     delete globalThis.__DEV__;
   }
 }
+const SWITCH = { EXPO_PUBLIC_VOICE_PLACEHOLDER: '1' };
 
-test('guard: the placeholder only with __DEV__ AND the env switch; never in a release build', () => {
-  assert.deepEqual(clipSource(true, { EXPO_PUBLIC_VOICE_PLACEHOLDER: '1' }), { placeholder: true });
-  assert.equal(clipSource(false, { EXPO_PUBLIC_VOICE_PLACEHOLDER: '1' }), null, 'release build, switch set: nothing');
-  assert.equal(clipSource(true, {}), null, 'dev build without the switch: nothing');
-  assert.equal(clipSource(true, { EXPO_PUBLIC_VOICE_PLACEHOLDER: 'true' }), null, 'only exactly "1"');
-  assert.equal(clipSource(false, {}), null);
+test('real clips: voiceAssets lists the 44 bundled files in script order', () => {
+  const src = read('src/features/session/audio/voiceAssets.ts');
+  const entries = [...src.matchAll(/^  '([a-z]+-[a-z0-9]+)': require\('\.\.\/\.\.\/\.\.\/\.\.\/assets\/audio\/voice\/([a-z]+-[a-z0-9]+)\.wav'\),$/gm)];
+  assert.deepEqual(entries.map((m) => m[1]), ALL_IDS);
+  for (const m of entries) {
+    assert.equal(m[1], m[2], 'id and file agree');
+    assert.ok(fs.existsSync(path.join(VOICE_DIR, `${m[2]}.wav`)), `${m[2]}.wav exists`);
+  }
 });
 
-test('guard: loaded from one place only, behind both checks; the switch is set in no build config', () => {
+test('real clips: all 44 load into samples with their lengths; the placeholder is never used then', async () => {
+  for (const dev of [true, false]) {
+    const v = await load({ dev, env: SWITCH, assets: REAL_MAP }, async (id) => realBytes(id));
+    assert.equal(v.placeholder, false, `dev ${dev}, switch on: still the real clips`);
+    assert.deepEqual(Object.keys(v.clips), ALL_IDS);
+    for (const id of ALL_IDS) {
+      assert.equal(v.clips[id].rate, 22050);
+      assert.ok(Math.abs(v.durations[id] - (v.clips[id].samples.length * 1000) / 22050) < 1e-9);
+    }
+    // The imported (trimmed) lengths, e.g. cue-rest 579 ms and cue-hold 529 ms.
+    assert.ok(Math.abs(v.durations['cue-rest'] - 579) <= 1, String(v.durations['cue-rest']));
+    assert.ok(Math.abs(v.durations['cue-hold'] - 529) <= 1, String(v.durations['cue-hold']));
+  }
+});
+
+test('real clips: any clip failing to load means no clips (silent breathing), retried next time', async () => {
+  const cases = {
+    'one read fails': async (id) => (id === 'hold-07' ? null : realBytes(id)),
+    'one read throws': async (id) => {
+      if (id === 'out-12') throw new Error('asset missing');
+      return realBytes(id);
+    },
+    'one clip is not a WAV': async (id) => (id === 'cue-in' ? new Uint8Array([1, 2, 3]) : realBytes(id)),
+  };
+  for (const [label, read] of Object.entries(cases)) {
+    assert.equal(await load({ dev: false, assets: REAL_MAP }, read), null, label);
+  }
+  // A failure is not remembered: the next call loads again and succeeds.
+  const mod = clipModule({ dev: false, assets: REAL_MAP });
+  try {
+    let reads = 0;
+    assert.equal(await mod.loadVoiceClips(async (id) => (reads++, id === 'rest-03' ? null : realBytes(id))), null);
+    const ok = await mod.loadVoiceClips(async (id) => (reads++, realBytes(id)));
+    assert.equal(ok.placeholder, false);
+    const before = reads;
+    assert.equal(await mod.loadVoiceClips(async () => { throw new Error('not called'); }), ok, 'then kept for the app run');
+    assert.equal(reads, before);
+  } finally {
+    delete globalThis.__DEV__;
+  }
+});
+
+test('placeholder: only with __DEV__ AND the switch AND no real clips; never in a release build', async () => {
+  const read = async () => { throw new Error('no reads without real clips'); };
+  assert.deepEqual(await load({ dev: true, env: SWITCH, assets: {} }, read), { placeholder: true });
+  assert.equal(await load({ dev: false, env: SWITCH, assets: {} }, read), null, 'release build, switch on: nothing');
+  assert.equal(await load({ dev: true, env: {}, assets: {} }, read), null, 'dev without the switch: nothing');
+  assert.equal(await load({ dev: true, env: { EXPO_PUBLIC_VOICE_PLACEHOLDER: 'true' }, assets: {} }, read), null, 'only exactly "1"');
+  assert.equal(await load({ dev: false, env: {}, assets: {} }, read), null);
+});
+
+test('guard: loaded from one place only, __DEV__ first, behind all three checks; the switch is set in no build config', () => {
   const { execFileSync } = require('node:child_process');
   const grep = (pattern) => {
     try {
@@ -89,8 +159,9 @@ test('guard: loaded from one place only, behind both checks; the switch is set i
   assert.deepEqual(grep('devPlaceholderClips'), ['src/features/session/audio/voiceClips.ts']);
   assert.deepEqual(grep('breathease-dev-placeholder-voice'), ['src/features/session/audio/devPlaceholderClips.ts']);
   const src = read('src/features/session/audio/voiceClips.ts');
+  // __DEV__ first, so a release build's bundler can drop the branch and its require.
   assert.ok(
-    /if \(__DEV__ && process\.env\.EXPO_PUBLIC_VOICE_PLACEHOLDER === '1'\) \{\s*return require\('\.\/devPlaceholderClips'\)\.placeholderVoiceClips\(\);\s*\}/.test(src)
+    /if \(__DEV__ && process\.env\.EXPO_PUBLIC_VOICE_PLACEHOLDER === '1' && !HAS_REAL_CLIPS\) \{\s*return require\('\.\/devPlaceholderClips'\)\.placeholderVoiceClips\(\);\s*\}/.test(src)
   );
   assert.equal((src.match(/devPlaceholderClips/g) || []).length, 2, 'the comment and the one require');
   // Never set for EAS: not in eas.json, not in the app config.
@@ -156,7 +227,9 @@ test('hook: doNotMix (foreground only) before the first sound; released at the e
   assert.ok(src.includes("setAudioModeAsync({ interruptionMode: 'doNotMix', shouldPlayInBackground: false, playsInSilentMode: true })"));
   // No sound before the mode is set: `want` needs it.
   assert.ok(src.includes('want: latest.current.breathing && modeSet.current && p.isLoaded,'));
-  assert.ok(src.includes('const plan = planVoice(settings, getVoiceClips(), pattern, lengthSec);'));
+  assert.ok(src.includes('const clips = settings.voice ? await loadVoiceClips() : null;'), 'off: no clips are even loaded');
+  assert.ok(src.includes('if (cancelled || playerRef.current) return;'), 'closed while loading: nothing written');
+  assert.ok(src.includes('const plan = planVoice(settings, clips, pattern, lengthSec);'));
   assert.ok(src.includes("if (plan.kind !== 'voice') return;"), 'off or no clips: nothing');
   assert.ok(src.includes('if (!track.ok) return;'), 'a failed write: nothing');
   assert.ok(src.includes('trackNameRef.current = track.name;'), 'the screen deletes the file on close');

@@ -5,7 +5,7 @@ import type { BreathPattern } from '../breathPattern';
 import { getAudioSettings } from '../../../state/audioSettings';
 import type { AudioSettings } from './schedule';
 import { deleteBreathTrack, writeBreathTrack } from './trackFiles';
-import { getVoiceClips } from './voiceClips';
+import { loadVoiceClips } from './voiceClips';
 import { planVoice, syncStep } from './voiceSync';
 
 // Voice guidance in the session player (step 5: foreground only).
@@ -57,20 +57,30 @@ export function useSessionVoice({
     };
   }, []);
 
-  // Bake once, while the user picks a mood.
+  // Bake once, while the user picks a mood: load the clips, plan, write the
+  // track, make the player. If the screen closes while the clips load, nothing
+  // is written.
   useEffect(() => {
     if (!ready || !pattern || !settings || playerRef.current) return;
-    const plan = planVoice(settings, getVoiceClips(), pattern, lengthSec);
-    if (plan.kind !== 'voice') return;
-    const track = writeBreathTrack(plan.schedule, plan.clips);
-    if (!track.ok) return;
-    trackNameRef.current = track.name;
-    try {
-      playerRef.current = createAudioPlayer({ uri: track.uri }, { updateInterval: 500 });
-    } catch {
-      deleteBreathTrack(track.name);
-      trackNameRef.current = null;
-    }
+    let cancelled = false;
+    (async () => {
+      const clips = settings.voice ? await loadVoiceClips() : null;
+      if (cancelled || playerRef.current) return;
+      const plan = planVoice(settings, clips, pattern, lengthSec);
+      if (plan.kind !== 'voice') return;
+      const track = writeBreathTrack(plan.schedule, plan.clips);
+      if (!track.ok) return;
+      trackNameRef.current = track.name;
+      try {
+        playerRef.current = createAudioPlayer({ uri: track.uri }, { updateInterval: 500 });
+      } catch {
+        deleteBreathTrack(track.name);
+        trackNameRef.current = null;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, pattern, settings, lengthSec, trackNameRef]);
 
   // Released when the screen closes (the file is deleted by the screen).

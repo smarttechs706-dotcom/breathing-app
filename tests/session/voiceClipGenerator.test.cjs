@@ -157,7 +157,11 @@ test('safety: never writes into the repo assets folder (any spelling of the path
     assert.equal(r.code, 2, dir);
     assert.equal(r.calls.length, 0, `${dir}: nothing sent`);
   }
-  assert.equal(fs.existsSync(path.join(repo, 'assets/audio/voice')), false, 'no voice folder was created');
+  // assets/audio/voice holds only the import's output (44 clips and SOURCE.json),
+  // never the generator's (no manifest.json from a generator run).
+  if (fs.existsSync(path.join(repo, 'assets/audio/voice'))) {
+    assert.ok(!fs.existsSync(path.join(repo, 'assets/audio/voice/manifest.json')), 'no generator output in the app assets');
+  }
   assert.equal(gen.isForbiddenOutDir(path.join(repo, 'assets-review')), false, 'a sibling name is fine');
   assert.equal(gen.isForbiddenOutDir(os.tmpdir()), false);
 });
