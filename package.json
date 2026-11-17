@@ -48,6 +48,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "check:auth": "node scripts/check-auth-rules.mjs",
+    "check:voice-release": "node scripts/check-voice-release.mjs",
     "test:auth": "node --test \"tests/auth/*.test.cjs\""
   },
   "private": true

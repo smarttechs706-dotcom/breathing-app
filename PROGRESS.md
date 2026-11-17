@@ -5271,6 +5271,12 @@ Release list, in order:
 8. Recheck npm audit before the store build.
 9. iPhone round.
 
+Must pass before any store build (voice guidance):
+- `npm run check:voice-release`: fails unless assets/audio/voice/SOURCE.json
+  says tier "paid" and all 44 clips are present. It is its own command, not
+  part of the normal test run. To pass it:
+  regenerate the 44 clips on the pay-as-you-go tier and import with --tier paid
+
 ## Custom breathing pattern, app side (2026-11-16, branch feat/media-backgrounds)
 - ced5c11 (Part 1): length chooser 2, 3, 5 and 10 min on every session
   (replaces the "5 MIN SESSION" badge); the check-in sends `durationSec`,
@@ -5309,8 +5315,9 @@ Plan approved 2026-11-17, then narrowed the same day to voice only:
   short cue ("Breathe in", "Hold", "Breathe out", "Rest") when the sentence
   does not fit the phase with 300 ms to spare. Never over the next phase.
 - 44 pre-recorded clips (40 sentences: in 2-10, hold 1-10, out 2-12, rest
-  1-10; plus 4 cues), 16-bit mono 22.05 kHz WAV. The voice is not chosen yet;
-  everything is built and tested with synthetic beeps; no audio in the repo.
+  1-10; plus 4 cues), 16-bit mono 22.05 kHz WAV. The voice is Azure
+  en-US-CoraMultilingualNeural (chosen 2026-11-17); the code is tested with
+  synthetic beeps.
 - No tones (decided 2026-11-17): the track is silence plus the voice clips.
   Music may come later as a separate layer.
 - Settings: only "Voice guidance" on/off; it speaks at every breath. Off means
@@ -5334,9 +5341,18 @@ Open items (voice):
 - Tone samples were rejected (pitch glides sounded like a siren or race car);
   three later candidates (swelling pad, soft bell, both) were not chosen
   either. None of them are in the repo.
-- Choose the voice (and its commercial rights) and record or generate the 44
-  clips.
+- Voice chosen 2026-11-17: Azure en-US-CoraMultilingualNeural. Licensing:
+  commercial use needs the paid (pay-as-you-go) tier, so store builds must use
+  clips made on it (the release gate below); disclose that the voice is
+  synthetic.
 - When background playback lands: PROGRESS note on screen-off time counting.
+- Voice is Azure en-US-CoraMultilingualNeural (rate -15%). Clips are made
+  with scripts/generate-voice-clips.mjs and imported with
+  scripts/import-voice-clips.mjs (trailing silence trimmed to 120 ms, leading
+  silence kept for now; decide after hearing it on the phone).
+- Release gate (`npm run check:voice-release` must pass before any store
+  build):
+  regenerate the 44 clips on the pay-as-you-go tier and import with --tier paid
 - Home's ambient loop and the voice must never overlap. Home already plays
   assets/audio/home-ambient-loop.m4a (from f50b0bf, useHomeAmbientSound.ts;
   that file is not to be changed). Today it stops (pause and release, no
