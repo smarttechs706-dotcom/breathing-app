@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../src/api/client';
 import { useAuth } from '../src/auth/AuthProvider';
 import { useSingleFlight } from '../src/auth/useSingleFlight';
+import { PillSwitch } from '../src/components/PillSwitch';
 import { PreviewGlass } from '../src/features/home/PreviewGlass';
 import { accents, text } from '../src/features/home/styles';
 import {
@@ -32,12 +33,14 @@ import {
   deleteMyData,
   showDeleted,
 } from '../src/utils/deleteMyData';
+import { DEFAULT_AUDIO_SETTINGS, type AudioSettings } from '../src/features/session/audio/schedule';
+import { getAudioSettings, saveAudioSettings } from '../src/state/audioSettings';
 import { colors, spacing, typography } from '../src/theme/tokens';
 
-// Settings: account actions and About, styled like Profile (navy backdrop,
-// glass cards, icon rows). The name is shown on Profile and can no longer be
-// edited; the daily reminder lives on its own screen (app/reminder.tsx),
-// opened from Profile.
+// Settings: account actions, Voice guidance and About, styled like Profile
+// (navy backdrop, glass cards, icon rows). The name is shown on Profile and can
+// no longer be edited; the daily reminder lives on its own screen
+// (app/reminder.tsx), opened from Profile.
 
 const APP_VERSION = Constants.expoConfig?.version ?? '';
 const CARD_RADIUS = 16;
@@ -63,6 +66,11 @@ function confirmSignOut(): Promise<boolean> {
     );
   });
 }
+
+// Voice guidance (src/state/audioSettings.ts): the helper line under the
+// switch, also the screen reader hint.
+const VOICE_GUIDANCE_LABEL = 'Voice guidance';
+const VOICE_GUIDANCE_HELP = 'A calm voice guides each breath, so your eyes can stay closed.';
 
 const PHOTO_UNSAVED_TITLE = "Your new photo hasn't been saved online yet.";
 const PHOTO_UNSAVED_MESSAGE = 'Sign out anyway? The photo will be lost.';
@@ -93,6 +101,28 @@ export default function SettingsScreen() {
   const leaving = useSingleFlight();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // null while the saved value is read (the switch waits, so it never flips).
+  const [audio, setAudio] = useState<AudioSettings | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAudioSettings().then((s) => {
+      if (!cancelled) setAudio(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Shows the new value at once; if it cannot be saved, it goes back.
+  async function toggleVoice() {
+    if (!audio) return;
+    const previous = audio;
+    const next = { ...audio, voice: !audio.voice };
+    setAudio(next);
+    if (!(await saveAudioSettings(next))) setAudio(previous);
+  }
+  const voiceOn = (audio ?? DEFAULT_AUDIO_SETTINGS).voice;
 
   // The route guards go to Log in once the session is gone, so nothing
   // navigates here.
@@ -191,6 +221,27 @@ export default function SettingsScreen() {
           </PreviewGlass>
 
           <PreviewGlass radius={CARD_RADIUS}>
+            {/* The whole row is the switch: one target, read as "Voice
+                guidance, switch, on" with the helper line as its hint. */}
+            <Pressable
+              onPress={toggleVoice}
+              disabled={audio === null}
+              accessibilityRole="switch"
+              accessibilityLabel={VOICE_GUIDANCE_LABEL}
+              accessibilityHint={VOICE_GUIDANCE_HELP}
+              accessibilityState={{ checked: voiceOn, disabled: audio === null }}
+              style={({ pressed }) => [styles.row, styles.rowTall, pressed && styles.rowPressed]}
+            >
+              <Ionicons name="mic-outline" size={22} color={colors.onSurfaceVariant} />
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabelText}>{VOICE_GUIDANCE_LABEL}</Text>
+                <Text style={styles.rowHelp}>{VOICE_GUIDANCE_HELP}</Text>
+              </View>
+              <PillSwitch value={voiceOn} />
+            </Pressable>
+          </PreviewGlass>
+
+          <PreviewGlass radius={CARD_RADIUS}>
             <Pressable
               onPress={handleDeleteAccount}
               disabled={deleting}
@@ -282,6 +333,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowValue: {
+    ...text.body,
+    color: colors.onSurfaceVariant,
+  },
+  // A row with a label and a helper line under it (Voice guidance).
+  rowTall: {
+    paddingVertical: spacing.base * 1.5,
+  },
+  rowText: {
+    flex: 1,
+    gap: spacing.base * 0.5,
+  },
+  rowLabelText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+  },
+  rowHelp: {
     ...text.body,
     color: colors.onSurfaceVariant,
   },

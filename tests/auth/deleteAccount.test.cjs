@@ -18,6 +18,9 @@ function setup({ deleteFails = false, cancelOk = true } = {}) {
       '../features/profile/profilePhotoStore': {
         forgetProfilePhoto: async (userId) => events.push(`photo ${userId}`),
       },
+      '../state/audioSettings': {
+        clearAudioSettings: async () => events.push('voice setting'),
+      },
       '../features/session/lastPatternStore': {
         clearLastPattern: async (userId) => events.push(`last pattern ${userId}`),
       },
@@ -43,6 +46,7 @@ test('a delete clears local data after the server, and leaves onboarding alone',
     'sessions',
     'photo user-1234-abcd',
     'last pattern user-1234-abcd',
+    'voice setting',
   ]);
 });
 

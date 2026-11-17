@@ -3,6 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { deleteUserData } from '../api/client';
 import { forgetProfilePhoto } from '../features/profile/profilePhotoStore';
 import { clearLastPattern } from '../features/session/lastPatternStore';
+import { clearAudioSettings } from '../state/audioSettings';
 import { clearCachedSessions } from '../state/sessionsCache';
 import { applyReminderSchedule, clearReminderSettings } from './reminders';
 
@@ -92,6 +93,8 @@ export async function deleteMyData(userId?: string | null): Promise<DeleteResult
     () => forgetProfilePhoto(userId),
     // This account's last custom pattern (phone only; sign-out keeps it).
     () => clearLastPattern(userId),
+    // Voice guidance on/off (this phone; sign-out keeps it).
+    clearAudioSettings,
   ];
   for (const clear of clears) {
     try {
