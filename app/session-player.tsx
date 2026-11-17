@@ -39,6 +39,7 @@ import {
   customSession,
   defaultLengthFor,
 } from '../src/features/session/customPattern';
+import { deleteBreathTrack } from '../src/features/session/audio/trackFiles';
 import { rememberLastPattern } from '../src/features/session/lastPatternStore';
 import { MoodGlyph, MoodScale } from '../src/features/session/MoodScale';
 import { BackdropSpacer, PhaseTransition, SessionBackdrop } from '../src/features/session/SessionBackdrop';
@@ -232,6 +233,18 @@ export default function SessionPlayerScreen() {
     return () => setActiveSessionId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // The session's voice track file, once one is baked (set in the next step);
+  // deleted when this screen closes, however it closes (Done, X, Back, or
+  // the screen going away). Leftovers are cleared at app start.
+  const trackNameRef = useRef<string | null>(null);
+  useEffect(
+    () => () => {
+      deleteBreathTrack(trackNameRef.current);
+      trackNameRef.current = null;
+    },
+    []
+  );
 
   const [phase, setPhase] = useState<Phase>('pre-mood');
   // D-10: no default — null until the user actually picks a mood, so an

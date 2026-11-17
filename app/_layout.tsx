@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getApiBaseUrl } from '../src/api/client';
 import { AuthProvider, useAuth } from '../src/auth/AuthProvider';
+import { clearBreathTracks } from '../src/features/session/audio/trackFiles';
 import { ActiveSessionProvider } from '../src/state/ActiveSessionContext';
 import { colors, fontFamilies } from '../src/theme/tokens';
 import { removeLegacyIdentity } from '../src/utils/legacyCleanup';
@@ -87,6 +88,8 @@ export default function RootLayout() {
     initNotificationHandler();
     initNotificationChannel();
     void removeLegacyIdentity();
+    // Voice tracks left from a crash or a killed app (never throws).
+    clearBreathTracks();
   }, []);
 
   // A font that fails to load must not leave the app on a blank screen: with
