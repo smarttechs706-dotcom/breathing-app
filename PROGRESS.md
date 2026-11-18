@@ -5354,6 +5354,23 @@ Open items (voice):
   notification or lock screen, calls and other apps move the screen's pause
   state with the voice; a track that ended while away shows Session Complete
   on return. (Needs the new development build to try on the phone.)
+- Phone test results, voice step 6 (2026-11-18, Xiaomi, new development
+  build 638ded54, commit 932bd70):
+  - Passed: the voice keeps playing with the screen off. The lock screen
+    card shows the session title and "Breathease"; pause and play from it
+    work and agree with the circle. A 10-minute session with the screen off
+    passed with nothing else open.
+  - With YouTube and TikTok opened mid-session, the voice paused and Android
+    then killed the app for low memory (exit reason LOW_MEMORY, about 470 to
+    580 MB, foreground service running), no crash. The session is lost when
+    that happens (accepted for now). Repeat on the preview build to compare
+    memory with a release build.
+  - First install attempt: the phone still had the 2026-11-16 development
+    build, so the playback service could not bind (Metro log "Failed to start
+    the expo-audio playback service"); fixed by installing build 638ded54.
+  - Not yet tested: a real phone call, an alarm, headphones unplugged,
+    swiping the app away, MIUI battery saver, and the background video's own
+    media session (ExpoVideoBasicMediaSession is active alongside the voice's).
 - Voice is Azure en-US-CoraMultilingualNeural (rate -15%). Clips are made
   with scripts/generate-voice-clips.mjs and imported with
   scripts/import-voice-clips.mjs (trailing silence trimmed to 120 ms, leading
