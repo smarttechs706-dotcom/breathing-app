@@ -189,54 +189,97 @@ test('plan: Voice guidance off, or no clips, means no track (silent breathing, s
   assert.equal(on.clips, clips.clips);
 });
 
-test('sync: start and resume line the audio up with the clock; a drift over 250 ms is corrected; stop pauses', () => {
-  assert.equal(sync.DRIFT_MS, 250);
-  const s = (want, playing, audioMs, clockMs) => sync.syncStep({ want, playing, audioMs, clockMs });
-  assert.deepEqual(s(true, false, 0, 0), { seekMs: 0, play: true }, 'Begin');
-  assert.deepEqual(s(true, false, 12000, 30500), { seekMs: 30500, play: true }, 'resume after pause: from the clock');
-  assert.deepEqual(s(true, true, 30600, 30500), {}, 'within 250 ms: leave it');
-  assert.deepEqual(s(true, true, 30751, 30500), { seekMs: 30500 }, 'drifted ahead');
-  assert.deepEqual(s(true, true, 30000, 30500), { seekMs: 30500 }, 'drifted behind');
-  assert.deepEqual(s(false, true, 30500, 30500), { pause: true }, 'pause, Settings, background, end');
-  assert.deepEqual(s(false, false, 30500, 30500), {});
-  assert.deepEqual(s(true, false, 0, -5), { seekMs: 0, play: true });
-});
-
-// --- Wiring --------------------------------------------------------------------------
-
-test('player: bakes while the mood is picked, follows the running clock, stops at Session Complete', () => {
-  const player = read('app/session-player.tsx');
-  const call = player.slice(player.indexOf('useSessionVoice({'), player.indexOf('});', player.indexOf('useSessionVoice({')));
+test('player: the voice drives the clock when it plays; otherwise the session clock exactly as before', () => {
+  const src = read('app/session-player.tsx');
+  const call = src.slice(src.indexOf('const voice = useSessionVoice({'), src.indexOf('});', src.indexOf('const voice = useSessionVoice({')));
   for (const line of [
     'pattern: session?.phaseConfig ?? null,',
     'lengthSec,',
+    'sessionTitle: session?.title ?? null,',
     'ready: session !== null,',
-    'breathing: running && elapsedMs < endMs,',
+    "started: phase === 'active',",
+    "want: phase === 'active' && !paused && isFocused,",
     "finished: phase === 'post-mood',",
     'clockMs: elapsedMs,',
+    'endMs,',
     'trackNameRef,',
+    'onExternalPause: () => setPaused(true),',
+    'onExternalResume: () => setPaused(false),',
   ]) assert.ok(call.includes(line), line);
-  // The clock and its screen-off rule are unchanged (the app in the foreground).
-  assert.ok(player.includes("const running = phase === 'active' && !paused && isFocused && appActive;"));
-  assert.ok(player.indexOf('useSessionVoice({') < player.indexOf('if (!isCustom && fetchError) {'), 'before any early return');
-  assert.ok(!/from 'expo-audio'/.test(player), 'audio stays in the hook');
+  // The voice failing mid-session: the session clock carries on from there.
+  assert.ok(src.includes('clockRef.current = { ...INITIAL_CLOCK, accumulatedMs: ms };'));
+  // Screen-off time counts only while the voice drives.
+  assert.ok(src.includes("const running = phase === 'active' && !paused && isFocused && (voice.driving || appActive);"));
+  // One clock: the voice's position while driving, else the session clock
+  // (which only runs, and only beats, when the voice is not driving).
+  const effect = src.slice(src.indexOf('const fromVoice = voice.driving;'), src.indexOf('}, [running, session, endMs, voice.driving, voice.readElapsedMs, appActive]);'));
+  assert.ok(effect.includes('if (!fromVoice) clockRef.current = setClockRunning(clockRef.current, running, Date.now());'));
+  assert.ok(effect.includes('? (voice.readElapsedMs() ?? clockElapsedMs(clockRef.current, Date.now()))'));
+  assert.ok(effect.includes(': clockElapsedMs(clockRef.current, Date.now());'));
+  assert.ok(effect.includes('if (!fromVoice) clockRef.current = clockBeat(setClockRunning(clockRef.current, true, now), now);'));
+  assert.ok(src.includes('}, [running, session, endMs, voice.driving, voice.readElapsedMs, appActive]);'), 're-read on returning to the app');
+  // The AppState listener still stops the session clock in the background (F-02).
+  assert.ok(src.includes("if (s !== 'active') clockRef.current = setClockRunning(clockRef.current, false, Date.now());"));
+  // The end (also after a track that ended while away) is the same check as before.
+  assert.ok(src.includes("if (phase === 'active' && elapsedMs >= endMs) {"));
+  // The hook comes before `running` and before any early return; no audio code here.
+  assert.ok(src.indexOf('const voice = useSessionVoice({') < src.indexOf('const running = '));
+  assert.ok(src.indexOf('const voice = useSessionVoice({') < src.indexOf('if (!isCustom && fetchError) {'));
+  assert.ok(!/from 'expo-audio'/.test(src), 'audio stays in the hook');
+  // Keep-awake while breathing, as today.
+  assert.ok(src.includes('activateKeepAwakeAsync(KEEP_AWAKE_TAG)'));
 });
 
-test('hook: doNotMix (foreground only) before the first sound; released at the end and on close; failures stay silent', () => {
+test('hook: hand-over at Begin with doNotMix, background and silent-mode audio, and the lock screen controls', () => {
   const src = read('src/features/session/audio/useSessionVoice.ts');
-  assert.ok(src.includes("setAudioModeAsync({ interruptionMode: 'doNotMix', shouldPlayInBackground: false, playsInSilentMode: true })"));
-  // No sound before the mode is set: `want` needs it.
-  assert.ok(src.includes('want: latest.current.breathing && modeSet.current && p.isLoaded,'));
-  assert.ok(src.includes('const clips = settings.voice ? await loadVoiceClips() : null;'), 'off: no clips are even loaded');
-  assert.ok(src.includes('if (cancelled || playerRef.current) return;'), 'closed while loading: nothing written');
-  assert.ok(src.includes('const plan = planVoice(settings, clips, pattern, lengthSec);'));
-  assert.ok(src.includes("if (plan.kind !== 'voice') return;"), 'off or no clips: nothing');
-  assert.ok(src.includes('if (!track.ok) return;'), 'a failed write: nothing');
-  assert.ok(src.includes('trackNameRef.current = track.name;'), 'the screen deletes the file on close');
-  assert.ok(src.includes('if (finished) release(playerRef);'));
-  assert.ok(/useEffect\(\s*\(\) => \(\) => \{\s*release\(playerRef\);\s*\},\s*\[\]\s*\);/.test(src));
-  assert.ok(!/shouldPlayInBackground: true|setActiveForLockScreen/.test(src), 'background playback is step 6');
+  const begin = src.slice(src.indexOf("if (!started || handover.current !== 'idle') return;"), src.indexOf('// While driving: play or pause'));
+  // Not ready at Begin: silent on the existing clock for the whole session.
+  assert.ok(begin.includes("if (!p || !p.isLoaded) {\n      handover.current = 'skipped';"));
+  // In this order: audio mode, controls, the track at the clock's position, then driving.
+  const order = [
+    'await setAudioModeAsync(VOICE_AUDIO_MODE);',
+    'p.setActiveForLockScreen(true, lockScreenMetadata(sessionTitle), LOCK_SCREEN_OPTIONS);',
+    'await p.seekTo(Math.max(0, latest.current.clockMs) / 1000);',
+    'setDriving(true);',
+  ].map((l) => {
+    const at = begin.indexOf(l);
+    assert.ok(at >= 0, l);
+    return at;
+  });
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  // Setup failing: no voice, controls removed (release), the clock carries on.
+  assert.ok(begin.includes("} catch {\n        // Setup failed: no voice this session, the existing clock keeps going.\n        handover.current = 'skipped';\n        release(playerRef);"));
+  // Removed at Session Complete and when the screen closes (Done, X, Back).
+  assert.ok(src.includes('if (!finished) return;\n    finishedFlag.current = true;\n    setDriving(false);\n    release(playerRef);'));
+  assert.ok(/useEffect\(\s*\(\) => \(\) => \{\s*finishedFlag\.current = true;\s*release\(playerRef\);\s*\},\s*\[\]\s*\);/.test(src));
+  const rel = src.slice(src.indexOf('function release('));
+  assert.ok(rel.includes('p.setActiveForLockScreen(false);'));
+  assert.ok(rel.indexOf('p.pause();') < rel.indexOf('p.setActiveForLockScreen(false);'));
+  assert.ok(rel.indexOf('p.setActiveForLockScreen(false);') < rel.indexOf('p.remove();'));
+  // Off, or no clips: nothing is even loaded or baked.
+  assert.ok(src.includes('const clips = settings.voice ? await loadVoiceClips() : null;'));
+  assert.ok(src.includes("if (plan.kind !== 'voice') return;"));
+  assert.ok(src.includes('if (!track.ok) return;'));
   assert.ok(!/[–—]|\p{Extended_Pictographic}/u.test(src));
+});
+
+test('hook: outside plays and pauses reach the screen; the end and errors are handled', () => {
+  const src = read('src/features/session/audio/useSessionVoice.ts');
+  const listener = src.slice(src.indexOf("p.addListener('playbackStatusUpdate'"), src.indexOf('return () => sub.remove();'));
+  assert.ok(listener.includes('if (trackFinished(positionMs, end, !!status.didJustFinish)) trackEnded.current = true;'));
+  assert.ok(listener.includes('const change = externalChange({'));
+  assert.ok(listener.includes('latest.current.onExternalPause();'));
+  assert.ok(listener.includes('latest.current.onExternalResume();'));
+  // An error mid-session: stop driving, release, give the clock back at the voice's position.
+  assert.ok(listener.includes('setDriving(false);\n        release(playerRef);\n        latest.current.onFallback(at);'));
+  // The app's own play and pause, from what the session wants (not the app being in front).
+  assert.ok(src.includes('const cmd = playerCommand(want, p.playing);'));
+  assert.ok(src.includes('commanded.current = { want, at: Date.now() };'));
+  // The clock while driving: the live position, or exactly the end once finished.
+  const read_ = src.slice(src.indexOf('const readElapsedMs = useCallback('));
+  assert.ok(read_.includes('if (trackEnded.current) return end;'));
+  assert.ok(read_.includes('const positionMs = p.currentTime * 1000;'));
+  assert.ok(read_.includes('return voiceElapsedMs(positionMs, end);'));
 });
 
 test('Home: the ambient loop never plays while a session is open, and never sets the audio mode then', () => {

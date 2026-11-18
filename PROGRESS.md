@@ -5345,7 +5345,15 @@ Open items (voice):
   commercial use needs the paid (pay-as-you-go) tier, so store builds must use
   clips made on it (the release gate below); disclose that the voice is
   synthetic.
-- When background playback lands: PROGRESS note on screen-off time counting.
+- Screen-off time (voice step 6, 2026-11-18): with Voice guidance on and the
+  voice playing, the player's position is the session's one clock, so time
+  with the screen off or the app in the background counts: it is observed
+  through the player. With Voice guidance off, or when no voice plays (no
+  clips, not ready at Begin, setup failing), the session clock works exactly
+  as before and unobserved time never counts (F-02). Pause and play from the
+  notification or lock screen, calls and other apps move the screen's pause
+  state with the voice; a track that ended while away shows Session Complete
+  on return. (Needs the new development build to try on the phone.)
 - Voice is Azure en-US-CoraMultilingualNeural (rate -15%). Clips are made
   with scripts/generate-voice-clips.mjs and imported with
   scripts/import-voice-clips.mjs (trailing silence trimmed to 120 ms, leading

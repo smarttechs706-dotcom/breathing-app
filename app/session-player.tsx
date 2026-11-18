@@ -305,21 +305,58 @@ export default function SessionPlayerScreen() {
     return () => sub.remove();
   }, []);
 
-  const running = phase === 'active' && !paused && isFocused && appActive;
+  // The session ends at the last whole out-breath that fits its length
+  // (sessionSeconds).
+  const endMs = session ? sessionSeconds(session.phaseConfig, lengthSec) * 1000 : 0;
+
+  // Voice guidance (voice step 6). With Voice guidance on and the track ready
+  // at Begin, the voice drives: the player's position is this screen's clock,
+  // so time with the screen off or the app in the background counts (it is
+  // observed through the player). A play or pause from the notification, lock
+  // screen, a call or another app sets `paused`, so the circle, the pause
+  // button and the voice agree. Voice guidance off, no clips, or a failing
+  // setup: no sound and the existing clock below, exactly as before
+  // (unobserved time never counts). See useSessionVoice and voiceClock.
+  const voice = useSessionVoice({
+    pattern: session?.phaseConfig ?? null,
+    lengthSec,
+    sessionTitle: session?.title ?? null,
+    ready: session !== null,
+    started: phase === 'active',
+    want: phase === 'active' && !paused && isFocused,
+    finished: phase === 'post-mood',
+    clockMs: elapsedMs,
+    endMs,
+    trackNameRef,
+    onExternalPause: () => setPaused(true),
+    onExternalResume: () => setPaused(false),
+    // The voice stopped mid-session: the existing clock carries on from the
+    // voice's position, silently.
+    onFallback: (ms) => {
+      clockRef.current = { ...INITIAL_CLOCK, accumulatedMs: ms };
+      setElapsedMs(ms);
+    },
+  });
+
+  // With the voice driving, the app being in the background does not stop the
+  // session; without it, backgrounding pauses as before.
+  const running = phase === 'active' && !paused && isFocused && (voice.driving || appActive);
 
   // ONE clock drives the breathing screen: the phase word, the line under it,
   // the circle and the end are all derived from this breathed time
   // (breathPattern.breathAt), so they can never drift apart, also across
-  // pause, Settings and backgrounding (the clock only runs while `running`).
-  // The session ends at the last whole out-breath that fits its length
-  // (sessionSeconds). Instead of a fixed interval, the next update is
-  // scheduled for the next phase change, the next whole second or the end.
-  const endMs = session ? sessionSeconds(session.phaseConfig, lengthSec) * 1000 : 0;
-
+  // pause, Settings and backgrounding. It reads the voice's position while the
+  // voice drives, else the session clock (which only runs while `running`).
+  // Instead of a fixed interval, the next update is scheduled for the next
+  // phase change, the next whole second or the end; returning to the app reads
+  // it again at once (a track that ended while away shows Session Complete).
   useEffect(() => {
-    clockRef.current = setClockRunning(clockRef.current, running, Date.now());
+    const fromVoice = voice.driving;
+    if (!fromVoice) clockRef.current = setClockRunning(clockRef.current, running, Date.now());
     const read = () => {
-      const ms = clockElapsedMs(clockRef.current, Date.now());
+      const ms = fromVoice
+        ? (voice.readElapsedMs() ?? clockElapsedMs(clockRef.current, Date.now()))
+        : clockElapsedMs(clockRef.current, Date.now());
       return endMs > 0 ? Math.min(ms, endMs) : ms;
     };
     if (!running || !session) {
@@ -329,12 +366,12 @@ export default function SessionPlayerScreen() {
     }
     let id: ReturnType<typeof setTimeout> | undefined;
     const tick = () => {
-      // Heartbeat: time is only counted up to the last beat after a gap
-      // (sessionClock.beat), so unobserved time never counts. Starting is
-      // idempotent and covers a stop by the AppState listener above that
-      // React merged with the return to the foreground.
+      // Heartbeat (session clock only): time is only counted up to the last
+      // beat after a gap (sessionClock.beat), so unobserved time never counts.
+      // Starting is idempotent and covers a stop by the AppState listener above
+      // that React merged with the return to the foreground.
       const now = Date.now();
-      clockRef.current = clockBeat(setClockRunning(clockRef.current, true, now), now);
+      if (!fromVoice) clockRef.current = clockBeat(setClockRunning(clockRef.current, true, now), now);
       const ms = read();
       setElapsedMs(ms);
       if (ms >= endMs) return;
@@ -345,20 +382,7 @@ export default function SessionPlayerScreen() {
     return () => {
       if (id !== undefined) clearTimeout(id);
     };
-  }, [running, session, endMs]);
-
-  // Voice guidance (foreground only for now): bakes the track while the user
-  // picks a mood and follows this clock; off, or no clips, means silent
-  // breathing with exactly this timing. See useSessionVoice.
-  useSessionVoice({
-    pattern: session?.phaseConfig ?? null,
-    lengthSec,
-    ready: session !== null,
-    breathing: running && elapsedMs < endMs,
-    finished: phase === 'post-mood',
-    clockMs: elapsedMs,
-    trackNameRef,
-  });
+  }, [running, session, endMs, voice.driving, voice.readElapsedMs, appActive]);
 
   // Keep the display awake only while the session is actually running (and
   // release on pause / exit / finish / unmount), so a screen timeout can't

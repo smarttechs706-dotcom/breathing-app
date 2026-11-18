@@ -1,51 +1,79 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
-import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import type { BreathPattern } from '../breathPattern';
 import { getAudioSettings } from '../../../state/audioSettings';
 import type { AudioSettings } from './schedule';
 import { deleteBreathTrack, writeBreathTrack } from './trackFiles';
 import { loadVoiceClips } from './voiceClips';
-import { planVoice, syncStep } from './voiceSync';
+import {
+  externalChange,
+  LOCK_SCREEN_OPTIONS,
+  lockScreenMetadata,
+  playerCommand,
+  trackFinished,
+  VOICE_AUDIO_MODE,
+  voiceElapsedMs,
+} from './voiceClock';
+import { planVoice } from './voiceSync';
 
-// Voice guidance in the session player (step 5: foreground only).
+// Voice guidance in the session player (voice step 6: background playback).
 // - While the user picks a mood, the session's track is baked (trackFiles) if
-//   Voice guidance is on and clips exist; otherwise nothing happens and the
-//   session breathes silently with its existing timing.
-// - The existing session clock stays in charge: the audio is lined up with it
-//   on every start and resume, and moved back if it drifts (voiceSync). It
-//   pauses whenever the clock stops (pause, Settings, background), so the
-//   screen-off rule is unchanged for now (background playback is step 6).
-// - Before the first sound, the audio mode is set to doNotMix (other apps
-//   pause) without background playback. Home's ambient loop is already off:
-//   it never plays while a session is open (useHomeAmbientSound).
-// - The player is released when the session completes or the screen closes;
-//   the track file is deleted by the screen (trackNameRef) on close.
-// Nothing here throws into the screen: every failure means silent breathing.
+//   Voice guidance is on and clips exist.
+// - At Begin, if the track is ready: the audio mode is set (doNotMix, playing
+//   in the background and on silent), the notification and lock screen
+//   controls appear (session title, "Breathease", no artwork, no seeking), the
+//   track starts at the session clock's position, and from then on the
+//   player's position is the session's one clock (`driving`). Screen-off and
+//   background time count, because they are observed through the player.
+// - Otherwise (Voice guidance off, no clips, not ready, or setup failing) the
+//   session breathes silently on the existing clock, exactly as before.
+// - A play or pause from outside the app (notification, lock screen, a call,
+//   another app) is passed to the screen, so its pause state, the circle and
+//   the voice agree. A player error hands the clock back to the screen.
+// - At Session Complete, on X and when the screen closes, the controls are
+//   removed and the player released; the screen deletes the track file.
+// Home's ambient loop never plays while a session is open (useHomeAmbientSound).
+// Nothing here throws into the screen.
 
 export function useSessionVoice({
   pattern,
   lengthSec,
+  sessionTitle,
   ready,
-  breathing,
+  started,
+  want,
   finished,
   clockMs,
+  endMs,
   trackNameRef,
+  onExternalPause,
+  onExternalResume,
+  onFallback,
 }: {
   pattern: BreathPattern | null;
   lengthSec: number;
+  sessionTitle: string | null;
   ready: boolean; // the session is resolved (pre-mood screen showing)
-  breathing: boolean; // the session clock is running
+  started: boolean; // Begin was tapped (breathing phase)
+  want: boolean; // breathing, not paused, not covered by Settings
   finished: boolean; // Session Complete
-  clockMs: number;
+  clockMs: number; // the session clock (used once, at the hand-over)
+  endMs: number;
   trackNameRef: MutableRefObject<string | null>;
-}): void {
+  onExternalPause: () => void;
+  onExternalResume: () => void;
+  onFallback: (elapsedMs: number) => void; // the voice stopped driving mid-session
+}): { driving: boolean; readElapsedMs: () => number | null } {
   const [settings, setSettings] = useState<AudioSettings | null>(null);
+  const [driving, setDriving] = useState(false);
   const playerRef = useRef<AudioPlayer | null>(null);
-  const modeSet = useRef(false);
-  const modeRequested = useRef(false);
-  const latest = useRef({ breathing, clockMs });
-  latest.current = { breathing, clockMs };
+  const handover = useRef<'idle' | 'starting' | 'done' | 'skipped'>('idle');
+  const finishedFlag = useRef(false);
+  const trackEnded = useRef(false);
+  const commanded = useRef({ want: false, at: 0 });
+  const latest = useRef({ want, clockMs, endMs, onExternalPause, onExternalResume, onFallback });
+  latest.current = { want, clockMs, endMs, onExternalPause, onExternalResume, onFallback };
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +100,7 @@ export function useSessionVoice({
       if (!track.ok) return;
       trackNameRef.current = track.name;
       try {
-        playerRef.current = createAudioPlayer({ uri: track.uri }, { updateInterval: 500 });
+        playerRef.current = createAudioPlayer({ uri: track.uri }, { updateInterval: 250 });
       } catch {
         deleteBreathTrack(track.name);
         trackNameRef.current = null;
@@ -83,62 +111,138 @@ export function useSessionVoice({
     };
   }, [ready, pattern, settings, lengthSec, trackNameRef]);
 
-  // Released when the screen closes (the file is deleted by the screen).
+  // At Begin: hand the clock to the voice if the track is ready, else carry on
+  // silently on the existing clock for the whole session.
+  useEffect(() => {
+    if (!started || handover.current !== 'idle') return;
+    const p = playerRef.current;
+    if (!p || !p.isLoaded) {
+      handover.current = 'skipped';
+      return;
+    }
+    handover.current = 'starting';
+    (async () => {
+      try {
+        await setAudioModeAsync(VOICE_AUDIO_MODE);
+        p.setActiveForLockScreen(true, lockScreenMetadata(sessionTitle), LOCK_SCREEN_OPTIONS);
+        await p.seekTo(Math.max(0, latest.current.clockMs) / 1000);
+        if (playerRef.current !== p || finishedFlag.current) return;
+        handover.current = 'done';
+        setDriving(true);
+      } catch {
+        // Setup failed: no voice this session, the existing clock keeps going.
+        handover.current = 'skipped';
+        release(playerRef);
+      }
+    })();
+  }, [started, sessionTitle]);
+
+  // While driving: play or pause for what the session wants.
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!driving || !p) return;
+    try {
+      const cmd = playerCommand(want, p.playing);
+      commanded.current = { want, at: Date.now() };
+      if (cmd === 'play') p.play();
+      if (cmd === 'pause') p.pause();
+    } catch {
+      // Handled by the status listener (error) below.
+    }
+  }, [driving, want]);
+
+  // While driving: notice plays and pauses from outside the app, the end of
+  // the track, and errors.
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!driving || !p) return;
+    const sub = p.addListener('playbackStatusUpdate', (status) => {
+      const end = latest.current.endMs;
+      const positionMs = (status.currentTime ?? 0) * 1000;
+      if (trackFinished(positionMs, end, !!status.didJustFinish)) trackEnded.current = true;
+      if (status.error) {
+        // The voice failed mid-session: give the clock back to the screen at
+        // the voice's position and carry on silently.
+        const at = voiceElapsedMs(positionMs, end);
+        setDriving(false);
+        release(playerRef);
+        latest.current.onFallback(at);
+        return;
+      }
+      const change = externalChange({
+        wanted: commanded.current.want,
+        playing: !!status.playing,
+        loaded: !!status.isLoaded,
+        finished: trackEnded.current,
+        msSinceCommand: Date.now() - commanded.current.at,
+      });
+      if (change === 'paused') {
+        commanded.current = { want: false, at: Date.now() };
+        latest.current.onExternalPause();
+      } else if (change === 'resumed') {
+        commanded.current = { want: true, at: Date.now() };
+        latest.current.onExternalResume();
+      }
+    });
+    return () => sub.remove();
+  }, [driving]);
+
+  // Session Complete: controls removed, player released.
+  useEffect(() => {
+    if (!finished) return;
+    finishedFlag.current = true;
+    setDriving(false);
+    release(playerRef);
+  }, [finished]);
+
+  // The screen closes (Done, X, Back): the same; the file is deleted by the screen.
   useEffect(
     () => () => {
+      finishedFlag.current = true;
       release(playerRef);
     },
     []
   );
 
-  // Session Complete: stop and release.
-  useEffect(() => {
-    if (finished) release(playerRef);
-  }, [finished]);
-
-  // Follow the clock on every update.
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || finished) return;
-    const sync = () => {
-      const p = playerRef.current;
-      if (!p) return;
-      try {
-        const step = syncStep({
-          want: latest.current.breathing && modeSet.current && p.isLoaded,
-          playing: p.playing,
-          audioMs: p.currentTime * 1000,
-          clockMs: latest.current.clockMs,
-        });
-        if (step.pause) p.pause();
-        if (step.seekMs !== undefined) void p.seekTo(step.seekMs / 1000).catch(() => {});
-        if (step.play) p.play();
-      } catch {
-        // Player gone or failing: the session keeps breathing silently.
+  // The session's breathed time while driving: the player's live position,
+  // or exactly the end once the track has finished (also when it finished
+  // while the app was away: Session Complete shows on return).
+  const readElapsedMs = useCallback((): number | null => {
+    const end = latest.current.endMs;
+    if (trackEnded.current) return end;
+    const p = playerRef.current;
+    if (!p) return null;
+    try {
+      const positionMs = p.currentTime * 1000;
+      if (trackFinished(positionMs, end, false)) {
+        trackEnded.current = true;
+        return end;
       }
-    };
-    if (breathing && !modeSet.current) {
-      if (!modeRequested.current) {
-        modeRequested.current = true;
-        setAudioModeAsync({ interruptionMode: 'doNotMix', shouldPlayInBackground: false, playsInSilentMode: true })
-          .catch(() => {})
-          .finally(() => {
-            modeSet.current = true;
-            sync();
-          });
-      }
-      return;
+      return voiceElapsedMs(positionMs, end);
+    } catch {
+      return null;
     }
-    sync();
-  }, [breathing, clockMs, finished]);
+  }, []);
+
+  return { driving, readElapsedMs };
 }
 
+// Stop, remove the notification and lock screen controls, release.
 function release(ref: MutableRefObject<AudioPlayer | null>) {
   const p = ref.current;
   ref.current = null;
   if (!p) return;
   try {
     p.pause();
+  } catch {
+    // Already stopped.
+  }
+  try {
+    p.setActiveForLockScreen(false);
+  } catch {
+    // No controls.
+  }
+  try {
     p.remove();
   } catch {
     // Already released.
