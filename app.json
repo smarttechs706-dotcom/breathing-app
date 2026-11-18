@@ -51,7 +51,7 @@
       [
         "expo-audio",
         {
-          "enableBackgroundPlayback": false,
+          "enableBackgroundPlayback": true,
           "recordAudioAndroid": false
         }
       ],

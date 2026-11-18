@@ -151,15 +151,17 @@ test('Home: the hero plays the horizon video in a TextureView (it sits in a Scro
   assert.ok(!/volume-(high|mute|off)|Switch|nativeControls=\{true\}/.test(home + heroSrc));
 });
 
-test('app.json: video and audio plugins with background playback and recording off', () => {
+test('app.json: video without background playback; audio with it (voice, since 2026-11-18); recording off', () => {
   const { expo } = JSON.parse(fs.readFileSync(path.join(repo, 'app.json'), 'utf8'));
   const plugin = (name) => expo.plugins.find((p) => Array.isArray(p) && p[0] === name);
   assert.deepEqual(plugin('expo-video')[1], {
     supportsBackgroundPlayback: false,
     supportsPictureInPicture: false,
   });
-  // expo-audio defaults both of these to true.
-  assert.equal(plugin('expo-audio')[1].enableBackgroundPlayback, false);
+  // expo-audio defaults both of these to true. Background playback is on for
+  // the voice guidance (voice step 6, tests/session/backgroundAudio.test.cjs);
+  // recording stays off.
+  assert.equal(plugin('expo-audio')[1].enableBackgroundPlayback, true);
   assert.equal(plugin('expo-audio')[1].recordAudioAndroid, false);
   assert.ok(expo.android.blockedPermissions.includes('android.permission.RECORD_AUDIO'));
 });

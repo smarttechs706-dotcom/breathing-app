@@ -5353,6 +5353,14 @@ Open items (voice):
 - Release gate (`npm run check:voice-release` must pass before any store
   build):
   regenerate the 44 clips on the pay-as-you-go tier and import with --tier paid
+- Background playback (voice step 6): app.json now has expo-audio
+  enableBackgroundPlayback true (Android: FOREGROUND_SERVICE,
+  FOREGROUND_SERVICE_MEDIA_PLAYBACK and the mediaPlayback service; checked by
+  tests/session/backgroundAudio.test.cjs). iOS: the expo-video plugin keys
+  supportsBackgroundPlayback and supportsPictureInPicture, both false, make
+  that plugin remove "audio" from UIBackgroundModes, which cancels expo-audio's
+  background audio mode. Fix in the iPhone round by removing those two keys
+  from the expo-video entry (Android unaffected: no manifest change).
 - The clips bundled now (assets/audio/voice, committed 2026-11-18) are tier
   free-test: made on the free F0 tier for testing only. Do not give builds
   containing them to other people or to a store before the paid
